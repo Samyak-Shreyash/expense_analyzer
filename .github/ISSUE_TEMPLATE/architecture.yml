@@ -1,0 +1,51 @@
+name: Architecture Decision
+description: Record or investigate an architectural decision
+title: "[ADR] "
+labels:
+  - needs-decision
+
+body:
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: What problem or architectural question are we solving?
+    validations:
+      required: true
+
+  - type: textarea
+    id: options
+    attributes:
+      label: Options Considered
+      placeholder: |
+        1. Option A
+        2. Option B
+        3. Option C
+    validations:
+      required: true
+
+  - type: textarea
+    id: tradeoffs
+    attributes:
+      label: Trade-offs
+    validations:
+      required: true
+
+  - type: textarea
+    id: recommendation
+    attributes:
+      label: Recommendation
+    validations:
+      required: true
+
+  - type: textarea
+    id: consequences
+    attributes:
+      label: Consequences
+      description: What does this decision make easier/harder?
+
+  - type: textarea
+    id: followup
+    attributes:
+      label: Follow-up Work
+      description: List implementation tasks resulting from this decision.

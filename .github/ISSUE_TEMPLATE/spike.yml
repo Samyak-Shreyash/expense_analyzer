@@ -1,0 +1,37 @@
+name: Technical Spike
+description: Investigate an unknown before committing to implementation
+title: "[SPIKE] "
+labels:
+  - needs-decision
+
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+    validations:
+      required: true
+
+  - type: textarea
+    id: hypothesis
+    attributes:
+      label: Current Hypothesis
+
+  - type: textarea
+    id: investigation
+    attributes:
+      label: Investigation Plan
+    validations:
+      required: true
+
+  - type: textarea
+    id: success
+    attributes:
+      label: Success Criteria
+    validations:
+      required: true
+
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Outcome

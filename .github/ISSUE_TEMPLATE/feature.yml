@@ -1,0 +1,72 @@
+name: Feature
+description: Create a production-ready feature/task
+title: "[FEATURE] "
+labels:
+  - area:backend
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Feature
+
+        Keep this issue small enough to complete in one focused session.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What problem are we solving?
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed Solution
+      description: What should be implemented?
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: What must be true for this issue to be considered complete?
+      placeholder: |
+        - [ ] ...
+        - [ ] ...
+        - [ ] ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: technical
+    attributes:
+      label: Technical Notes
+      description: Relevant implementation details, APIs, database changes, etc.
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: List blocking issues or architectural dependencies.
+
+  - type: textarea
+    id: testing
+    attributes:
+      label: Testing Requirements
+      description: What tests should be added?
+
+  - type: checkboxes
+    id: definition-of-done
+    attributes:
+      label: Definition of Done
+      options:
+        - label: Implementation complete
+        - label: Unit tests added/updated
+        - label: Integration tests added where appropriate
+        - label: Error handling implemented
+        - label: Documentation updated where required
+        - label: Security considerations reviewed
+        - label: Local verification completed
