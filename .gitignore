@@ -1,0 +1,51 @@
+HELP.md
+
+# Backend Gradle
+/backend/.gradle/
+/backend/build/
+/backend/gradle/wrapper/gradle-wrapper.jar
+!/backend/**/src/main/**/build/
+!/backend/**/src/test/**/build/
+
+# Compiled output
+/backend/bin/
+/backend/out/
+
+# IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# Eclipse / STS
+.classpath
+.factorypath
+.project
+.settings/
+.apt_generated/
+.springBeans
+.sts4-cache
+
+# NetBeans
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+# VS Code
+.vscode/
+
+# Logs
+*.log
+logs/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# OS-generated files
+.DS_Store
+Thumbs.db
+desktop.ini
