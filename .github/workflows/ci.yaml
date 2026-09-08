@@ -40,4 +40,4 @@ jobs:
         uses: gradle/actions/wrapper-validation@v4
 
       - name: Build and test
-        run: ./gradlew clean build --no-daemon
+        run: ./gradlew clean build test --no-daemon
