@@ -4,11 +4,9 @@ on:
   push:
     branches:
       - main
-      - develop
   pull_request:
     branches:
       - main
-      - develop
 
 permissions:
   contents: read
@@ -22,9 +20,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build backend image
-        run: |
-          docker build \
-            --file backend/Dockerfile \
-            --tag expense-analyzer-backend:${{ github.sha }} \
-            backend
+        uses: docker/build-push-action@v7
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          tags: expense-analyzer-backend:${{ github.sha }}
+          push: false
