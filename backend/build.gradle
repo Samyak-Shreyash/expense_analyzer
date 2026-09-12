@@ -18,13 +18,30 @@ repositories {
 }
 
 ext {
-	set('springModulithVersion', "2.1.1")
+    // Centralized version management
+    logstashEncoderVersion = '7.4'
+    openTelemetryVersion = '1.33.0'
+	springModulithVersion = "2.1.1"
 }
 
 dependencies {
-    implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+    // Spring Boot Starters
+    implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.modulith:spring-modulith-starter-core'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+    implementation 'org.springframework.boot:spring-boot-starter-security'
+
+    implementation 'io.micrometer:micrometer-registry-prometheus'
+
+      // Structured JSON Logging
+    implementation "net.logstash.logback:logstash-logback-encoder:${logstashEncoderVersion}"
+
+    // Micrometer Tracing Bridge for OpenTelemetry
+    implementation 'io.micrometer:micrometer-tracing-bridge-otel'
+
+    // OpenTelemetry OTLP Exporter
+    implementation 'io.opentelemetry:opentelemetry-exporter-otlp'
 
     // PostgreSQL
     runtimeOnly 'org.postgresql:postgresql'
@@ -41,12 +58,17 @@ dependencies {
     developmentOnly 'org.springframework.boot:spring-boot-docker-compose'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+    testImplementation 'org.springframework.security:spring-security-test'
     testImplementation 'org.springframework.modulith:spring-modulith-starter-test'
     testRuntimeOnly 'com.h2database:h2'
 
     testCompileOnly 'org.projectlombok:lombok'
     testAnnotationProcessor 'org.projectlombok:lombok'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    // Test observability
+    testImplementation 'io.micrometer:micrometer-observation-test'
+
 }
 
 dependencyManagement {
@@ -57,4 +79,29 @@ dependencyManagement {
 
 tasks.named('test') {
 	useJUnitPlatform()
+}
+
+// Optional local runner for a separately downloaded OpenTelemetry Java agent.
+tasks.register('bootRunWithOtel', JavaExec) {
+    group = 'application'
+    description = 'Run the app with the OpenTelemetry Java agent attached.'
+    dependsOn tasks.named('classes')
+    classpath = sourceSets.main.runtimeClasspath
+    mainClass = 'com.expenseanalyzer.ExpenseanalyzerApplication'
+
+    def agentJar = layout.projectDirectory.file('agents/opentelemetry-javaagent.jar').asFile
+    doFirst {
+        if (!agentJar.isFile()) {
+            throw new GradleException("OpenTelemetry agent not found at ${agentJar}. Download it before running bootRunWithOtel.")
+        }
+    }
+
+    jvmArgs = [
+        "-javaagent:${agentJar}",
+        '-Dotel.service.name=expense-analyzer',
+        '-Dotel.exporter.otlp.endpoint=http://localhost:4317',
+        '-Dotel.traces.exporter=otlp',
+        '-Dotel.metrics.exporter=otlp',
+        '-Dotel.logs.exporter=otlp'
+    ]
 }

@@ -1,13 +1,15 @@
 # ============================================================
 # Stage 1: Build
 # ============================================================
-FROM gradle:8-jdk17 AS build
+FROM gradle:9.1.0-jdk17 AS build
 
 WORKDIR /app
 
 COPY . .
 
-RUN ./gradlew clean bootJar --no-daemon
+# Use the Gradle installed in the build image so the wrapper does not download
+# a separate Gradle distribution during the image build.
+RUN gradle clean bootJar --no-daemon
 
 
 # ============================================================
@@ -25,8 +27,6 @@ COPY --from=build /app/build/libs/*.jar app.jar
 RUN chown appuser:appuser app.jar
 
 USER appuser
-
-EXPOSE 8080
 
 ENTRYPOINT ["java", \
     "-XX:+UseContainerSupport", \

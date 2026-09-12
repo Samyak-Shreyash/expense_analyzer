@@ -1,17 +1,15 @@
 # ============================================================
 # Stage 1: Build
 # ============================================================
-FROM gradle:8-jdk17 AS build
+FROM gradle:9.1.0-jdk17 AS build
 
 WORKDIR /app
 
 COPY . .
 
-RUN ls -la
-RUN test -f ./gradlew
-RUN chmod +x ./gradlew
-
-RUN ./gradlew clean bootJar --no-daemon
+# The image already includes Gradle. Avoid invoking the wrapper here because it
+# downloads its own distribution during every uncached container build.
+RUN gradle clean bootJar --no-daemon
 
 
 # ============================================================
