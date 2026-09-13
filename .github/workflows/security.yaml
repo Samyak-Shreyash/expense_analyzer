@@ -54,13 +54,6 @@ jobs:
         with:
           languages: java
           build-mode: autobuild
-
-      - name: Build with Gradle
-        uses: gradle/gradle-build-action@v3
-        with:
-          gradle-version: '9.x'
-          arguments: build
-
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
         with:
