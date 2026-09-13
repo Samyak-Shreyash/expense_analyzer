@@ -53,9 +53,15 @@ jobs:
         uses: github/codeql-action/init@v4
         with:
           languages: java
-          build-mode: none
+          build-mode: gradle
 
-      - name: Analyze
+      - name: Build with Gradle
+        uses: gradle/gradle-build-action@v3
+        with:
+          gradle-version: '8.x'
+          arguments: build
+
+      - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v4
         with:
           category: "/language:java"
