@@ -1,5 +1,7 @@
 HELP.md
 
+/.claude/*
+
 # Backend Gradle
 /backend/.gradle/
 /backend/build/
