@@ -28,5 +28,5 @@ jobs:
         with:
           context: ./backend
           file: ./backend/Dockerfile
-          tags: expense-analyzer-backend:${{ github.sha }}
+          tags: backend:${{ github.sha }}
           push: false
