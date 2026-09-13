@@ -58,7 +58,7 @@ jobs:
       - name: Build with Gradle
         uses: gradle/gradle-build-action@v3
         with:
-          gradle-version: '8.x'
+          gradle-version: '9.x'
           arguments: build
 
       - name: Perform CodeQL Analysis
