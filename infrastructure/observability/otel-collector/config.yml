@@ -2,21 +2,16 @@ receivers:
   otlp:
     protocols:
       grpc:
-        endpoint: 4317
       http:
-        endpoint: 4318
-  prometheus:
-    endpoint: 0.0.0.0:9464
 exporters:
   otlp/tempo:
-    endpoint: http://localhost:4317/v1/traces
+    endpoint: tempo:4317
     tls:
       insecure: true
   prometheus:
     endpoint: 0.0.0.0:9464
   debug:
     verbosity: basic
-    endpoint: http://localhost:4318/v1/traces
 service:
   pipelines:
     traces:
