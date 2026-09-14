@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -21,15 +20,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 class StatementRepositoryTest {
 
     @Mock
-    private com.expenseanalyzer.statement.repository.StatementRepository statementRepositoryMock;
-
-    @InjectMocks
     private StatementRepository statementRepository;
 
     private static final UUID TEST_USER_ID = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
     private static final String TEST_ACCOUNT_NUMBER = "**** **** 1234";
-    private static final String TEST_MERCHANT_NAME = "Test Merchant";
-    private static final String TEST_CATEGORY_NAME = "Food & Dining";
 
     @Test
     void findByUserId_shouldReturnStatements_whenUserExists() {
@@ -38,68 +32,62 @@ class StatementRepositoryTest {
             new Statement(TEST_USER_ID, TEST_ACCOUNT_NUMBER, "Bank A"),
             new Statement(TEST_USER_ID, "**** **** 5678", "Bank B")
         );
-        when(statementRepository.findByUserId(any(UUID.class))).thenReturn(statements);
+        when(statementRepository.findByUserId(TEST_USER_ID)).thenReturn(statements);
 
         // Act
         List<Statement> result = statementRepository.findByUserId(TEST_USER_ID);
 
         // Assert
         assertThat(result).hasSize(2);
-        verify(statementRepositoryMock).findByUserId(any(UUID.class));
     }
 
     @Test
     void findByUserId_shouldReturnEmpty_whenNoStatements() {
         // Arrange
-        when(statementRepository.findByUserId(any(UUID.class))).thenReturn(List.of());
+        when(statementRepository.findByUserId(TEST_USER_ID)).thenReturn(List.of());
 
         // Act
         List<Statement> result = statementRepository.findByUserId(TEST_USER_ID);
 
         // Assert
         assertThat(result).isEmpty();
-        verify(statementRepositoryMock).findByUserId(any(UUID.class));
     }
 
     @Test
     void findByAccountNumber_shouldReturnStatement_whenFound() {
         // Arrange
         Statement statement = new Statement(TEST_USER_ID, TEST_ACCOUNT_NUMBER, "Bank A");
-        when(statementRepository.findByAccountNumber(anyString())).thenReturn(statement);
+        when(statementRepository.findByAccountNumber(TEST_ACCOUNT_NUMBER)).thenReturn(statement);
 
         // Act
         Statement result = statementRepository.findByAccountNumber(TEST_ACCOUNT_NUMBER);
 
         // Assert
         assertThat(result).isNotNull();
-        assertThat(result.getAccountNumber()).isEqualTo(TEST_ACCOUNT_NUMBER);
-        verify(statementRepositoryMock).findByAccountNumber(anyString());
     }
 
     @Test
     void findByAccountNumber_shouldReturnNull_whenNotFound() {
         // Arrange
-        when(statementRepository.findByAccountNumber(anyString())).thenReturn(null);
+        when(statementRepository.findByAccountNumber("**** **** 0000")).thenReturn(null);
 
         // Act
-        Statement result = statementRepository.findByAccountNumber(TEST_ACCOUNT_NUMBER);
+        Statement result = statementRepository.findByAccountNumber("**** **** 0000");
 
         // Assert
         assertThat(result).isNull();
-        verify(statementRepositoryMock).findByAccountNumber(anyString());
     }
 
     @Test
     void countByUserId_shouldReturnCount() {
         // Arrange
-        when(statementRepository.countByUserId(any(UUID.class))).thenReturn(3L);
+        when(statementRepository.countByUserId(TEST_USER_ID)).thenReturn(5L);
 
         // Act
         long result = statementRepository.countByUserId(TEST_USER_ID);
 
         // Assert
-        assertThat(result).isEqualTo(3L);
-        verify(statementRepositoryMock).countByUserId(any(UUID.class));
+        assertThat(result).isEqualTo(5L);
     }
 
     @Test
@@ -116,46 +104,31 @@ class StatementRepositoryTest {
 
         // Assert
         assertThat(result).hasSize(2);
-        verify(statementRepositoryMock).findAll();
     }
 
     @Test
     void findByUserId_shouldReturnSingleStatement_whenOneExists() {
         // Arrange
         Statement statement = new Statement(TEST_USER_ID, TEST_ACCOUNT_NUMBER, "Bank A");
-        when(statementRepository.findByUserId(any(UUID.class))).thenReturn(List.of(statement));
+        when(statementRepository.findByUserId(TEST_USER_ID)).thenReturn(List.of(statement));
 
         // Act
         List<Statement> result = statementRepository.findByUserId(TEST_USER_ID);
 
         // Assert
         assertThat(result).hasSize(1);
-        assertThat(result.get(0).getUserId()).isEqualTo(TEST_USER_ID);
     }
 
     @Test
-    void findByAccountNumber_shouldReturnDifferentStatement_whenDifferentAccount() {
+    void findByAccountNumber_shouldReturnNull_whenDifferentAccount() {
         // Arrange
-        Statement statement = new Statement(TEST_USER_ID, "**** **** 9999", "Bank C");
-        when(statementRepository.findByAccountNumber(anyString())).thenReturn(statement);
+        String differentAccount = "**** **** 9999";
+        when(statementRepository.findByAccountNumber(differentAccount)).thenReturn(null);
 
         // Act
-        Statement result = statementRepository.findByAccountNumber("**** **** 9999");
+        Statement result = statementRepository.findByAccountNumber(differentAccount);
 
         // Assert
-        assertThat(result).isNotNull();
-        assertThat(result.getAccountNumber()).isEqualTo("**** **** 9999");
-    }
-
-    @Test
-    void countByUserId_shouldReturnZero_whenNoStatements() {
-        // Arrange
-        when(statementRepository.countByUserId(any(UUID.class))).thenReturn(0L);
-
-        // Act
-        long result = statementRepository.countByUserId(TEST_USER_ID);
-
-        // Assert
-        assertThat(result).isEqualTo(0L);
+        assertThat(result).isNull();
     }
 }

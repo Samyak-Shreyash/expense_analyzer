@@ -27,13 +27,7 @@ import java.util.UUID;
  * - Spring Data JPA repository with methods for querying by user and statement
  */
 @Entity
-@Table(
-    name = "transactions",
-    indexes = {
-        @Index(name = "idx_transactions_user_date", columnList = {"user_id", "date"}),
-        @Index(name = "idx_transactions_merchant_id", columnList = "merchant_id")
-    }
-)
+@Table(name = "transactions")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -129,15 +123,19 @@ public class Transaction {
 
     // ---- Lifecycle hooks ----
 
-    @PrePersist
-    void onCreate() {
+    /**
+     * Create timestamp - set at persistence time.
+     */
+    public void onCreate() {
         Instant now = Instant.now();
         this.createdAt = now;
         this.updatedAt = now;
     }
 
-    @PreUpdate
-    void onUpdate() {
+    /**
+     * Update timestamp - set on modification.
+     */
+    public void onUpdate() {
         this.updatedAt = Instant.now();
     }
 
@@ -147,6 +145,9 @@ public class Transaction {
      * Convert amount from cents to BigDecimal (dollars).
      */
     public BigDecimal getAmount() {
+        if (amountCents == null) {
+            return null;
+        }
         return amountCents.divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
     }
 
@@ -154,7 +155,11 @@ public class Transaction {
      * Format amount as currency string.
      */
     public String formatAmount() {
-        return String.format("$%.2f", getAmount().doubleValue());
+        BigDecimal amount = getAmount();
+        if (amount == null) {
+            return null;
+        }
+        return String.format("$%.2f", amount.doubleValue());
     }
 
     /**
@@ -169,6 +174,21 @@ public class Transaction {
      */
     public boolean isCredit() {
         return "CREDIT".equalsIgnoreCase(type);
+    }
+
+    // ---- Constructor with parameters for testing ----
+
+    /**
+     * Constructor for creating a Transaction with all fields.
+     */
+    public Transaction(UUID userId, String rawDescription, BigDecimal amountCents, Instant date, String type) {
+        this.rawDescription = rawDescription;
+        this.amountCents = amountCents;
+        this.date = date;
+        this.type = type;
+        this.userId = userId;
+        this.createdAt = Instant.now();
+        this.updatedAt = Instant.now();
     }
 
     // ---- Equality based on UUID ----

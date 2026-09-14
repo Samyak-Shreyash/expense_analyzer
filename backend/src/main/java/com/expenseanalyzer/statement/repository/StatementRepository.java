@@ -10,7 +10,7 @@ import java.util.UUID;
  * Spring Data JPA repository for Statement entity.
  */
 @Repository
-public interface StatementRepository extends JpaRepository<Statement, Long> {
+public interface StatementRepository extends JpaRepository<Statement, UUID> {
 
     /**
      * Find all statements for a specific user.

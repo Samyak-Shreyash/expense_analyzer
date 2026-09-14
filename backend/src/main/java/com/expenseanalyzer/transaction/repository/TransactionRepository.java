@@ -1,10 +1,12 @@
 package com.expenseanalyzer.transaction.repository;
 
 import com.expenseanalyzer.transaction.model.Transaction;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
-import org.springframework.data.repository.query.ParamQuery;
 import org.springframework.stereotype.Repository;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -16,7 +18,7 @@ import java.util.UUID;
  * - Repository with methods for querying by user and statement
  */
 @Repository
-public interface TransactionRepository extends JpaRepository<Transaction, Long> {
+public interface TransactionRepository extends JpaRepository<Transaction, UUID> {
 
     /**
      * Find all transactions for a specific user.
@@ -118,8 +120,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     /**
      * Find all transactions (for pagination).
      *
-     * @param page page number
-     * @param size page size
+     * @param pageable the pageable parameter
      * @return paginated list of transactions
      */
     Page<Transaction> findAll(Pageable pageable);
@@ -131,13 +132,4 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
      * @return count of all transactions
      */
     long countByUserId(UUID userId);
-
-    /**
-     * Find all transactions (for pagination).
-     *
-     * @param page page number
-     * @param size page size
-     * @return paginated list of transactions
-     */
-    Page<Transaction> findAll(Pageable pageable);
 }

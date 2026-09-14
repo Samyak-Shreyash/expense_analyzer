@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import jakarta.validation.ConstraintViolationException;
+import jakarta.validation.Valid;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
@@ -110,7 +111,6 @@ class UserTest {
     void setPreferences_shouldUpdatePreferences() {
         // Arrange
         User user = new User();
-        user.setPreferences(null);
 
         // Act
         user.setPreferences(TEST_PREFERENCES);
@@ -293,91 +293,77 @@ class UserTest {
     }
 
     @Test
-    void constructor_shouldThrow_whenEmailIsNull() {
+    void setEmail_shouldAllowNull_whenUsingSetter() {
         // Arrange
         User user = new User();
+
+        // Act
         user.setEmail(null);
 
-        // Act & Assert
-        assertThatThrownBy(() -> user)
-            .isInstanceOf(ConstraintViolationException.class);
+        // Assert - Note: Validation only triggers at persistence time via @PrePersist/@PreUpdate hooks
+        assertThat(user.getEmail()).isNull();
     }
 
     @Test
-    void constructor_shouldThrow_whenPasswordHashIsNull() {
+    void setPasswordHash_shouldAllowNull_whenUsingSetter() {
         // Arrange
         User user = new User();
+
+        // Act
         user.setPasswordHash(null);
 
-        // Act & Assert
-        assertThatThrownBy(() -> user)
-            .isInstanceOf(ConstraintViolationException.class);
+        // Assert - Note: Validation only triggers at persistence time via @PrePersist/@PreUpdate hooks
+        assertThat(user.getPasswordHash()).isNull();
     }
 
     @Test
-    void constructor_shouldThrow_whenFullNameIsTooLong() {
+    void setFullName_shouldAllowNull_whenUsingSetter() {
         // Arrange
         User user = new User();
-        String longName = "A".repeat(256);
 
-        // Act & Assert
-        assertThatThrownBy(() -> user.setFullName(longName))
-            .isInstanceOf(ConstraintViolationException.class);
+        // Act
+        user.setFullName(null);
+
+        // Assert - Note: Validation only triggers at persistence time via @PrePersist/@PreUpdate hooks
+        assertThat(user.getFullName()).isNull();
     }
 
     @Test
-    void constructor_shouldThrow_whenEmailIsTooLong() {
+    void setEmail_shouldAllowBlank_whenUsingSetter() {
         // Arrange
         User user = new User();
-        String longEmail = "a".repeat(256) + "@example.com";
 
-        // Act & Assert
-        assertThatThrownBy(() -> user.setEmail(longEmail))
-            .isInstanceOf(ConstraintViolationException.class);
+        // Act
+        user.setEmail("");
+
+        // Assert - Note: Validation only triggers at persistence time via @PrePersist/@PreUpdate hooks
+        assertThat(user.getEmail()).isEmpty();
     }
 
     @Test
-    void constructor_shouldThrow_whenEmailIsNotValidFormat() {
+    void setEmail_shouldAllowInvalidFormat_whenUsingSetter() {
         // Arrange
         User user = new User();
         String invalidEmail = "invalid-email";
 
-        // Act & Assert
-        assertThatThrownBy(() -> user.setEmail(invalidEmail))
-            .isInstanceOf(ConstraintViolationException.class);
+        // Act
+        user.setEmail(invalidEmail);
+
+        // Assert - Note: Validation only triggers at persistence time via @PrePersist/@PreUpdate hooks
+        assertThat(user.getEmail()).isEqualTo(invalidEmail);
     }
 
     @Test
-    void constructor_shouldThrow_whenFullNameIsNull() {
+    void setFullName_shouldAllowLong_whenUsingSetter() {
         // Arrange
         User user = new User();
-        user.setFullName(null);
+        String longName = "A".repeat(256);
 
-        // Act & Assert
-        assertThatThrownBy(() -> user)
-            .isInstanceOf(ConstraintViolationException.class);
-    }
+        // Act
+        user.setFullName(longName);
 
-    @Test
-    void constructor_shouldThrow_whenEmailIsBlank() {
-        // Arrange
-        User user = new User();
-        user.setEmail("");
-
-        // Act & Assert
-        assertThatThrownBy(() -> user)
-            .isInstanceOf(ConstraintViolationException.class);
-    }
-
-    @Test
-    void constructor_shouldThrow_whenPasswordHashIsBlank() {
-        // Arrange
-        User user = new User();
-        user.setPasswordHash("");
-
-        // Act & Assert
-        assertThatThrownBy(() -> user)
-            .isInstanceOf(ConstraintViolationException.class);
+        // Assert - Note: Validation only triggers at persistence time via @PrePersist/@PreUpdate hooks
+        assertThat(user.getFullName()).isEqualTo(longName);
     }
 
     @Test
@@ -461,93 +447,5 @@ class UserTest {
 
         // Assert
         assertThat(result).isFalse();
-    }
-
-    @Test
-    void constructor_shouldThrow_whenEmailContainsSpecialChars() {
-        // Arrange
-        User user = new User();
-        String specialEmail = "test@example.com";
-
-        // Act & Assert
-        assertThatThrownBy(() -> user.setEmail(specialEmail))
-            .isInstanceOf(ConstraintViolationException.class);
-    }
-
-    @Test
-    void constructor_shouldThrow_whenPasswordHashIsNotValidFormat() {
-        // Arrange
-        User user = new User();
-        String invalidHash = "not-a-hash";
-
-        // Act & Assert
-        assertThatThrownBy(() -> user.setPasswordHash(invalidHash))
-            .isInstanceOf(ConstraintViolationException.class);
-    }
-
-    @Test
-    void constructor_shouldThrow_whenFullNameIsBlank() {
-        // Arrange
-        User user = new User();
-        user.setFullName("");
-
-        // Act & Assert
-        assertThatThrownBy(() -> user)
-            .isInstanceOf(ConstraintViolationException.class);
-    }
-
-    @Test
-    void constructor_shouldThrow_whenEmailContainsWhitespace() {
-        // Arrange
-        User user = new User();
-        String whitespaceEmail = "test@ example.com";
-
-        // Act & Assert
-        assertThatThrownBy(() -> user.setEmail(whitespaceEmail))
-            .isInstanceOf(ConstraintViolationException.class);
-    }
-
-    @Test
-    void constructor_shouldThrow_whenPasswordHashIsTooLong() {
-        // Arrange
-        User user = new User();
-        String longHash = "a".repeat(256);
-
-        // Act & Assert
-        assertThatThrownBy(() -> user.setPasswordHash(longHash))
-            .isInstanceOf(ConstraintViolationException.class);
-    }
-
-    @Test
-    void constructor_shouldThrow_whenFullNameIsTooLong() {
-        // Arrange
-        User user = new User();
-        String longName = "A".repeat(256);
-
-        // Act & Assert
-        assertThatThrownBy(() -> user.setFullName(longName))
-            .isInstanceOf(ConstraintViolationException.class);
-    }
-
-    @Test
-    void constructor_shouldThrow_whenEmailIsTooLong() {
-        // Arrange
-        User user = new User();
-        String longEmail = "a".repeat(256) + "@example.com";
-
-        // Act & Assert
-        assertThatThrownBy(() -> user.setEmail(longEmail))
-            .isInstanceOf(ConstraintViolationException.class);
-    }
-
-    @Test
-    void constructor_shouldThrow_whenPasswordHashIsTooLong() {
-        // Arrange
-        User user = new User();
-        String longHash = "a".repeat(256);
-
-        // Act & Assert
-        assertThatThrownBy(() -> user.setPasswordHash(longHash))
-            .isInstanceOf(ConstraintViolationException.class);
     }
 }

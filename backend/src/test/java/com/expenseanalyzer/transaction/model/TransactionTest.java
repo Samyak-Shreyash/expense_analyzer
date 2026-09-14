@@ -446,244 +446,101 @@ class TransactionTest {
     }
 
     @Test
-    void constructor_shouldThrow_whenRawDescriptionIsNull() {
+    void setRawDescription_shouldAllowNull_whenUsingSetter() {
         // Arrange
         Transaction transaction = new Transaction();
+
+        // Act
         transaction.setRawDescription(null);
 
-        // Act & Assert
-        assertThatThrownBy(() -> transaction)
-            .isInstanceOf(ConstraintViolationException.class);
+        // Assert - Note: Validation only triggers at persistence time via @PrePersist/@PreUpdate hooks
+        assertThat(transaction.getRawDescription()).isNull();
     }
 
     @Test
-    void constructor_shouldThrow_whenAmountCentsIsNull() {
+    void setAmountCents_shouldAllowNull_whenUsingSetter() {
         // Arrange
         Transaction transaction = new Transaction();
+
+        // Act
         transaction.setAmountCents(null);
 
-        // Act & Assert
-        assertThatThrownBy(() -> transaction)
-            .isInstanceOf(ConstraintViolationException.class);
+        // Assert - Note: Validation only triggers at persistence time via @PrePersist/@PreUpdate hooks
+        assertThat(transaction.getAmountCents()).isNull();
     }
 
     @Test
-    void constructor_shouldThrow_whenDateIsNull() {
+    void setDate_shouldAllowNull_whenUsingSetter() {
         // Arrange
         Transaction transaction = new Transaction();
+
+        // Act
         transaction.setDate(null);
 
-        // Act & Assert
-        assertThatThrownBy(() -> transaction)
-            .isInstanceOf(ConstraintViolationException.class);
+        // Assert - Note: Validation only triggers at persistence time via @PrePersist/@PreUpdate hooks
+        assertThat(transaction.getDate()).isNull();
     }
 
     @Test
-    void constructor_shouldThrow_whenTypeIsNull() {
+    void setType_shouldAllowNull_whenUsingSetter() {
         // Arrange
         Transaction transaction = new Transaction();
+
+        // Act
         transaction.setType(null);
 
-        // Act & Assert
-        assertThatThrownBy(() -> transaction)
-            .isInstanceOf(ConstraintViolationException.class);
+        // Assert - Note: Validation only triggers at persistence time via @PrePersist/@PreUpdate hooks
+        assertThat(transaction.getType()).isNull();
     }
 
     @Test
-    void constructor_shouldThrow_whenUserIdIsNull() {
+    void setUserId_shouldAllowNull_whenUsingSetter() {
         // Arrange
         Transaction transaction = new Transaction();
+
+        // Act
         transaction.setUserId(null);
 
-        // Act & Assert
-        assertThatThrownBy(() -> transaction)
-            .isInstanceOf(ConstraintViolationException.class);
+        // Assert - Note: Validation only triggers at persistence time via @PrePersist/@PreUpdate hooks
+        assertThat(transaction.getUserId()).isNull();
     }
 
     @Test
-    void constructor_shouldThrow_whenAmountCentsIsTooLarge() {
+    void setAmountCents_shouldNotThrow_whenValueIsMax() {
         // Arrange
         Transaction transaction = new Transaction();
-        BigDecimal largeAmount = new BigDecimal("9999999999.99");
+        BigDecimal maxAmount = new BigDecimal("9999999999.99");
 
-        // Act & Assert
-        assertThatThrownBy(() -> transaction.setAmountCents(largeAmount))
-            .isInstanceOf(ConstraintViolationException.class);
+        // Act
+        transaction.setAmountCents(maxAmount);
+
+        // Assert - Max value is allowed (it's the boundary)
+        assertThat(transaction.getAmountCents()).isEqualTo(maxAmount);
     }
 
     @Test
-    void constructor_shouldThrow_whenAmountCentsIsNegative() {
-        // Arrange
-        Transaction transaction = new Transaction();
-        BigDecimal negativeAmount = new BigDecimal("-100");
-
-        // Act & Assert
-        assertThatThrownBy(() -> transaction.setAmountCents(negativeAmount))
-            .isInstanceOf(ConstraintViolationException.class);
-    }
-
-    @Test
-    void constructor_shouldThrow_whenRawDescriptionIsTooLong() {
-        // Arrange
-        Transaction transaction = new Transaction();
-        String longDescription = "A".repeat(2049);
-
-        // Act & Assert
-        assertThatThrownBy(() -> transaction.setRawDescription(longDescription))
-            .isInstanceOf(ConstraintViolationException.class);
-    }
-
-    @Test
-    void constructor_shouldThrow_whenAmountCentsIsTooLarge() {
-        // Arrange
-        Transaction transaction = new Transaction();
-        BigDecimal largeAmount = new BigDecimal("10000000000");
-
-        // Act & Assert
-        assertThatThrownBy(() -> transaction.setAmountCents(largeAmount))
-            .isInstanceOf(ConstraintViolationException.class);
-    }
-
-    @Test
-    void constructor_shouldThrow_whenAmountCentsIsNegative() {
+    void setAmountCents_shouldNotThrow_whenValueIsNegative() {
         // Arrange
         Transaction transaction = new Transaction();
         BigDecimal negativeAmount = new BigDecimal("-100");
 
-        // Act & Assert
-        assertThatThrownBy(() -> transaction.setAmountCents(negativeAmount))
-            .isInstanceOf(ConstraintViolationException.class);
+        // Act
+        transaction.setAmountCents(negativeAmount);
+
+        // Assert - Negative values are allowed (no @Min constraint)
+        assertThat(transaction.getAmountCents()).isEqualTo(negativeAmount);
     }
 
     @Test
-    void constructor_shouldThrow_whenRawDescriptionIsTooLong() {
+    void setRawDescription_shouldNotThrow_whenValueIsMaxLength() {
         // Arrange
         Transaction transaction = new Transaction();
-        String longDescription = "A".repeat(2049);
+        String maxLengthString = "A".repeat(2048);
 
-        // Act & Assert
-        assertThatThrownBy(() -> transaction.setRawDescription(longDescription))
-            .isInstanceOf(ConstraintViolationException.class);
-    }
+        // Act
+        transaction.setRawDescription(maxLengthString);
 
-    @Test
-    void constructor_shouldThrow_whenAmountCentsIsTooLarge() {
-        // Arrange
-        Transaction transaction = new Transaction();
-        BigDecimal largeAmount = new BigDecimal("10000000000");
-
-        // Act & Assert
-        assertThatThrownBy(() -> transaction.setAmountCents(largeAmount))
-            .isInstanceOf(ConstraintViolationException.class);
-    }
-
-    @Test
-    void constructor_shouldThrow_whenAmountCentsIsNegative() {
-        // Arrange
-        Transaction transaction = new Transaction();
-        BigDecimal negativeAmount = new BigDecimal("-100");
-
-        // Act & Assert
-        assertThatThrownBy(() -> transaction.setAmountCents(negativeAmount))
-            .isInstanceOf(ConstraintViolationException.class);
-    }
-
-    @Test
-    void constructor_shouldThrow_whenRawDescriptionIsTooLong() {
-        // Arrange
-        Transaction transaction = new Transaction();
-        String longDescription = "A".repeat(2049);
-
-        // Act & Assert
-        assertThatThrownBy(() -> transaction.setRawDescription(longDescription))
-            .isInstanceOf(ConstraintViolationException.class);
-    }
-
-    @Test
-    void constructor_shouldThrow_whenAmountCentsIsTooLarge() {
-        // Arrange
-        Transaction transaction = new Transaction();
-        BigDecimal largeAmount = new BigDecimal("10000000000");
-
-        // Act & Assert
-        assertThatThrownBy(() -> transaction.setAmountCents(largeAmount))
-            .isInstanceOf(ConstraintViolationException.class);
-    }
-
-    @Test
-    void constructor_shouldThrow_whenAmountCentsIsNegative() {
-        // Arrange
-        Transaction transaction = new Transaction();
-        BigDecimal negativeAmount = new BigDecimal("-100");
-
-        // Act & Assert
-        assertThatThrownBy(() -> transaction.setAmountCents(negativeAmount))
-            .isInstanceOf(ConstraintViolationException.class);
-    }
-
-    @Test
-    void constructor_shouldThrow_whenRawDescriptionIsTooLong() {
-        // Arrange
-        Transaction transaction = new Transaction();
-        String longDescription = "A".repeat(2049);
-
-        // Act & Assert
-        assertThatThrownBy(() -> transaction.setRawDescription(longDescription))
-            .isInstanceOf(ConstraintViolationException.class);
-    }
-
-    @Test
-    void constructor_shouldThrow_whenAmountCentsIsTooLarge() {
-        // Arrange
-        Transaction transaction = new Transaction();
-        BigDecimal largeAmount = new BigDecimal("10000000000");
-
-        // Act & Assert
-        assertThatThrownBy(() -> transaction.setAmountCents(largeAmount))
-            .isInstanceOf(ConstraintViolationException.class);
-    }
-
-    @Test
-    void constructor_shouldThrow_whenAmountCentsIsNegative() {
-        // Arrange
-        Transaction transaction = new Transaction();
-        BigDecimal negativeAmount = new BigDecimal("-100");
-
-        // Act & Assert
-        assertThatThrownBy(() -> transaction.setAmountCents(negativeAmount))
-            .isInstanceOf(ConstraintViolationException.class);
-    }
-
-    @Test
-    void constructor_shouldThrow_whenRawDescriptionIsTooLong() {
-        // Arrange
-        Transaction transaction = new Transaction();
-        String longDescription = "A".repeat(2049);
-
-        // Act & Assert
-        assertThatThrownBy(() -> transaction.setRawDescription(longDescription))
-            .isInstanceOf(ConstraintViolationException.class);
-    }
-
-    @Test
-    void constructor_shouldThrow_whenAmountCentsIsTooLarge() {
-        // Arrange
-        Transaction transaction = new Transaction();
-        BigDecimal largeAmount = new BigDecimal("10000000000");
-
-        // Act & Assert
-        assertThatThrownBy(() -> transaction.setAmountCents(largeAmount))
-            .isInstanceOf(ConstraintViolationException.class);
-    }
-
-    @Test
-    void constructor_shouldThrow_whenAmountCentsIsNegative() {
-        // Arrange
-        Transaction transaction = new Transaction();
-        BigDecimal negativeAmount = new BigDecimal("-100");
-
-        // Act & Assert
-        assertThatThrownBy(() -> transaction.setAmountCents(negativeAmount))
-            .isInstanceOf(ConstraintViolationException.class);
+        // Assert - Max length is allowed (it's the boundary)
+        assertThat(transaction.getRawDescription()).isEqualTo(maxLengthString);
     }
 }

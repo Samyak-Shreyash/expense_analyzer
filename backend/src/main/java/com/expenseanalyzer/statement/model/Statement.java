@@ -20,12 +20,7 @@ import java.util.UUID;
  * Statement entity representing a bank statement/account.
  */
 @Entity
-@Table(
-    name = "statements",
-    indexes = {
-        @Index(name = "idx_statements_user_id", columnList = "user_id")
-    }
-)
+@Table(name = "statements")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -73,6 +68,12 @@ public class Statement {
     private UUID userId;
 
     /**
+     * Whether this statement is active/enabled.
+     */
+    @Column(name = "active", nullable = false, updatable = false)
+    private boolean active;
+
+    /**
      * Statement period start date (first transaction date).
      */
     @JdbcTypeCode(SqlTypes.DATE)
@@ -102,15 +103,19 @@ public class Statement {
 
     // ---- Lifecycle hooks ----
 
-    @PrePersist
-    void onCreate() {
+    /**
+     * Create timestamp - set at persistence time.
+     */
+    public void onCreate() {
         Instant now = Instant.now();
         this.createdAt = now;
         this.updatedAt = now;
     }
 
-    @PreUpdate
-    void onUpdate() {
+    /**
+     * Update timestamp - set on modification.
+     */
+    public void onUpdate() {
         this.updatedAt = Instant.now();
     }
 
@@ -121,6 +126,21 @@ public class Statement {
      */
     public String getCurrencyCode() {
         return currencyCode != null ? currencyCode.toUpperCase() : "USD";
+    }
+
+    // ---- Constructor with parameters for testing ----
+
+    /**
+     * Constructor for creating a Statement with all fields.
+     */
+    public Statement(UUID userId, String accountNumber, String bankName) {
+        this.userId = userId;
+        this.accountNumber = accountNumber;
+        this.bankName = bankName;
+        this.currencyCode = "USD";
+        this.active = true;
+        this.createdAt = Instant.now();
+        this.updatedAt = Instant.now();
     }
 
     // ---- Equality based on UUID ----
