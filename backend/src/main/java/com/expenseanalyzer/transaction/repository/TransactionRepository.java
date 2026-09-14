@@ -114,7 +114,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
      * @param keyword search keyword
      * @return list of matching transactions
      */
-    @Query("SELECT t FROM Transaction t WHERE t.userId = :userId AND LOWER(t.rawDescription) LIKE LOWER(:keyword %)")
+    @Query("SELECT t FROM Transaction t WHERE t.userId = :userId AND LOWER(t.rawDescription) LIKE LOWER(:keyword)")
     List<Transaction> findByUserIdAndRawDescriptionContaining(UUID userId, String keyword);
 
     /**

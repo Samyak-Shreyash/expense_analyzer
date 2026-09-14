@@ -1,14 +1,12 @@
 package com.expenseanalyzer.user.model;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-
-import jakarta.validation.ConstraintViolationException;
-import jakarta.validation.Valid;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -24,6 +22,12 @@ class UserTest {
     private static final String TEST_THEME = "dark";
     private static final Boolean TEST_NOTIFICATIONS = true;
 
+    @BeforeAll
+    static void setTestPreferences() {
+        TEST_PREFERENCES.put("currency", TEST_CURRENCY);
+        TEST_PREFERENCES.put("theme", TEST_THEME);
+        TEST_PREFERENCES.put("notifications", TEST_NOTIFICATIONS);
+    }
     @Test
     void constructor_shouldCreateUser_withDefaults() {
         // Arrange
