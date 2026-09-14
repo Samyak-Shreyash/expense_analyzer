@@ -86,12 +86,3 @@ jwt:
   secret: ${JWT_SECRET}
   # Token expiration (in hours) - adjust based on security requirements
   token-expiration-hours: 24
-
-# # Spring Security Configuration
-# spring:
-#   security:
-#     user-service:
-#       class-path: com.expenseanalyzer.auth.filter.UserDetailsService
-#     jwt:
-#       header: Authorization
-#       prefix: Bearer
