@@ -1,14 +1,9 @@
 name: CI
 
 on:
-  push:
-    branches:
-      - main
-      - develop
   pull_request:
     branches:
       - main
-      - develop
 
 permissions:
   contents: read
@@ -39,5 +34,5 @@ jobs:
       - name: Validate Gradle wrapper
         uses: gradle/actions/wrapper-validation@v6
 
-      - name: Build and test
-        run: ./gradlew clean build test --no-daemon
+      - name: Build & test
+        run: ./gradlew clean build --no-daemon

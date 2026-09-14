@@ -5,9 +5,9 @@ spring:
     password:
     driver-class-name: org.h2.Driver
 
-  application:
-    name: expenseanalyzer-test
-
+  jpa:
+    hibernate:
+      ddl-auto: none
   flyway:
     enabled: false
 
