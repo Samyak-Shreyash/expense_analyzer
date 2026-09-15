@@ -1,10 +1,14 @@
 HELP.md
 
 /.claude/*
+/.github/*
 
 # Backend Gradle
 /backend/.gradle*/
 /backend/build/
+/backend/target/
+/backend/*.jar
+/backend/*.class
 /backend/gradle/wrapper/gradle-wrapper.jar
 !/backend/**/src/main/**/build/
 !/backend/**/src/test/**/build/
@@ -14,7 +18,7 @@ HELP.md
 /backend/out/
 
 # IntelliJ IDEA
-.idea/
+*.idea/
 *.iws
 *.iml
 *.ipr
