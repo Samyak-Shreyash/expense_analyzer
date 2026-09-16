@@ -101,32 +101,7 @@ public class Statement {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    // ---- Lifecycle hooks ----
-
-    /**
-     * Create timestamp - set at persistence time.
-     */
-    public void onCreate() {
-        Instant now = Instant.now();
-        this.createdAt = now;
-        this.updatedAt = now;
-    }
-
-    /**
-     * Update timestamp - set on modification.
-     */
-    public void onUpdate() {
-        this.updatedAt = Instant.now();
-    }
-
     // ---- Business helpers ----
-
-    /**
-     * Get the currency code for this statement.
-     */
-    public String getCurrencyCode() {
-        return currencyCode != null ? currencyCode.toUpperCase() : "USD";
-    }
 
     // ---- Constructor with parameters for testing ----
 

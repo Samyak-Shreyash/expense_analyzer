@@ -121,60 +121,7 @@ public class Transaction {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    // ---- Lifecycle hooks ----
-
-    /**
-     * Create timestamp - set at persistence time.
-     */
-    public void onCreate() {
-        Instant now = Instant.now();
-        this.createdAt = now;
-        this.updatedAt = now;
-    }
-
-    /**
-     * Update timestamp - set on modification.
-     */
-    public void onUpdate() {
-        this.updatedAt = Instant.now();
-    }
-
     // ---- Business helpers ----
-
-    /**
-     * Convert amount from cents to BigDecimal (dollars).
-     */
-    public BigDecimal getAmount() {
-        if (amountCents == null) {
-            return null;
-        }
-        return amountCents.divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
-    }
-
-    /**
-     * Format amount as currency string.
-     */
-    public String formatAmount() {
-        BigDecimal amount = getAmount();
-        if (amount == null) {
-            return null;
-        }
-        return String.format("$%.2f", amount.doubleValue());
-    }
-
-    /**
-     * Check if this is a debit transaction (money leaving account).
-     */
-    public boolean isDebit() {
-        return "DEBIT".equalsIgnoreCase(type);
-    }
-
-    /**
-     * Check if this is a credit transaction (money entering account).
-     */
-    public boolean isCredit() {
-        return "CREDIT".equalsIgnoreCase(type);
-    }
 
     // ---- Constructor with parameters for testing ----
 
