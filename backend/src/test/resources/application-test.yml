@@ -5,5 +5,42 @@ spring:
     password:
     driver-class-name: org.h2.Driver
 
+  jpa:
+    hibernate:
+      ddl-auto: none
   flyway:
     enabled: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        readiness:
+          include: readinessState,db
+  metrics:
+    enable:
+      hikari: true
+    tags:
+      application: expenseanalyzer-test
+      environment: test
+  tracing:
+    sampling:
+      probability: 0.1
+  otlp:
+    tracing:
+      endpoint: http://localhost:4318/v1/traces
+
+logging:
+  structured:
+    format:
+      console: logstash
+
+server:
+  # Prevent Spring from resolving the production-only SERVER_PORT placeholder.
+  port: 0

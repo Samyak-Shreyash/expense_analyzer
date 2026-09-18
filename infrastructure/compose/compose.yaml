@@ -1,3 +1,4 @@
+name: expense-analyzer
 services:
 
   # ============================================================
@@ -5,19 +6,19 @@ services:
   # ============================================================
   postgres:
     image: postgres:16
-    container_name: expense-analyzer-postgres
+    container_name: postgres
     restart: unless-stopped
 
     env_file:
       - ../../.env
 
     environment:
-      POSTGRES_DB: ${DB_NAME:-expense_analyzer}
+      POSTGRES_DB: ${DB_NAME}
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_USER_PASSWORD}
 
     ports:
-      -  "${DB_PORT:-5432}:${DB_PORT:-5432}"
+      - "${DB_PORT:-5432}:${DB_PORT:-5432}"
 
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -47,7 +48,7 @@ services:
       context: ../../backend
       dockerfile: Dockerfile
 
-    container_name: expense-analyzer-backend
+    container_name: backend
     restart: unless-stopped
 
     depends_on:
@@ -55,12 +56,149 @@ services:
         condition: service_healthy
 
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-expense_analyzer}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:${DB_PORT}/${DB_NAME}
       SPRING_DATASOURCE_USERNAME: ${DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${DB_USER_PASSWORD}
+      OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT}
 
     ports:
-      - "${SERVER_PORT:-8080}:${SERVER_PORT:-8080}"
+      - "${SERVER_PORT}:8080"
+
+    networks:
+      - expense-analyzer
+
+
+  # ============================================================
+  # Prometheus
+  # ============================================================
+  prometheus:
+    image: prom/prometheus:v3.8.0
+    container_name: prometheus
+    restart: unless-stopped
+    profiles:
+      - observability
+
+    env_file:
+      - ../../.env
+
+    environment:
+      BACKEND_PORT: ${SERVER_PORT}
+      OTEL_METRICS_PORT: ${OTEL_METRICS_PORT}
+
+
+    entrypoint:
+      - /bin/sh
+      - -ec
+    command:
+      - >-
+        sed -e "s/__BACKEND_PORT__/$${BACKEND_PORT}/g"
+        -e "s/__OTEL_METRICS_PORT__/$${OTEL_METRICS_PORT}/g"
+        /etc/prometheus/prometheus.yml.template > /tmp/prometheus.yml
+        && exec /bin/prometheus --config.file=/tmp/prometheus.yml
+
+    volumes:
+      - ../observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml.template:ro
+      - prometheus_data:/prometheus
+
+    ports:
+      - "${PROMETHEUS_PORT}:9090"
+
+    depends_on:
+      - backend
+      - otel-collector
+
+    networks:
+      - expense-analyzer
+
+
+  # ============================================================
+  # OpenTelemetry Collector
+  # ============================================================
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.142.0
+    container_name: otel-collector
+    restart: unless-stopped
+    profiles:
+      - observability
+
+    env_file:
+      - ../../.env
+
+    command:
+      - --config=/etc/otelcol-contrib/config.yml
+
+    volumes:
+      - ../observability/otel-collector/config.yml:/etc/otelcol-contrib/config.yml:ro
+
+    ports:
+      - "${OTEL_GRPC_PORT}:4317"
+      - "${OTEL_HTTP_PORT}:4318"
+      - "${OTEL_METRICS_PORT}:9464"
+
+    depends_on:
+      tempo:
+        condition: service_started
+
+    networks:
+      - expense-analyzer
+
+
+  # ============================================================
+  # Grafana Tempo
+  # ============================================================
+  tempo:
+    image: grafana/tempo:2.9.0
+    container_name: tempo
+    restart: unless-stopped
+    profiles:
+      - observability
+
+    env_file:
+      - ../../.env
+
+    command:
+      - -config.file=/etc/tempo/tempo.yml
+
+    volumes:
+      - ../observability/tempo/tempo.yml:/etc/tempo/tempo.yml:ro
+      - tempo_data:/var/tempo
+
+    ports:
+      - "${TEMPO_PORT:-3200}:3200"
+
+    networks:
+      - expense-analyzer
+
+
+  # ============================================================
+  # Grafana
+  # ============================================================
+  grafana:
+    image: grafana/grafana:12.4.0
+    container_name: grafana
+    restart: unless-stopped
+    profiles:
+      - observability
+
+    env_file:
+      - ../../.env
+
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+
+    volumes:
+      - ../observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+
+    ports:
+      - "${GRAFANA_PORT}:3000"
+
+    depends_on:
+      prometheus:
+        condition: service_started
+      tempo:
+        condition: service_started
 
     networks:
       - expense-analyzer
@@ -68,6 +206,9 @@ services:
 
 volumes:
   postgres_data:
+  prometheus_data:
+  tempo_data:
+  grafana_data:
 
 
 networks:
