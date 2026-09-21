@@ -1,9 +1,7 @@
 HELP.md
 
-/.claude/*
-
 # Backend Gradle
-/backend/.gradle*/
+/backend/.gradle/
 /backend/build/
 /backend/gradle/wrapper/gradle-wrapper.jar
 !/backend/**/src/main/**/build/
