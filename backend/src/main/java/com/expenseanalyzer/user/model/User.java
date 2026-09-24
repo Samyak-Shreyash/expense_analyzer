@@ -64,12 +64,19 @@ public class User {
      * Optional user preferences stored as JSONB.
      * Example: {"currency":"INR","theme":"dark","notifications":true}
      */
+    /**
+     * Optional user preferences stored as JSONB.
+     * Example: {"theme":"dark","notifications":true}
+     */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "preferences", columnDefinition = "jsonb")
-    private Map<String, Object> preferences = new HashMap<>();
+    private Map<String, Preference> preferences = new HashMap<>();
 
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
+
+    @Column(name = "role")
+    private UserRole role;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
