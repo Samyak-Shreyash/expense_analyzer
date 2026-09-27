@@ -83,3 +83,24 @@ logging:
   structured:
     format:
       console: logstash
+# OAuth2 Authorization Server Configuration
+app:
+  oauth:
+    # Client Registration (for external clients to register)
+    client:
+      id: expense-analyzer-client
+      secret: change-me-in-production
+
+    # OAuth2 Server endpoints
+    server:
+      url: http://localhost:8080/oauth2/registration
+      token: http://localhost:8080/oauth2/token
+      revoke: http://localhost:8080/oauth2/revoke
+
+    # JWT Configuration
+    jwt:
+      secret: expense-analyzer-jwt-secret-key-change-me-in-production
+      issuer: http://localhost:8080/oauth2/token
+      audience: expense-analyzer-api
+      tokenExpirationSeconds: 3600
+      refreshTokenExpirationSeconds: 86400
