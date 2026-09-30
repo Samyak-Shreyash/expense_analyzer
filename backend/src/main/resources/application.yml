@@ -10,17 +10,6 @@ spring:
     password: ${DB_USER_PASSWORD:app_password}
     driver-class-name: org.postgresql.Driver
 
-    hikari:
-      maximum-pool-size: 20
-      minimum-idle: 5
-      idle-timeout: 300000
-      connection-timeout: 30000
-      max-lifetime: 1800000
-      leak-detection-threshold: 60000
-      pool-name: ExpenseAnalyzerHikariPool
-      connection-test-query: SELECT 1
-      validation-timeout: 5000
-
   jpa:
     database: POSTGRESQL
     show-sql: false
@@ -37,8 +26,8 @@ spring:
     open-in-view: false
 
   flyway:
-    enabled: true
-    baseline-on-migrate: true
+    enabled: ${FLYWAY_ENABLED:true}
+    baseline-on-migrate: ${FLYWAY_BASELINE_ON_MIGRATE:true}
     baseline-version: 0
     locations: classpath:db/migration
     table: flyway_schema_history
@@ -104,3 +93,9 @@ app:
       audience: expense-analyzer-api
       tokenExpirationSeconds: 3600
       refreshTokenExpirationSeconds: 86400
+
+    # JWT Encoder Configuration for Spring Security 7
+    jwt-encoder:
+      algorithm: RS256
+      key:
+        secret: expense-analyzer-jwt-secret-key-change-me-in-production

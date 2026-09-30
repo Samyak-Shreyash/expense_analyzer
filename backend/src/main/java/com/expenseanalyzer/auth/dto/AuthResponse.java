@@ -9,5 +9,5 @@ import com.expenseanalyzer.user.model.User;
  */
 public record AuthResponse(
     String token,
-    User user
+    UserResponse user
 ) {}
