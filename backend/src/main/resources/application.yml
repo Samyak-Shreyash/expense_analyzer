@@ -78,24 +78,24 @@ app:
     # Client Registration (for external clients to register)
     client:
       id: expense-analyzer-client
-      secret: change-me-in-production
+      secret: ${OAUTH_SECRET}
 
     # OAuth2 Server endpoints
     server:
-      url: http://localhost:8080/oauth2/registration
-      token: http://localhost:8080/oauth2/token
-      revoke: http://localhost:8080/oauth2/revoke
+      url: http://localhost:${SERVER_PORT:8080}/oauth2/registration
+      token: http://localhost:${SERVER_PORT:8080}/oauth2/token
+      revoke: http://localhost:${SERVER_PORT:8080}/oauth2/revoke
 
     # JWT Configuration
     jwt:
-      secret: expense-analyzer-jwt-secret-key-change-me-in-production
-      issuer: http://localhost:8080/oauth2/token
+      secret: ${JWT_SECRET}
+      issuer: http://localhost:${SERVER_PORT:8080}/oauth2/token
       audience: expense-analyzer-api
-      tokenExpirationSeconds: 3600
-      refreshTokenExpirationSeconds: 86400
+      tokenExpirationSeconds: ${JWT_REFRESH_SECONDS}
+      refreshTokenExpirationSeconds: ${JWT_EXPIRATION_SECONDS}
 
     # JWT Encoder Configuration for Spring Security 7
     jwt-encoder:
       algorithm: RS256
       key:
-        secret: expense-analyzer-jwt-secret-key-change-me-in-production
+        secret: ${JWT_SECRET}
