@@ -41,7 +41,7 @@ public class SecurityConfiguration {
      */
     @Bean
     public AuthenticationProvider authenticationProvider() {
-        DaoAuthenticationProvider provider = new DaoAuthenticationProvider(userRepository());
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider(userDetailsService());
         provider.setPasswordEncoder(passwordEncoder());
         return provider;
     }
@@ -59,24 +59,19 @@ public class SecurityConfiguration {
     /**
      * UserRepository bean.
      */
-    private org.springframework.security.core.userdetails.UserDetailsService userRepository() {
-        return new org.springframework.security.core.userdetails.UserDetailsService() {
-            @Override
-            public org.springframework.security.core.userdetails.UserDetails loadUserByUsername(String username) {
-                User user = userRepository.findByEmail(username).orElse(null);
-                if (user == null || !user.isEnabled()) {
-                    return null;
-                }
-                return org.springframework.security.core.userdetails.User.builder()
-                        .username(user.getEmail())
-                        .password(user.getPasswordHash())
-                        .authorities("ROLE_" + user.getRole().name())
-                        .accountExpired(false)
-                        .accountLocked(false)
-                        .credentialsExpired(false)
-                        .disabled(false)
-                        .build();
+    @Bean
+    public UserDetailsService userDetailsService() {
+        return username -> {
+            User user = userRepository.findByEmail(username).orElse(null);
+            if (user == null || !user.isEnabled()) {
+                return null;
             }
+            return org.springframework.security.core.userdetails.User.builder()
+                .username(user.getEmail())
+                .password(user.getPasswordHash())
+                .authorities("ROLE_" + user.getRole().name())
+                .accountExpired(false).accountLocked(false).credentialsExpired(false).disabled(false)
+                .build();
         };
     }
 
