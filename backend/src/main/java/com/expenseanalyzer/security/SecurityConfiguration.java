@@ -26,7 +26,7 @@ import java.util.Optional;
  * Configures authentication, authorization, and security filters.
  */
 @Configuration
-@EnableWebSecurity
+@EnableWebSecurity // Automatically creates AuthenticationManager bean
 public class SecurityConfiguration {
 
     private final UserRepository userRepository;
@@ -63,15 +63,15 @@ public class SecurityConfiguration {
         return new org.springframework.security.core.userdetails.UserDetailsService() {
             @Override
             public org.springframework.security.core.userdetails.UserDetails loadUserByUsername(String username) {
-                User user = userRepository.findByEmail(username).get();
-            if (user == null || !user.isActive()) {
-                return null;
-            }
-            return org.springframework.security.core.userdetails.User.builder()
-                    .username(user.getEmail())
-                    .password(user.getPasswordHash())
-                    .authorities("ROLE_" + user.getRole().name())
-                    .accountExpired(false)
+                User user = userRepository.findByEmail(username).orElse(null);
+                if (user == null || !user.isEnabled()) {
+                    return null;
+                }
+                return org.springframework.security.core.userdetails.User.builder()
+                        .username(user.getEmail())
+                        .password(user.getPasswordHash())
+                        .authorities("ROLE_" + user.getRole().name())
+                        .accountExpired(false)
                         .accountLocked(false)
                         .credentialsExpired(false)
                         .disabled(false)

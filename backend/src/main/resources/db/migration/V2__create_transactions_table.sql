@@ -1,4 +1,4 @@
--- Migration: V1__create_transactions_table.sql
+-- Migration: V2__create_transactions_table.sql
 -- Description: Create transactions table with indexes for user and date queries
 
 CREATE TABLE IF NOT EXISTS transactions (
@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS transactions (
     user_id UUID NOT NULL,
     statement_id UUID,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW
 );
 
 -- Indexes for performance optimization
