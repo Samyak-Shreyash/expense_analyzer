@@ -1,11 +1,14 @@
 package com.expenseanalyzer.security;
 
+import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import com.expenseanalyzer.auth.repository.UserRepository;
 import com.expenseanalyzer.user.model.User;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
@@ -15,8 +18,12 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -46,6 +53,16 @@ public class SecurityConfiguration {
         return provider;
     }
 
+    @Bean
+    public AuthenticationManager authenticationManager(AuthenticationProvider authenticationProvider) {
+        return new ProviderManager(authenticationProvider);
+    }
+
+    @Bean
+    public JwtEncoder jwtEncoder(@Value("${app.oauth.jwt.secret}") String secret) {
+        return new NimbusJwtEncoder(new ImmutableSecret<>(
+                new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256")));
+    }
 
     /**
      * Password Encoder bean.

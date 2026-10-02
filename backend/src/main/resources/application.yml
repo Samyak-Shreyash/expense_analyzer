@@ -24,6 +24,8 @@ spring:
         generate_statistics: false
         default_schema: public
     open-in-view: false
+    hibernate:
+      ddl-auto: none
 
   flyway:
     enabled: ${FLYWAY_ENABLED:true}
