@@ -17,17 +17,17 @@ class UserTest {
     private static final String TEST_EMAIL = "test@example.com";
     private static final String TEST_PASSWORD_HASH = "$2a$10$hashedpassword";
     private static final String TEST_FULL_NAME = "Test User";
-    private static final Map<String, Object> TEST_PREFERENCES = new HashMap<>();
-    private static final String TEST_CURRENCY = "INR";
+    private static final Map<String, Preference> TEST_PREFERENCES = new HashMap<>();
     private static final String TEST_THEME = "dark";
-    private static final Boolean TEST_NOTIFICATIONS = true;
 
     @BeforeAll
     static void setTestPreferences() {
-        TEST_PREFERENCES.put("currency", TEST_CURRENCY);
-        TEST_PREFERENCES.put("theme", TEST_THEME);
-        TEST_PREFERENCES.put("notifications", TEST_NOTIFICATIONS);
+        TEST_PREFERENCES.put("theme", Preference.from(TEST_THEME));
     }
+
+    // Note: Currency and notifications are not stored as Preference enum values
+    // since Preference only has DARK/LIGHT. These would need to be stored in a separate map
+    // or the User entity would need to support Map<String, Object> for preferences.
     @Test
     void constructor_shouldCreateUser_withDefaults() {
         // Arrange
@@ -121,7 +121,7 @@ class UserTest {
 
         // Assert
         assertThat(user.getPreferences()).isEqualTo(TEST_PREFERENCES);
-        assertThat(user.getPreferences().get("currency")).isEqualTo(TEST_CURRENCY);
+        assertThat(user.getPreferences().get("theme")).isEqualTo(Preference.from(TEST_THEME));
     }
 
     @Test
@@ -374,19 +374,16 @@ class UserTest {
     void getPreferences_shouldReturnMap_whenSet() {
         // Arrange
         User user = new User();
-        Map<String, Object> preferences = new HashMap<>();
-        preferences.put("currency", "INR");
-        preferences.put("theme", "dark");
-        preferences.put("notifications", true);
+        Map<String, Preference> preferences = new HashMap<>();
+        preferences.put("theme", Preference.from(TEST_THEME));
         user.setPreferences(preferences);
 
         // Act
-        Map<String, Object> result = user.getPreferences();
+        Map<String, Preference> result = user.getPreferences();
 
         // Assert
         assertThat(result).isEqualTo(preferences);
-        assertThat(result.get("currency")).isEqualTo("INR");
-        assertThat(result.get("theme")).isEqualTo("dark");
+        assertThat(result.get("theme")).isEqualTo(Preference.from(TEST_THEME));
     }
 
     @Test
@@ -395,7 +392,7 @@ class UserTest {
         User user = new User();
 
         // Act
-        Map<String, Object> result = user.getPreferences();
+        Map<String, Preference> result = user.getPreferences();
 
         // Assert
         assertThat(result).isEmpty();
