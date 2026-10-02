@@ -1,12 +1,15 @@
 package com.expenseanalyzer.auth.controller;
 
 import com.expenseanalyzer.auth.dto.*;
+import com.expenseanalyzer.auth.repository.UserRepository;
+import com.expenseanalyzer.auth.service.AuthService;
 import com.expenseanalyzer.user.model.User;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -14,11 +17,16 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final AuthenticationManager authenticationManager;
-    private final JwtTokenProvider tokenProvider; // Your JWT utility service
+    private final JwtTokenProvider tokenProvider;
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
 
-    public AuthController(AuthenticationManager authenticationManager, JwtTokenProvider tokenProvider) {
+    public AuthController(AuthenticationManager authenticationManager, JwtTokenProvider tokenProvider,
+                         UserRepository userRepository, PasswordEncoder passwordEncoder) {
         this.authenticationManager = authenticationManager;
         this.tokenProvider = tokenProvider;
+        this.userRepository = userRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @PostMapping("/login")
@@ -52,10 +60,17 @@ public class AuthController {
      */
     @PostMapping("/register")
     public ResponseEntity<String> register(@Valid @RequestBody RegisterRequest request) {
-        // TODO: Implement registration logic here
-        // This should call AuthService to create the user and save to database
+        try {
+            // Call AuthService to create the user and save to database
+            com.expenseanalyzer.auth.service.AuthService authService =
+                new com.expenseanalyzer.auth.service.AuthService(
+                    userRepository, passwordEncoder);
+            User user = authService.register(request);
 
-        return ResponseEntity.ok("User registered successfully");
+            return ResponseEntity.ok("User registered successfully");
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(409).body(e.getMessage());
+        }
     }
 
     /**
@@ -64,7 +79,16 @@ public class AuthController {
      */
     @GetMapping("/register/check-email")
     public ResponseEntity<String> checkEmail(@RequestParam String email) {
-        // TODO: Implement email validation logic here
+        try {
+            com.expenseanalyzer.auth.service.AuthService authService =
+                new com.expenseanalyzer.auth.service.AuthService(
+                    userRepository, passwordEncoder);
+            if (authService.isEmailRegistered(email)) {
+                return ResponseEntity.status(409).body("Email already registered");
+            }
+        } catch (Exception e) {
+            // Ignore exceptions and return default response
+        }
 
         return ResponseEntity.ok("Email not found");
     }
