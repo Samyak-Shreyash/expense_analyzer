@@ -3,6 +3,9 @@ server:
 spring:
   application:
     name: expenseanalyzer
+  docker:
+    compose:
+      enabled: false
 
   datasource:
     url: jdbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${DB_NAME:expense_analyzer}
@@ -37,7 +40,7 @@ spring:
     open-in-view: false
 
   flyway:
-    enabled: true
+    enabled: false
     baseline-on-migrate: true
     baseline-version: 0
     locations: classpath:db/migration
@@ -53,8 +56,10 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,prometheus
+        include: health,info,metrics,prometheus,actuator
   endpoint:
+    shutdown:
+      enabled: true
     health:
       probes:
         enabled: true
