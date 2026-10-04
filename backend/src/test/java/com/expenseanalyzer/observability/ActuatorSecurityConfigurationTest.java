@@ -11,7 +11,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.security.web.DefaultSecurityFilterChain;
 import org.springframework.security.web.SecurityFilterChain;
 
-@SpringBootTest(properties = {"spring.datasource.url=jdbc:h2:mem:testdb;MODE=PostgreSQL", "spring.flyway.enabled=false"})
+@SpringBootTest
 @ActiveProfiles("test")
 class ActuatorSecurityConfigurationTest {
 
