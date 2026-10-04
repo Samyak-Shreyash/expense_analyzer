@@ -5,7 +5,7 @@ services:
   # PostgreSQL
   # ============================================================
   postgres:
-    image: postgres:16
+    image: postgres:18.6
     container_name: postgres
     restart: unless-stopped
 
@@ -21,7 +21,7 @@ services:
       - "${DB_PORT:-5432}:${DB_PORT:-5432}"
 
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
 
     healthcheck:
       test:
@@ -72,7 +72,7 @@ services:
   # Prometheus
   # ============================================================
   prometheus:
-    image: prom/prometheus:v3.8.0
+    image: prom/prometheus:main
     container_name: prometheus
     restart: unless-stopped
     profiles:
@@ -115,7 +115,7 @@ services:
   # OpenTelemetry Collector
   # ============================================================
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.142.0
+    image: otel/opentelemetry-collector-contrib:nightly
     container_name: otel-collector
     restart: unless-stopped
     profiles:
@@ -147,7 +147,7 @@ services:
   # Grafana Tempo
   # ============================================================
   tempo:
-    image: grafana/tempo:2.9.0
+    image: grafana/tempo:main-c6d51cb-2196-1
     container_name: tempo
     restart: unless-stopped
     profiles:
@@ -174,7 +174,7 @@ services:
   # Grafana
   # ============================================================
   grafana:
-    image: grafana/grafana:12.4.0
+    image: grafana/grafana:nightly-slim
     container_name: grafana
     restart: unless-stopped
     profiles:
