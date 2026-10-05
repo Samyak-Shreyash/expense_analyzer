@@ -62,8 +62,8 @@ public class AuthController {
     public ResponseEntity<String> register(@Valid @RequestBody RegisterRequest request) {
         try {
             // Call AuthService to create the user and save to database
-            com.expenseanalyzer.auth.service.AuthService authService =
-                new com.expenseanalyzer.auth.service.AuthService(
+            AuthService authService =
+                new AuthService(
                     userRepository, passwordEncoder);
             User user = authService.register(request);
 

@@ -64,10 +64,6 @@ public class User {
      * Optional user preferences stored as JSONB.
      * Example: {"currency":"INR","theme":"dark","notifications":true}
      */
-    /**
-     * Optional user preferences stored as JSONB.
-     * Example: {"theme":"dark","notifications":true}
-     */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "preferences", columnDefinition = "jsonb")
     private Map<String, Preference> preferences = new HashMap<>();
@@ -129,5 +125,37 @@ public class User {
     @Override
     public int hashCode() {
         return id != null ? id.hashCode() : 0;
+    }
+
+    // ---- Constructors ----
+
+    /**
+     * Constructor for creating a new user.
+     */
+    public User(String email, String passwordHash) {
+        this.email = email;
+        this.passwordHash = passwordHash;
+        this.fullName = "";
+        this.preferences = new HashMap<>();
+        this.active = true;
+        this.role = null;
+        this.createdAt = null;
+        this.updatedAt = null;
+        this.lastLoginAt = null;
+    }
+
+    /**
+     * Constructor for creating a new user with preferences.
+     */
+    public User(String email, String passwordHash, Map<String, Preference> preferences) {
+        this.email = email;
+        this.passwordHash = passwordHash;
+        this.fullName = "";
+        this.preferences = preferences != null ? preferences : new HashMap<>();
+        this.active = true;
+        this.role = null;
+        this.createdAt = null;
+        this.updatedAt = null;
+        this.lastLoginAt = null;
     }
 }

@@ -30,6 +30,21 @@ public class AuthService {
      * Validates email uniqueness and creates user with hashed password.
      */
     public User register(RegisterRequest request) {
+        // Validate email is not null
+        if (request.email() == null) {
+            throw new IllegalArgumentException("Email is required");
+        }
+
+        // Validate password is not null
+        if (request.password() == null) {
+            throw new IllegalArgumentException("Password is required");
+        }
+
+        // Validate password length >= 8
+        if (request.password().length() < 8) {
+            throw new IllegalArgumentException("Password must be at least 8 characters");
+        }
+
         // Check if email already exists
         if (userRepository.findByEmail(request.email()).isPresent()) {
             throw new IllegalArgumentException("Email already registered");
@@ -39,8 +54,8 @@ public class AuthService {
         User user = new User();
         user.setEmail(request.email());
         user.setPasswordHash(passwordEncoder.encode(request.password()));
-        user.setFullName("Full Name"); // Default - UserDTO doesn't have fullName field
-        user.setRole(UserRole.from(request.userDetails().role()));
+        user.setFullName("Full Name");
+        user.setRole(UserRole.USER); // Default role
         user.setActive(true);
         user.setCreatedAt(java.time.Instant.now());
         user.setUpdatedAt(java.time.Instant.now());
