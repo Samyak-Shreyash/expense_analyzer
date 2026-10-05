@@ -1,14 +1,14 @@
 # ============================================================
 # Stage 1: Build
 # ============================================================
-FROM gradle:9.1.0-jdk17 AS build
+FROM gradle:9.8.0-jdk17-alpine AS build
 
 WORKDIR /app
 
 COPY . .
 
-# Use the Gradle installed in the build image so the wrapper does not download
-# a separate Gradle distribution during the image build.
+# The image already includes Gradle. Avoid invoking the wrapper here because it
+# downloads its own distribution during every uncached container build.
 RUN gradle clean bootJar --no-daemon
 
 
@@ -30,6 +30,6 @@ USER appuser
 
 ENTRYPOINT ["java", \
     "-XX:+UseContainerSupport", \
-    "-XX:MaxRAMPercentage=75.0", \
+    "-XX:MaxRAMPercentage=50.0", \
     "-jar", \
     "app.jar"]
