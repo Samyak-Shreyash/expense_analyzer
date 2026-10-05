@@ -5,6 +5,7 @@ import com.expenseanalyzer.auth.repository.UserRepository;
 import com.expenseanalyzer.auth.service.AuthService;
 import com.expenseanalyzer.user.model.User;
 import jakarta.validation.Valid;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -34,19 +35,30 @@ public class AuthController {
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.email(), request.password())
         );
-
         if (authentication.isAuthenticated() && !authentication.getAuthorities().isEmpty()) {
             String jwt = tokenProvider.generateToken(authentication);
-
+            
             // Get user from Spring Security context to populate UserResponse DTO
             UsernamePasswordAuthenticationToken token = (UsernamePasswordAuthenticationToken) authentication;
             Object principal = token.getPrincipal();
-            if (principal instanceof User user) {
-                return ResponseEntity.ok(new AuthResponse(jwt, new UserResponse(
-                    user.getEmail(),
-                    user.getFullName(),
-                    user.getRole()
-                )));
+
+            // Extract email from Spring Security User principal
+            String email = null;
+            if (principal instanceof org.springframework.security.core.userdetails.User springUser) {
+                email = springUser.getUsername();
+            }
+
+            if (email != null) {
+                // Fetch domain model User from repository using email
+                User user = userRepository.findByEmail(email).orElse(null);
+
+                if (user != null) {
+                    return ResponseEntity.ok(new AuthResponse(jwt, new UserResponse(
+                        user.getEmail(),
+                        user.getFullName(),
+                        user.getRole()
+                    )));
+                }
             }
         }
 
