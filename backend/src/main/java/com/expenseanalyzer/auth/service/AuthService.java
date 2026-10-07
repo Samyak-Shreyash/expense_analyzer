@@ -55,7 +55,11 @@ public class AuthService {
         user.setEmail(request.email());
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setFullName("Full Name");
-        user.setRole(UserRole.USER); // Default role
+
+        // Assign ADMIN role if no admin users exist, otherwise USER
+        boolean hasAdminUser = userRepository.countByRole(UserRole.ADMIN) > 0;
+        user.setRole(hasAdminUser ? UserRole.USER : UserRole.ADMIN);
+
         user.setActive(true);
         user.setCreatedAt(java.time.Instant.now());
         user.setUpdatedAt(java.time.Instant.now());
