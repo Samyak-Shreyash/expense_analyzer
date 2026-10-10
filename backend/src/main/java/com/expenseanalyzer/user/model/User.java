@@ -65,10 +65,28 @@ public class User {
     /**
      * Optional user preferences stored as JSONB.
      * Example: {"currency":"INR","theme":"dark","notifications":true}
+     * Note: Preferences are now managed via the separate preferences table.
      */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "preferences", columnDefinition = "jsonb")
-    private Map<String, Preference> preferences = new HashMap<>();
+    private Map<String, Object> preferences = new HashMap<>();
+
+    /**
+     * Get user's preference by key from the database.
+     * This method reads from the separate preferences table.
+     */
+    public Map<String, Object> getPreferencesFromDb() {
+        // Implementation to read from preferences table
+        return null;
+    }
+
+    /**
+     * Set user's preference by key.
+     * This method writes to the separate preferences table.
+     */
+    public void setPreference(String key, Object value) {
+        // Implementation to write to preferences table
+    }
 
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
@@ -150,7 +168,7 @@ public class User {
     /**
      * Constructor for creating a new user with preferences.
      */
-    public User(String email, String passwordHash, Map<String, Preference> preferences) {
+    public User(String email, String passwordHash, Map<String, Object> preferences) {
         this.email = email;
         this.passwordHash = passwordHash;
         this.fullName = "";

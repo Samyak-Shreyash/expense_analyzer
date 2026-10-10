@@ -64,12 +64,10 @@ public class AuthService {
         user.setCreatedAt(java.time.Instant.now());
         user.setUpdatedAt(java.time.Instant.now());
 
-        // Initialize preferences with defaults (using Preference enum values)
-        Map<String, Preference> preferences = new HashMap<>();
-        preferences.put("currency", Preference.LIGHT);
-        preferences.put("theme", Preference.DARK);
-        preferences.put("notifications", Preference.LIGHT);
-        user.setPreferences(preferences);
+        // Initialize preferences with defaults (stored in separate preferences table)
+        userRepository.savePreference(user.getId(), "currency", "INR");
+        userRepository.savePreference(user.getId(), "theme", "DARK");
+        userRepository.savePreference(user.getId(), "notifications", true);
 
         return userRepository.save(user);
     }

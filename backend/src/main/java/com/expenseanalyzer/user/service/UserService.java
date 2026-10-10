@@ -4,7 +4,6 @@ import com.expenseanalyzer.auth.dto.UpdateUserRequest;
 import com.expenseanalyzer.auth.repository.UserRepository;
 import com.expenseanalyzer.auth.dto.UserResponse;
 import com.expenseanalyzer.user.model.User;
-import com.expenseanalyzer.user.model.UserRole;
 
 import org.springframework.stereotype.Service;
 

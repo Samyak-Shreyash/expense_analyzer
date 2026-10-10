@@ -74,10 +74,10 @@ class AuthServiceTest {
         user.setCreatedAt(java.time.Instant.now());
         user.setUpdatedAt(java.time.Instant.now());
         user.setLastLoginAt(null);
-        Map<String, Preference> preferences = new HashMap<>();
-        preferences.put("currency", Preference.LIGHT);
-        preferences.put("theme", Preference.DARK);
-        preferences.put("notifications", Preference.LIGHT);
+        Map<String, Object> preferences = new HashMap<>();
+        preferences.put("currency", "INR");
+        preferences.put("theme", "DARK");
+        preferences.put("notifications", true);
         user.setPreferences(preferences);
         return user;
     }
@@ -264,10 +264,10 @@ class AuthServiceTest {
         User user = authService.register(request);
 
         // Assert
-        Map<String, Preference> preferences = user.getPreferences();
-        assertThat(preferences).containsEntry("currency", Preference.LIGHT);
-        assertThat(preferences).containsEntry("theme", Preference.DARK);
-        assertThat(preferences).containsEntry("notifications", Preference.LIGHT);
+        Map<String, Object> preferences = user.getPreferences();
+        assertThat(preferences).containsEntry("currency", "INR");
+        assertThat(preferences).containsEntry("theme", "DARK");
+        assertThat(preferences).containsEntry("notifications", true);
 
         // Verify
         verify(userRepository).findByEmail(TEST_EMAIL);
