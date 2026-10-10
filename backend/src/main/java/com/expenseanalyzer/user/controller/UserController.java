@@ -1,8 +1,8 @@
 package com.expenseanalyzer.user.controller;
 
-import com.expenseanalyzer.auth.dto.UpdateUserRequest;
 import com.expenseanalyzer.auth.service.AuthService;
-import com.expenseanalyzer.auth.dto.UserResponse;
+import com.expenseanalyzer.user.dto.UserRequest;
+import com.expenseanalyzer.user.dto.UserResponse;
 import com.expenseanalyzer.user.service.UserService;
 
 import lombok.RequiredArgsConstructor;
@@ -30,7 +30,7 @@ public class UserController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<UserResponse> updateUser(
             @PathVariable UUID userId,
-            @RequestBody UpdateUserRequest request) {
+            @RequestBody UserRequest request) {
         try {
             return ResponseEntity.ok(userService.updateUser(userId, request));
         } catch (IllegalArgumentException e) {

@@ -3,9 +3,8 @@ package com.expenseanalyzer.auth.dto;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
-import java.util.UUID;
 
-public record UserDTO(
+public record UserAuth(
     @NotBlank(message = "Email is required")
     @Email(message = "Invalid email format")
     String email,

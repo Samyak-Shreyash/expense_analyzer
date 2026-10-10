@@ -1,8 +1,10 @@
 package com.expenseanalyzer.user.model;
 
+import jakarta.persistence.*;
+
 /**
- * Notification mode preferences.
+ * Notification mode preference enum.
  */
 public enum NotificationMode {
-    ALL, NONE, EMAIL, PUSH
+    ALL, NONE
 }

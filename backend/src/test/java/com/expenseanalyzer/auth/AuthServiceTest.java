@@ -12,13 +12,14 @@ import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.verify;
 
 import com.expenseanalyzer.auth.dto.RegisterRequest;
-import com.expenseanalyzer.auth.dto.UserResponse;
-import com.expenseanalyzer.auth.repository.UserRepository;
 import com.expenseanalyzer.auth.service.AuthService;
+import com.expenseanalyzer.user.dto.UserResponse;
 import com.expenseanalyzer.user.model.Preference;
 import com.expenseanalyzer.user.model.UserRole;
 import com.expenseanalyzer.user.model.User;
 import com.expenseanalyzer.user.repository.PreferenceRepository;
+import com.expenseanalyzer.user.repository.UserRepository;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

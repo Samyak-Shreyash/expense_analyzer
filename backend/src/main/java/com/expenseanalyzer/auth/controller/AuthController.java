@@ -1,9 +1,10 @@
 package com.expenseanalyzer.auth.controller;
 
 import com.expenseanalyzer.auth.dto.*;
-import com.expenseanalyzer.auth.repository.UserRepository;
 import com.expenseanalyzer.auth.service.AuthService;
 import com.expenseanalyzer.user.model.User;
+import com.expenseanalyzer.user.repository.UserRepository;
+
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
@@ -11,7 +12,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -22,7 +22,6 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final JwtTokenProvider tokenProvider;
     private final UserRepository userRepository;
-    private final PasswordEncoder passwordEncoder;
     private final AuthService authService;
 
 
@@ -49,11 +48,7 @@ public class AuthController {
                 User user = userRepository.findByEmail(email).orElse(null);
 
                 if (user != null) {
-                    return ResponseEntity.ok(new AuthResponse(jwt, new UserResponse(
-                        user.getEmail(),
-                        user.getFullName(),
-                        user.getRole()
-                    )));
+                    return ResponseEntity.ok(new AuthResponse(jwt));
                 }
             }
         }

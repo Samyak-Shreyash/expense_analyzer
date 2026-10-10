@@ -1,8 +1,9 @@
 package com.expenseanalyzer.security;
 
-import com.expenseanalyzer.auth.repository.UserRepository;
 import com.expenseanalyzer.auth.dto.JwtTokenProvider;
 import com.expenseanalyzer.user.model.User;
+import com.expenseanalyzer.user.repository.UserRepository;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;

@@ -1,4 +1,4 @@
-package com.expenseanalyzer.auth.dto;
+package com.expenseanalyzer.user.dto;
 
 import com.expenseanalyzer.user.model.UserRole;
 import java.util.Map;
@@ -6,7 +6,7 @@ import java.util.Map;
 /**
  * DTO for updating user information.
  */
-public record UpdateUserRequest(
+public record UserRequest(
     String email,
     String fullName,
     UserRole role,

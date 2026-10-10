@@ -1,3 +1,10 @@
 package com.expenseanalyzer.user.model;
 
-public enum Currency { INR, USD, EUR, GBP }
+import jakarta.persistence.*;
+
+/**
+ * Currency preference enum.
+ */
+public enum Currency {
+    INR, USD, EUR
+}

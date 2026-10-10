@@ -1,4 +1,4 @@
-package com.expenseanalyzer.auth.dto;
+package com.expenseanalyzer.user.dto;
 
 import com.expenseanalyzer.user.model.UserRole;
 

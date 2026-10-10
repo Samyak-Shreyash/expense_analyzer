@@ -1,14 +1,14 @@
 package com.expenseanalyzer.user.service;
 
-import com.expenseanalyzer.auth.dto.UpdateUserRequest;
-import com.expenseanalyzer.auth.repository.UserRepository;
-import com.expenseanalyzer.auth.dto.UserResponse;
 import com.expenseanalyzer.user.model.User;
 import com.expenseanalyzer.user.model.Preference;
 import com.expenseanalyzer.user.model.Theme;
+import com.expenseanalyzer.user.dto.UserRequest;
+import com.expenseanalyzer.user.dto.UserResponse;
 import com.expenseanalyzer.user.model.Currency;
 import com.expenseanalyzer.user.model.NotificationMode;
 import com.expenseanalyzer.user.repository.PreferenceRepository;
+import com.expenseanalyzer.user.repository.UserRepository;
 
 import org.springframework.stereotype.Service;
 
@@ -31,7 +31,7 @@ public class UserService {
     /**
      * Update user information.
      */
-    public UserResponse updateUser(UUID userId, UpdateUserRequest request) {
+    public UserResponse updateUser(UUID userId, UserRequest request) {
         User updatedUser = userRepository.findById(userId)
                 .map(user -> {
                     if (request.email() != null && !request.email().isEmpty()) {

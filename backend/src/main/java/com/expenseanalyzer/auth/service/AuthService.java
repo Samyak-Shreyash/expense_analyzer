@@ -7,8 +7,9 @@ import com.expenseanalyzer.user.model.Preference;
 import com.expenseanalyzer.user.model.Theme;
 import com.expenseanalyzer.user.model.Currency;
 import com.expenseanalyzer.user.model.NotificationMode;
-import com.expenseanalyzer.auth.repository.UserRepository;
 import com.expenseanalyzer.user.repository.PreferenceRepository;
+import com.expenseanalyzer.user.repository.UserRepository;
+
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 

@@ -1,8 +1,9 @@
 package com.expenseanalyzer.auth.config;
 
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
-import com.expenseanalyzer.auth.repository.UserRepository;
 import com.expenseanalyzer.user.model.User;
+import com.expenseanalyzer.user.repository.UserRepository;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -46,7 +47,8 @@ public class SecurityConfiguration {
      */
     @Bean
     public AuthenticationProvider authenticationProvider() {
-        DaoAuthenticationProvider provider = new DaoAuthenticationProvider(userDetailsService());
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        provider.setUserDetailsService(userDetailsService());
         provider.setPasswordEncoder(passwordEncoder());
         return provider;
     }

@@ -1,3 +1,10 @@
 package com.expenseanalyzer.user.model;
 
-public enum Theme { DARK, LIGHT, SYSTEM }
+import jakarta.persistence.*;
+
+/**
+ * Theme preference enum.
+ */
+public enum Theme {
+    DARK, LIGHT
+}
