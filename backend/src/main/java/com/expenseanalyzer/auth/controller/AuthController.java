@@ -104,4 +104,5 @@ public class AuthController {
 
         return ResponseEntity.ok("Email not found");
     }
+
 }

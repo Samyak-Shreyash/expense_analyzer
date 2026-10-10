@@ -10,6 +10,7 @@ HELP.md
 # Compiled output
 /backend/bin/
 /backend/out/
+/node_modules
 
 # IntelliJ IDEA
 .idea/
@@ -55,3 +56,5 @@ desktop.ini
 /graphify*
 
 agents.md
+
+*package*.json
