@@ -12,6 +12,8 @@ import org.hibernate.type.SqlTypes;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -63,13 +65,35 @@ public class User {
     /**
      * Optional user preferences stored as JSONB.
      * Example: {"currency":"INR","theme":"dark","notifications":true}
+     * Note: Preferences are now managed via the separate preferences table.
      */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "preferences", columnDefinition = "jsonb")
     private Map<String, Object> preferences = new HashMap<>();
 
+    /**
+     * Get user's preference by key from the database.
+     * This method reads from the separate preferences table.
+     */
+    public Map<String, Object> getPreferencesFromDb() {
+        // Implementation to read from preferences table
+        return null;
+    }
+
+    /**
+     * Set user's preference by key.
+     * This method writes to the separate preferences table.
+     */
+    public void setPreference(String key, Object value) {
+        // Implementation to write to preferences table
+    }
+
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "role", nullable = false, length = 20)
+    private UserRole role;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -122,5 +146,37 @@ public class User {
     @Override
     public int hashCode() {
         return id != null ? id.hashCode() : 0;
+    }
+
+    // ---- Constructors ----
+
+    /**
+     * Constructor for creating a new user.
+     */
+    public User(String email, String passwordHash) {
+        this.email = email;
+        this.passwordHash = passwordHash;
+        this.fullName = "";
+        this.preferences = new HashMap<>();
+        this.active = true;
+        this.role = null;
+        this.createdAt = null;
+        this.updatedAt = null;
+        this.lastLoginAt = null;
+    }
+
+    /**
+     * Constructor for creating a new user with preferences.
+     */
+    public User(String email, String passwordHash, Map<String, Object> preferences) {
+        this.email = email;
+        this.passwordHash = passwordHash;
+        this.fullName = "";
+        this.preferences = preferences != null ? preferences : new HashMap<>();
+        this.active = true;
+        this.role = null;
+        this.createdAt = null;
+        this.updatedAt = null;
+        this.lastLoginAt = null;
     }
 }

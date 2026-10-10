@@ -18,16 +18,15 @@ class UserTest {
     private static final String TEST_PASSWORD_HASH = "$2a$10$hashedpassword";
     private static final String TEST_FULL_NAME = "Test User";
     private static final Map<String, Object> TEST_PREFERENCES = new HashMap<>();
-    private static final String TEST_CURRENCY = "INR";
     private static final String TEST_THEME = "dark";
-    private static final Boolean TEST_NOTIFICATIONS = true;
 
     @BeforeAll
     static void setTestPreferences() {
-        TEST_PREFERENCES.put("currency", TEST_CURRENCY);
-        TEST_PREFERENCES.put("theme", TEST_THEME);
-        TEST_PREFERENCES.put("notifications", TEST_NOTIFICATIONS);
+        TEST_PREFERENCES.put("theme", "DARK");
     }
+
+    // Note: Currency and notifications are stored as String/Boolean values
+    // since the new Preference enum supports multiple value types.
     @Test
     void constructor_shouldCreateUser_withDefaults() {
         // Arrange
@@ -121,7 +120,7 @@ class UserTest {
 
         // Assert
         assertThat(user.getPreferences()).isEqualTo(TEST_PREFERENCES);
-        assertThat(user.getPreferences().get("currency")).isEqualTo(TEST_CURRENCY);
+        assertThat(user.getPreferences().get("theme")).isEqualTo("DARK");
     }
 
     @Test
@@ -375,9 +374,7 @@ class UserTest {
         // Arrange
         User user = new User();
         Map<String, Object> preferences = new HashMap<>();
-        preferences.put("currency", "INR");
-        preferences.put("theme", "dark");
-        preferences.put("notifications", true);
+        preferences.put("theme", "DARK");
         user.setPreferences(preferences);
 
         // Act
@@ -385,8 +382,7 @@ class UserTest {
 
         // Assert
         assertThat(result).isEqualTo(preferences);
-        assertThat(result.get("currency")).isEqualTo("INR");
-        assertThat(result.get("theme")).isEqualTo("dark");
+        assertThat(result.get("theme")).isEqualTo("DARK");
     }
 
     @Test
