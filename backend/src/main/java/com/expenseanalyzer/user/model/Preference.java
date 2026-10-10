@@ -5,6 +5,12 @@ import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 
+/**
+ * User preference entity with hybrid enum + JSONB storage.
+ *
+ * Typed preferences (theme, currency, notification mode) use enum fields for compile-time safety.
+ * Dynamic preferences are stored in the value field as JSONB.
+ */
 @Entity
 @Table(name = "preferences")
 public class Preference {
@@ -19,6 +25,20 @@ public class Preference {
     @Column(name = "key", nullable = false, length = 100)
     private String key;
 
+    // Enum fields for typed preferences (compile-time safety)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "theme", length = 20)
+    private Theme theme;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "currency", length = 10)
+    private Currency currency;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "notification_mode", length = 20)
+    private NotificationMode notificationMode;
+
+    // JSONB field for dynamic preferences (flexibility)
     @Column(name = "value", nullable = false, columnDefinition = "jsonb")
     private Map<String, Object> value;
 
@@ -64,6 +84,30 @@ public class Preference {
 
     public void setKey(String key) {
         this.key = key;
+    }
+
+    public Theme getTheme() {
+        return theme;
+    }
+
+    public void setTheme(Theme theme) {
+        this.theme = theme;
+    }
+
+    public Currency getCurrency() {
+        return currency;
+    }
+
+    public void setCurrency(Currency currency) {
+        this.currency = currency;
+    }
+
+    public NotificationMode getNotificationMode() {
+        return notificationMode;
+    }
+
+    public void setNotificationMode(NotificationMode notificationMode) {
+        this.notificationMode = notificationMode;
     }
 
     public Map<String, Object> getValue() {

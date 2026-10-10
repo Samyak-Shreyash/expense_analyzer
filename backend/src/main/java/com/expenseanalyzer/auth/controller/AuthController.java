@@ -5,6 +5,7 @@ import com.expenseanalyzer.auth.repository.UserRepository;
 import com.expenseanalyzer.auth.service.AuthService;
 import com.expenseanalyzer.user.model.User;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -15,20 +16,15 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/auth")
+@RequiredArgsConstructor 
 public class AuthController {
 
     private final AuthenticationManager authenticationManager;
     private final JwtTokenProvider tokenProvider;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AuthService authService;
 
-    public AuthController(AuthenticationManager authenticationManager, JwtTokenProvider tokenProvider,
-                         UserRepository userRepository, PasswordEncoder passwordEncoder) {
-        this.authenticationManager = authenticationManager;
-        this.tokenProvider = tokenProvider;
-        this.userRepository = userRepository;
-        this.passwordEncoder = passwordEncoder;
-    }
 
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
@@ -74,9 +70,6 @@ public class AuthController {
     public ResponseEntity<String> register(@Valid @RequestBody RegisterRequest request) {
         try {
             // Call AuthService to create the user and save to database
-            AuthService authService =
-                new AuthService(
-                    userRepository, passwordEncoder);
             User user = authService.register(request);
 
             return ResponseEntity.ok("User registered successfully");
@@ -92,9 +85,6 @@ public class AuthController {
     @GetMapping("/register/check-email")
     public ResponseEntity<String> checkEmail(@RequestParam String email) {
         try {
-            com.expenseanalyzer.auth.service.AuthService authService =
-                new com.expenseanalyzer.auth.service.AuthService(
-                    userRepository, passwordEncoder);
             if (authService.isEmailRegistered(email)) {
                 return ResponseEntity.status(409).body("Email already registered");
             }

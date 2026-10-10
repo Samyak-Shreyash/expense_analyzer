@@ -18,6 +18,7 @@ import com.expenseanalyzer.auth.service.AuthService;
 import com.expenseanalyzer.user.model.Preference;
 import com.expenseanalyzer.user.model.UserRole;
 import com.expenseanalyzer.user.model.User;
+import com.expenseanalyzer.user.repository.PreferenceRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -40,6 +41,9 @@ class AuthServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private PreferenceRepository preferenceRepository;
+
     private final PasswordEncoder passwordEncoder = new org.springframework.security.crypto.password.PasswordEncoder() {
         @Override
         public String encode(CharSequence rawPassword) {
@@ -60,7 +64,7 @@ class AuthServiceTest {
 
     @BeforeEach
     void setUp() {
-        this.authService = new AuthService(userRepository, passwordEncoder);
+        this.authService = new AuthService(userRepository, preferenceRepository, passwordEncoder);
     }
 
     private User createMockUser() {
@@ -74,11 +78,6 @@ class AuthServiceTest {
         user.setCreatedAt(java.time.Instant.now());
         user.setUpdatedAt(java.time.Instant.now());
         user.setLastLoginAt(null);
-        Map<String, Object> preferences = new HashMap<>();
-        preferences.put("currency", "INR");
-        preferences.put("theme", "DARK");
-        preferences.put("notifications", true);
-        user.setPreferences(preferences);
         return user;
     }
 
@@ -107,11 +106,11 @@ class AuthServiceTest {
         assertThat(user.getCreatedAt()).isNotNull();
         assertThat(user.getUpdatedAt()).isNotNull();
         assertThat(user.getLastLoginAt()).isNull();
-        assertThat(user.getPreferences()).hasSize(3);
 
         // Verify
         verify(userRepository).findByEmail(TEST_EMAIL);
         verify(userRepository, times(1)).save(any(User.class));
+        verify(preferenceRepository, times(3)).save(any(Preference.class));
     }
 
     /**
@@ -264,14 +263,8 @@ class AuthServiceTest {
         User user = authService.register(request);
 
         // Assert
-        Map<String, Object> preferences = user.getPreferences();
-        assertThat(preferences).containsEntry("currency", "INR");
-        assertThat(preferences).containsEntry("theme", "DARK");
-        assertThat(preferences).containsEntry("notifications", true);
-
-        // Verify
-        verify(userRepository).findByEmail(TEST_EMAIL);
-        verify(userRepository, times(1)).save(any(User.class));
+        assertThat(user.getId()).isEqualTo(TEST_USER_ID);
+        assertThat(user.getEmail()).isEqualTo(TEST_EMAIL);
     }
 
     /**
@@ -295,9 +288,6 @@ class AuthServiceTest {
         // Verify
         verify(userRepository).findByEmail(TEST_EMAIL);
         verify(userRepository, times(1)).save(any(User.class));
-
-        // Verify
-        verify(userRepository).findByEmail(TEST_EMAIL);
-        verify(userRepository, times(1)).save(any(User.class));
+        verify(preferenceRepository, times(3)).save(any(Preference.class));
     }
 }

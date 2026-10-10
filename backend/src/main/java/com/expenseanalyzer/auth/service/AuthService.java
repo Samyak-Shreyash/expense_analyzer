@@ -4,7 +4,11 @@ import com.expenseanalyzer.auth.dto.RegisterRequest;
 import com.expenseanalyzer.user.model.User;
 import com.expenseanalyzer.user.model.UserRole;
 import com.expenseanalyzer.user.model.Preference;
+import com.expenseanalyzer.user.model.Theme;
+import com.expenseanalyzer.user.model.Currency;
+import com.expenseanalyzer.user.model.NotificationMode;
 import com.expenseanalyzer.auth.repository.UserRepository;
+import com.expenseanalyzer.user.repository.PreferenceRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -18,10 +22,12 @@ import java.util.HashMap;
 public class AuthService {
 
     private final UserRepository userRepository;
+    private final PreferenceRepository preferenceRepository;
     private final PasswordEncoder passwordEncoder;
 
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public AuthService(UserRepository userRepository, PreferenceRepository preferenceRepository, PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
+        this.preferenceRepository = preferenceRepository;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -65,9 +71,23 @@ public class AuthService {
         user.setUpdatedAt(java.time.Instant.now());
 
         // Initialize preferences with defaults (stored in separate preferences table)
-        userRepository.savePreference(user.getId(), "currency", "INR");
-        userRepository.savePreference(user.getId(), "theme", "DARK");
-        userRepository.savePreference(user.getId(), "notifications", true);
+        Preference currencyPref = new Preference();
+        currencyPref.setUserId(user.getId());
+        currencyPref.setKey("currency");
+        currencyPref.setCurrency(Currency.INR);
+        preferenceRepository.save(currencyPref);
+
+        Preference themePref = new Preference();
+        themePref.setUserId(user.getId());
+        themePref.setKey("theme");
+        themePref.setTheme(Theme.DARK);
+        preferenceRepository.save(themePref);
+
+        Preference notificationPref = new Preference();
+        notificationPref.setUserId(user.getId());
+        notificationPref.setKey("notifications");
+        notificationPref.setNotificationMode(NotificationMode.ALL);
+        preferenceRepository.save(notificationPref);
 
         return userRepository.save(user);
     }
