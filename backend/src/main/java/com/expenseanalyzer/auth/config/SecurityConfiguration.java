@@ -12,7 +12,6 @@ import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -32,7 +31,8 @@ import java.util.List;
  * Configures authentication, authorization, and security filters.
  */
 @Configuration
-@EnableWebSecurity // Automatically creates AuthenticationManager bean
+// @EnableWebSecurity removed - Spring Boot 4.1.1 no longer requires it
+// AuthenticationManager is created automatically when using ProviderManager
 public class SecurityConfiguration {
 
     private final UserRepository userRepository;
