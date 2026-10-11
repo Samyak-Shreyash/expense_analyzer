@@ -9,8 +9,10 @@ import com.expenseanalyzer.user.repository.PreferenceRepository;
 import com.expenseanalyzer.auth.dto.JwtTokenProvider;
 
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
 import org.mockito.Mockito;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.mockito.MockitoAnnotations;
+
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
@@ -23,28 +25,28 @@ import org.springframework.test.context.ContextConfiguration;
 @ContextConfiguration(classes = SecurityConfiguration.class)
 class TestConfig {
 
-    @MockBean
+    @Mock
     private UserRepository userRepository;
 
-    @MockBean
+    @Mock
     private PreferenceRepository preferenceRepository;
 
-    @MockBean
+    @Mock
     private AuthenticationManager authenticationManager;
 
-    @MockBean
+    @Mock
     private JwtTokenProvider jwtTokenProvider;
 
-    @MockBean
+    @Mock
     private SecurityFilterChain securityFilterChain;
 
-    @MockBean
+    @Mock
     private AuthService authService;
 
-    @MockBean
+    @Mock
     private UserService userService;
 
-    @MockBean
+    @Mock
     private AuthenticationProvider authenticationProvider;
 
 }
