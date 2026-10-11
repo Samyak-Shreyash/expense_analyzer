@@ -10,6 +10,7 @@ HELP.md
 # Compiled output
 /backend/bin/
 /backend/out/
+/node_modules
 
 # IntelliJ IDEA
 .idea/
@@ -51,3 +52,9 @@ Thumbs.db
 desktop.ini
 
 .claude/
+.agents/
+/graphify*
+
+agents.md
+
+*package*.json

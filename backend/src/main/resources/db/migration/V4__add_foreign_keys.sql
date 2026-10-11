@@ -1,10 +1,8 @@
--- Migration: V3__add_foreign_keys.sql
--- Description: Add foreign key constraints between transactions and statements
+-- Migration: V4__add_foreign_keys.sql
+-- Description: Add foreign key constraints to transactions table
 
--- Foreign key: transactions.user_id -> users.id
-ALTER TABLE transactions ADD CONSTRAINT fk_transactions_user
+ALTER TABLE transactions ADD CONSTRAINT fk_transactions_user_id
     FOREIGN KEY (user_id) REFERENCES users(id);
 
--- Foreign key: transactions.statement_id -> statements.id
-ALTER TABLE transactions ADD CONSTRAINT fk_transactions_statement
+ALTER TABLE transactions ADD CONSTRAINT fk_transactions_statement_id
     FOREIGN KEY (statement_id) REFERENCES statements(id);

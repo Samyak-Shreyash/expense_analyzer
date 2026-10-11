@@ -1,8 +1,8 @@
--- Migration: V1__create_transactions_table.sql
+-- Migration: V2__create_transactions_table.sql
 -- Description: Create transactions table with indexes for user and date queries
 
 CREATE TABLE IF NOT EXISTS transactions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY,
     raw_description VARCHAR(2048) NOT NULL,
     normalized_description VARCHAR(1024),
     merchant_id UUID,
@@ -12,8 +12,8 @@ CREATE TABLE IF NOT EXISTS transactions (
     type VARCHAR(10) NOT NULL,
     user_id UUID NOT NULL,
     statement_id UUID,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Indexes for performance optimization
