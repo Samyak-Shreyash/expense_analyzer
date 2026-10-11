@@ -108,10 +108,10 @@ class AuthServiceTest {
         assertThat(user.getUpdatedAt()).isNotNull();
         assertThat(user.getLastLoginAt()).isNull();
 
-        // Verify
+        // Verify - preferences saved after user save
+        verify(preferenceRepository, times(3)).save(any(Preference.class));
         verify(userRepository).findByEmail(TEST_EMAIL);
         verify(userRepository, times(1)).save(any(User.class));
-        verify(preferenceRepository, times(3)).save(any(Preference.class));
     }
 
     /**
@@ -286,9 +286,9 @@ class AuthServiceTest {
         // Assert
         assertThat(user.getLastLoginAt()).isNull();
 
-        // Verify
+        // Verify - preferences saved after user save
+        verify(preferenceRepository, times(3)).save(any(Preference.class));
         verify(userRepository).findByEmail(TEST_EMAIL);
         verify(userRepository, times(1)).save(any(User.class));
-        verify(preferenceRepository, times(3)).save(any(Preference.class));
     }
 }

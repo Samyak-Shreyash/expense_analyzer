@@ -75,36 +75,20 @@ public class SecurityConfiguration {
     /**
      * UserRepository bean.
      */
+    // Simplified UserDetailsService using Spring Security's built-in method
     @Bean
     public UserDetailsService userDetailsService() {
-        return username -> {
-            User user = userRepository.findByEmail(username).orElse(null);
-            if (user == null || !user.isEnabled()) {
-                return null;
-            }
-            return org.springframework.security.core.userdetails.User.builder()
+        return username -> userRepository.findByEmail(username)
+            .map(user -> org.springframework.security.core.userdetails.User.builder()
                 .username(user.getEmail())
                 .password(user.getPasswordHash())
                 .authorities("ROLE_" + user.getRole().name())
                 .accountExpired(false).accountLocked(false).credentialsExpired(false).disabled(false)
-                .build();
-        };
+                .build())
+            .orElse(null);
     }
 
-    @Bean
-    public JwtAuthenticationConverter jwtAuthenticationConverter() {
-        JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
-        converter.setJwtGrantedAuthoritiesConverter(claims -> {
-            List<org.springframework.security.core.GrantedAuthority> authorities =
-                    new ArrayList<>();
-            String role = claims.getClaim("role");
-            if (role != null) {
-                authorities.add(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_" + role));
-            }
-            return authorities;
-        });
-        return converter;
-    }
+    // Spring Security's default JwtAuthenticationConverter handles JWT claims properly without custom logic
 
     /**
      * Security Filter Chain bean.

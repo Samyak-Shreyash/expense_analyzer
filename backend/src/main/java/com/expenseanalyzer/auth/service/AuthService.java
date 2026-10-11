@@ -12,10 +12,6 @@ import com.expenseanalyzer.user.repository.UserRepository;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-
-import java.util.Map;
-import java.util.HashMap;
-
 /**
  * Service for user registration and authentication operations.
  */
@@ -26,10 +22,15 @@ public class AuthService {
     private final PreferenceRepository preferenceRepository;
     private final PasswordEncoder passwordEncoder;
 
+    // Singleton flag: true if admin user exists (checked once at startup)
+    private static boolean hasAdminUser = false;
+
     public AuthService(UserRepository userRepository, PreferenceRepository preferenceRepository, PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.preferenceRepository = preferenceRepository;
         this.passwordEncoder = passwordEncoder;
+        // Initialize singleton flag at startup (Spring beans are singletons by default)
+        hasAdminUser = userRepository.countByRole(UserRole.ADMIN) > 0;
     }
 
     /**
@@ -57,19 +58,17 @@ public class AuthService {
             throw new IllegalArgumentException("Email already registered");
         }
 
-        // Create new user
+        // Create new user - fullName not in RegisterRequest, leave as empty string
         User user = new User();
         user.setEmail(request.email());
         user.setPasswordHash(passwordEncoder.encode(request.password()));
-        user.setFullName("Full Name");
+        user.setFullName("");
+        user.setRole(UserRole.USER);
 
-        // Assign ADMIN role if no admin users exist, otherwise USER
-        boolean hasAdminUser = userRepository.countByRole(UserRole.ADMIN) > 0;
-        user.setRole(hasAdminUser ? UserRole.USER : UserRole.ADMIN);
-
-        user.setActive(true);
-        user.setCreatedAt(java.time.Instant.now());
-        user.setUpdatedAt(java.time.Instant.now());
+        // Assign ADMIN role if no admin users exist (singleton flag checked once at startup)
+        if (!hasAdminUser) {
+            user.setRole(UserRole.ADMIN);
+        }
 
         // Initialize preferences with defaults (stored in separate preferences table)
         Preference currencyPref = new Preference();

@@ -37,19 +37,11 @@ public class AuthController {
             UsernamePasswordAuthenticationToken token = (UsernamePasswordAuthenticationToken) authentication;
             Object principal = token.getPrincipal();
 
-            // Extract email from Spring Security User principal
-            String email = null;
-            if (principal instanceof org.springframework.security.core.userdetails.User springUser) {
-                email = springUser.getUsername();
-            }
-
-            if (email != null) {
-                // Fetch domain model User from repository using email
-                User user = userRepository.findByEmail(email).orElse(null);
-
-                if (user != null) {
-                    return ResponseEntity.ok(new AuthResponse(jwt));
-                }
+            // Get email from Spring Security principal
+            String email = authentication.getName();
+            User user = userRepository.findByEmail(email).orElse(null);
+            if (user != null) {
+                return ResponseEntity.ok(new AuthResponse(jwt));
             }
         }
 
