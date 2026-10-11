@@ -47,7 +47,15 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Build project for CodeQL
-        run: ./gradlew codeqlBuild
+        run: |
+          cd backend
+          ./gradlew bootJar
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4.38.0
+        with:
+          languages: java
+          build-mode: autobuild
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4.38.0
