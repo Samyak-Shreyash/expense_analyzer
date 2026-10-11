@@ -54,18 +54,21 @@ jobs:
           distribution: 'temurin'
           cache: gradle
 
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: java-kotlin
+          build-mode: manual
+
+      # Force a full compilation that CodeQL can trace.
+      # --no-build-cache: Forces Gradle to recompile so CodeQL sees the code.
+      # --no-daemon: Keeps the build in a process CodeQL can monitor.
       - name: Build project for CodeQL
         run: |
           cd backend
-          ./gradlew build -x test
-
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3.24.10
-        with:
-          languages: java
-          build-mode: autobuild
+          ./gradlew build -x test --no-build-cache --no-daemon
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3.24.10
+        uses: github/codeql-action/analyze@v3
         with:
-          category: "/language:java"
+          category: "/language:java-kotlin"
