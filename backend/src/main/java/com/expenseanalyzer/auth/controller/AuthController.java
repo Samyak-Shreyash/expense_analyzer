@@ -8,6 +8,9 @@ import com.expenseanalyzer.user.repository.UserRepository;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -24,6 +27,7 @@ public class AuthController {
     private final UserRepository userRepository;
     private final AuthService authService;
 
+    private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
 
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
@@ -61,7 +65,8 @@ public class AuthController {
 
             return ResponseEntity.ok("User registered successfully");
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.status(409).body(e.getMessage());
+            logger.warn("Registration failed: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("Registration failed");
         }
     }
 
@@ -71,11 +76,13 @@ public class AuthController {
      */
     @GetMapping("/register/check-email")
     public ResponseEntity<String> checkEmail(@RequestParam String email) {
+        logger.debug("Checking if email is registered: {}", email);
         try {
             if (authService.isEmailRegistered(email)) {
-                return ResponseEntity.status(409).body("Email already registered");
+                return ResponseEntity.status(HttpStatus.CONFLICT).body("Email already registered");
             }
         } catch (Exception e) {
+            logger.error("Error checking email registration for: {}", email, e);
             // Ignore exceptions and return default response
         }
 

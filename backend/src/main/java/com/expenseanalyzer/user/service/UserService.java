@@ -10,6 +10,8 @@ import com.expenseanalyzer.user.model.NotificationMode;
 import com.expenseanalyzer.user.repository.PreferenceRepository;
 import com.expenseanalyzer.user.repository.UserRepository;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.UUID;
@@ -20,6 +22,7 @@ import java.util.UUID;
 @Service
 public class UserService {
 
+    private static final Logger logger = LoggerFactory.getLogger(UserService.class);
     private final UserRepository userRepository;
     private final PreferenceRepository preferenceRepository;
 
@@ -32,38 +35,50 @@ public class UserService {
      * Update user information.
      */
     public UserResponse updateUser(UUID userId, UserRequest request) {
+        logger.debug("Updating user: {}", userId);
+
         User updatedUser = userRepository.findById(userId)
                 .map(user -> {
                     if (request.email() != null && !request.email().isEmpty()) {
+                        logger.debug("Setting email for user {}: {}", userId, request.email());
                         user.setEmail(request.email());
                     }
                     if (request.fullName() != null && !request.fullName().isEmpty()) {
+                        logger.debug("Setting full name for user {}: {}", userId, request.fullName());
                         user.setFullName(request.fullName());
                     }
                     if (request.role() != null) {
+                        logger.debug("Setting role for user {}: {}", userId, request.role());
                         user.setRole(request.role());
                     }
                     if (request.active() != null) {
+                        logger.debug("Setting active status for user {}: {}", userId, request.active());
                         user.setActive(request.active());
                     }
                     return userRepository.save(user);
                 })
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+                .orElseThrow(() -> {
+                    logger.error("User not found: {}", userId);
+                    return new IllegalArgumentException("User not found");
+                });
 
         // Update preferences if provided
         if (request.preferences() != null) {
+            logger.debug("Updating preferences for user {}: {}", userId, request.preferences());
             for (String key : request.preferences().keySet()) {
                 Preference pref = getPreference(updatedUser.getId(), key);
 
                 switch (key) {
                     case "theme":
                         String themeValue = request.preferences().get("theme").toString();
+                        logger.debug("Setting theme preference: {}", themeValue);
                         Theme theme = Theme.valueOf(themeValue.toUpperCase());
                         pref.setTheme(theme);
                         break;
 
                     case "currency":
                         String currencyValue = request.preferences().get("currency").toString();
+                        logger.debug("Setting currency preference: {}", currencyValue);
                         Currency currency = Currency.valueOf(currencyValue.toUpperCase());
                         pref.setCurrency(currency);
                         break;
@@ -71,6 +86,7 @@ public class UserService {
                     case "notifications":
                         Boolean notificationValue = (Boolean) request.preferences().get("notifications");
                         NotificationMode mode = notificationValue ? NotificationMode.ALL : NotificationMode.NONE;
+                        logger.debug("Setting notification mode: {}", mode);
                         pref.setNotificationMode(mode);
                         break;
                 }

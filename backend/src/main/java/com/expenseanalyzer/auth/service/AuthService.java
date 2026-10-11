@@ -10,6 +10,8 @@ import com.expenseanalyzer.user.model.NotificationMode;
 import com.expenseanalyzer.user.repository.PreferenceRepository;
 import com.expenseanalyzer.user.repository.UserRepository;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -19,6 +21,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class AuthService {
 
+    private static final Logger logger = LoggerFactory.getLogger(AuthService.class);
     private final UserRepository userRepository;
     private final PreferenceRepository preferenceRepository;
     private final PasswordEncoder passwordEncoder;
@@ -39,23 +42,29 @@ public class AuthService {
      * Validates email uniqueness and creates user with hashed password.
      */
     public User register(RegisterRequest request) {
+        logger.debug("Registering user with email: {}", request.email());
+
         // Validate email is not null
         if (request.email() == null) {
+            logger.warn("Registration failed: Email is required. Request email: {}", request.email());
             throw new IllegalArgumentException("Email is required");
         }
 
         // Validate password is not null
         if (request.password() == null) {
+            logger.warn("Registration failed: Password is required. Request password: {}", request.password());
             throw new IllegalArgumentException("Password is required");
         }
 
         // Validate password length >= 8
         if (request.password().length() < 8) {
+            logger.warn("Registration failed: Password must be at least 8 characters. Request password length: {}", request.password().length());
             throw new IllegalArgumentException("Password must be at least 8 characters");
         }
 
         // Check if email already exists
         if (userRepository.findByEmail(request.email()).isPresent()) {
+            logger.warn("Registration failed: Email already registered. Attempting email: {}", request.email());
             throw new IllegalArgumentException("Email already registered");
         }
 
