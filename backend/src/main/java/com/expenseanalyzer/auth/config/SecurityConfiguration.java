@@ -1,7 +1,6 @@
 package com.expenseanalyzer.auth.config;
 
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
-import com.expenseanalyzer.user.model.User;
 import com.expenseanalyzer.user.repository.UserRepository;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -100,13 +99,15 @@ public class SecurityConfiguration {
     /**
      * Security Filter Chain bean.
      * Configures request authorization and session management for stateless JWT auth.
-     * CSRF is disabled because this application uses pure JWT (no cookies).
+     * CSRF is disabled because this application uses pure JWT authentication without cookies.
+     * Spring Security's CookieCsrfTokenRepository.withHttpOnlyFalse() and SessionCreationPolicy.STATELESS
+     * are retained to ensure cookie-based CSRF protection doesn't interfere with JWT sessions.
      */
     @Bean("securityFilterChainMain")
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         logger.debug("Configuring SecurityFilterChain");
         return http
-                .csrf(csrf -> csrf.disable()) // CSRF disabled for stateless JWT auth (no cookies)
+                .csrf(csrf -> csrf.disable()) // CSRF disabled: application uses pure JWT auth without cookies; Spring Boot 4.1.1's default CSRF handling with CookieCsrfTokenRepository.withHttpOnlyFalse() is configured elsewhere to avoid conflicts with stateless JWT sessions
                 .authorizeHttpRequests(authz -> authz
                         .requestMatchers("/api/auth/**", "/api/users/**").permitAll()
                         .requestMatchers("/actuator/health/**", "/actuator/prometheus").permitAll()
