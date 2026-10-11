@@ -12,6 +12,7 @@ import com.expenseanalyzer.user.repository.UserRepository;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+
 /**
  * Service for user registration and authentication operations.
  */
@@ -23,13 +24,13 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
 
     // Singleton flag: true if admin user exists (checked once at startup)
-    private static boolean hasAdminUser = false;
+    private boolean hasAdminUser = false;
 
     public AuthService(UserRepository userRepository, PreferenceRepository preferenceRepository, PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.preferenceRepository = preferenceRepository;
         this.passwordEncoder = passwordEncoder;
-        // Initialize singleton flag at startup (Spring beans are singletons by default)
+        // Check if admin user exists at startup (Spring beans are singletons by default)
         hasAdminUser = userRepository.countByRole(UserRole.ADMIN) > 0;
     }
 
@@ -63,11 +64,12 @@ public class AuthService {
         user.setEmail(request.email());
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setFullName("");
-        user.setRole(UserRole.USER);
 
-        // Assign ADMIN role if no admin users exist (singleton flag checked once at startup)
+        // Assign ADMIN role if no admin users exist, otherwise USER
         if (!hasAdminUser) {
             user.setRole(UserRole.ADMIN);
+        } else {
+            user.setRole(UserRole.USER);
         }
 
         // Initialize preferences with defaults (stored in separate preferences table)
