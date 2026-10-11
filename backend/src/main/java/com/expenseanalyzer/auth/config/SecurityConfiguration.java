@@ -99,13 +99,14 @@ public class SecurityConfiguration {
 
     /**
      * Security Filter Chain bean.
-     * Configures CSRF, request authorization, and session management.
+     * Configures request authorization and session management for stateless JWT auth.
+     * CSRF is disabled because this application uses pure JWT (no cookies).
      */
     @Bean("securityFilterChainMain")
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         logger.debug("Configuring SecurityFilterChain");
         return http
-                .csrf(csrf -> csrf.disable()) // Disable CSRF for stateless JWT auth
+                .csrf(csrf -> csrf.disable()) // CSRF disabled for stateless JWT auth (no cookies)
                 .authorizeHttpRequests(authz -> authz
                         .requestMatchers("/api/auth/**", "/api/users/**").permitAll()
                         .requestMatchers("/actuator/health/**", "/actuator/prometheus").permitAll()
@@ -114,6 +115,7 @@ public class SecurityConfiguration {
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS) // Stateless for JWT
                 )
+                .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin())) // X-Frame-Options: SAMEORIGIN
                 .build();
     }
 
