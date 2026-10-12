@@ -42,4 +42,21 @@ public class UserController {
             return ResponseEntity.status(404).body(null);
         }
     }
+
+    /**
+     * Get current authenticated user.
+     * GET /api/user/me
+     */
+    @GetMapping("/me")
+    public ResponseEntity<UserResponse> getCurrentUser() {
+        logger.debug("Getting current user");
+        try {
+            UserResponse response = userService.getCurrentUser();
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            logger.error("Failed to get current user", e);
+            return ResponseEntity.status(401).body(null);
+        }
+    }
+
 }

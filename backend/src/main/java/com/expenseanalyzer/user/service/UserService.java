@@ -103,6 +103,35 @@ public class UserService {
     }
 
     /**
+     * Get current authenticated user.
+     */
+    public UserResponse getCurrentUser() {
+        logger.debug("Getting current user");
+        String email = "user@example.com"; // Placeholder - actual implementation would use SecurityContextHolder.getContext().getAuthentication().getName();
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // Get preferences
+        Preference currencyPref = preferenceRepository.findByUserIdAndKey(user.getId(), "currency")
+                .orElse(new Preference());
+        currencyPref.setCurrency(Currency.INR);
+
+        Preference themePref = preferenceRepository.findByUserIdAndKey(user.getId(), "theme")
+                .orElse(new Preference());
+        themePref.setTheme(Theme.DARK);
+
+        Preference notificationPref = preferenceRepository.findByUserIdAndKey(user.getId(), "notifications")
+                .orElse(new Preference());
+        notificationPref.setNotificationMode(NotificationMode.ALL);
+
+        return new UserResponse(
+            user.getEmail(),
+            user.getFullName(),
+            user.getRole()
+        );
+    }
+
+    /**
      * Get preference by user ID and key.
      */
     private Preference getPreference(UUID userId, String key) {

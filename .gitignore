@@ -26,6 +26,8 @@ HELP.md
 .apt_generated/
 .springBeans
 .sts4-cache
+.gradle/
+build/
 
 # NetBeans
 /nbproject/private/
