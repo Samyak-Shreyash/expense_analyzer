@@ -46,10 +46,15 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 
-	// Spring Security 7.x (7.2.0-M2) - Core, OAuth2 JWT, Authorization Server
+	// Spring Boot Starter for @Value annotation support
+	implementation 'org.springframework.boot:spring-boot-starter'
+
+	// Spring Security 7.x (7.2.0-M2) - Core, OAuth2 JWT, Authorization Server, Web, Config
 	implementation "org.springframework.security:spring-security-core:${springSecurityVersion}"
 	implementation "org.springframework.security:spring-security-oauth2-jose:${springSecurityVersion}"
 	implementation "org.springframework.security:spring-security-oauth2-authorization-server:${springSecurityVersion}"
+	implementation "org.springframework.security:spring-security-web:${springSecurityVersion}"
+	implementation "org.springframework.security:spring-security-config:${springSecurityVersion}"
 
 	implementation 'io.micrometer:micrometer-registry-prometheus'
 
@@ -69,8 +74,17 @@ dependencies {
 	implementation 'org.flywaydb:flyway-core'
 	implementation 'org.flywaydb:flyway-database-postgresql'
 
+	// Redis for rate limiting
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
+	// JWT library for token generation
+	implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
+	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
+
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
+	annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
 
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 	developmentOnly 'org.springframework.boot:spring-boot-docker-compose'

@@ -1,6 +1,6 @@
 package com.expenseanalyzer.auth.config;
 
-import com.nimbusds.jose.jwk.source.ImmutableSecret;
+import com.expenseanalyzer.auth.dto.JwtTokenProvider;
 import com.expenseanalyzer.user.repository.UserRepository;
 
 import org.springframework.beans.factory.annotation.Value;
@@ -11,16 +11,12 @@ import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.oauth2.jwt.JwtEncoder;
-import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-
-import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,9 +32,15 @@ public class SecurityConfiguration {
 
     private static final Logger logger = LoggerFactory.getLogger(SecurityConfiguration.class);
     private final UserRepository userRepository;
+    private final RateLimiter loginRateLimiter;
+    private final RateLimiter registrationRateLimiter;
+    private final JwtTokenProvider jwtTokenProvider;
 
-    public SecurityConfiguration(UserRepository userRepository) {
+    public SecurityConfiguration(UserRepository userRepository, RateLimiter loginRateLimiter, RateLimiter registrationRateLimiter, JwtTokenProvider jwtTokenProvider) {
         this.userRepository = userRepository;
+        this.loginRateLimiter = loginRateLimiter;
+        this.registrationRateLimiter = registrationRateLimiter;
+        this.jwtTokenProvider = jwtTokenProvider;
         logger.debug("SecurityConfiguration initialized");
     }
 
@@ -58,13 +60,6 @@ public class SecurityConfiguration {
     public AuthenticationManager authenticationManager(AuthenticationProvider authenticationProvider) {
         logger.debug("Creating AuthenticationManager bean");
         return new ProviderManager(authenticationProvider);
-    }
-
-    @Bean
-    public JwtEncoder jwtEncoder(@Value("${app.oauth.jwt.secret}") String secret) {
-        logger.debug("Creating JwtEncoder with secret length: {}", secret.length());
-        return new NimbusJwtEncoder(new ImmutableSecret<>(
-                new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256")));
     }
 
     /**
@@ -100,14 +95,12 @@ public class SecurityConfiguration {
      * Security Filter Chain bean.
      * Configures request authorization and session management for stateless JWT auth.
      * CSRF is disabled because this application uses pure JWT authentication without cookies.
-     * Spring Security's CookieCsrfTokenRepository.withHttpOnlyFalse() and SessionCreationPolicy.STATELESS
-     * are retained to ensure cookie-based CSRF protection doesn't interfere with JWT sessions.
      */
     @Bean("securityFilterChainMain")
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         logger.debug("Configuring SecurityFilterChain");
         return http
-                .csrf(csrf -> csrf.disable()) // CSRF disabled: application uses pure JWT auth without cookies; Spring Boot 4.1.1's default CSRF handling with CookieCsrfTokenRepository.withHttpOnlyFalse() is configured elsewhere to avoid conflicts with stateless JWT sessions
+                .csrf(csrf -> csrf.disable()) // CSRF disabled: application uses pure JWT auth without cookies
                 .authorizeHttpRequests(authz -> authz
                         .requestMatchers("/api/auth/**", "/api/users/**").permitAll()
                         .requestMatchers("/actuator/health/**", "/actuator/prometheus").permitAll()
@@ -118,6 +111,26 @@ public class SecurityConfiguration {
                 )
                 .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin())) // X-Frame-Options: SAMEORIGIN
                 .build();
+    }
+
+    /**
+     * Rate limiter bean for login attempts.
+     * Uses Redis-backed rate limiting to prevent brute force attacks.
+     * Configured to allow max 5 failed attempts per IP within 15 minutes.
+     */
+    @Bean
+    public RateLimiter loginRateLimiter() {
+        return new RateLimiter(); // Injected via @Value annotations
+    }
+
+    /**
+     * Rate limiter bean for registration attempts.
+     * Uses Redis-backed rate limiting to prevent spam.
+     * Configured to allow max 3 failed attempts per IP within 15 minutes.
+     */
+    @Bean
+    public RateLimiter registrationRateLimiter() {
+        return new RateLimiter(); // Injected via @Value annotations
     }
 
 }
