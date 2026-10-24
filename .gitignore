@@ -60,3 +60,5 @@ desktop.ini
 agents.md
 
 *package*.json
+*.bat
+uploaded_sessions.json
