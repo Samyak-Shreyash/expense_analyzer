@@ -1,5 +1,6 @@
 .page {
   --pad: 1.5rem;
+  box-sizing: border-box;
   min-height: 100vh;
   padding: var(--pad);
 }
