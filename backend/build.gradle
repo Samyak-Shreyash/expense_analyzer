@@ -68,7 +68,8 @@ dependencies {
 	runtimeOnly 'org.postgresql:postgresql'
 
 	// Flyway
-	implementation 'org.flywaydb:flyway-core'
+	// Boot 4 moved Flyway auto-configuration into its own module; flyway-core alone never runs migrations
+	implementation 'org.springframework.boot:spring-boot-starter-flyway'
 	implementation 'org.flywaydb:flyway-database-postgresql'
 
 	// Redis for rate limiting

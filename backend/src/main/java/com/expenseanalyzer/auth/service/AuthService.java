@@ -15,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Service for user registration and authentication operations.
@@ -42,6 +43,7 @@ public class AuthService {
      * Register a new user.
      * Validates email uniqueness and creates user with hashed password.
      */
+    @Transactional
     public User register(RegisterRequest request) {
         logger.debug("Registering user with email: {}", request.email());
 
@@ -79,6 +81,9 @@ public class AuthService {
             user.setRole(UserRole.USER);
         }
 
+        // Save first: preferences reference the generated user id
+        user = userRepository.save(user);
+
         // Initialize preferences with defaults (stored in separate preferences table)
         Preference currencyPref = new Preference();
         currencyPref.setUserId(user.getId());
@@ -98,7 +103,7 @@ public class AuthService {
         notificationPref.setNotificationMode(NotificationMode.ALL);
         preferenceRepository.save(notificationPref);
 
-        return userRepository.save(user);
+        return user;
     }
 
     /**
