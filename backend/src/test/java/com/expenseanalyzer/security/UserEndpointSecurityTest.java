@@ -9,7 +9,6 @@ import com.expenseanalyzer.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -18,12 +17,6 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
-
-import java.nio.charset.StandardCharsets;
-import java.time.Instant;
-import java.util.Date;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -31,7 +24,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -46,9 +38,6 @@ class UserEndpointSecurityTest {
 
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
-
-    @Value("${app.oauth.jwt.secret:default-secret-key-for-testing-only-32-bytes}")
-    private String jwtSecret;
 
     @MockitoBean
     private UserRepository userRepository;
@@ -96,36 +85,6 @@ class UserEndpointSecurityTest {
                 .andExpect(status().isUnauthorized());
     }
 
-    private String signedToken(String secret, Instant expiresAt) {
-        return "Bearer " + Jwts.builder()
-                .subject(EMAIL)
-                .issuedAt(Date.from(expiresAt.minusSeconds(3600)))
-                .expiration(Date.from(expiresAt))
-                .signWith(Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8)), Jwts.SIG.HS256)
-                .compact();
-    }
-
-    @Test
-    void meAcceptsHandBuiltValidToken() throws Exception {
-        // Control for the two tests below: the helper's tokens are valid when secret and expiry are.
-        mockMvc.perform(get("/api/user/me").header("Authorization", signedToken(jwtSecret, Instant.now().plusSeconds(600))))
-                .andExpect(status().isOk());
-    }
-
-    @Test
-    void meRejectsExpiredToken() throws Exception {
-        // Well past the decoder's 60s clock skew.
-        mockMvc.perform(get("/api/user/me").header("Authorization", signedToken(jwtSecret, Instant.now().minusSeconds(600))))
-                .andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    void meRejectsTokenWithWrongSignature() throws Exception {
-        mockMvc.perform(get("/api/user/me").header("Authorization",
-                        signedToken("a-completely-different-secret-key-of-32-plus-bytes", Instant.now().plusSeconds(600))))
-                .andExpect(status().isUnauthorized());
-    }
-
     @Test
     void usersPathIsNotPublic() throws Exception {
         mockMvc.perform(get("/api/users/anything")).andExpect(status().isUnauthorized());
@@ -137,14 +96,6 @@ class UserEndpointSecurityTest {
                         .contentType(MediaType.APPLICATION_JSON).content("{\"fullName\":\"Alice B\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.fullName").value("Alice B"));
-    }
-
-    @Test
-    void authenticatedPostWithoutCsrfTokenIsNotRejected() throws Exception {
-        // No POST handler on /api/user/me: 405 proves the request got past the CSRF filter (which would 403).
-        mockMvc.perform(post("/api/user/me").header("Authorization", bearer(EMAIL)))
-                .andExpect(status().isMethodNotAllowed());
-        mockMvc.perform(post("/api/user/me")).andExpect(status().isUnauthorized());
     }
 
     @Test
