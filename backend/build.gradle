@@ -94,6 +94,9 @@ dependencies {
 	testImplementation 'org.mockito:mockito-core'
 	testImplementation 'org.mockito:mockito-junit-jupiter'
 	testImplementation 'org.springframework.modulith:spring-modulith-starter-test'
+	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+	testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
+	testImplementation 'org.testcontainers:testcontainers-postgresql'
 	testRuntimeOnly 'com.h2database:h2'
 
 	testCompileOnly 'org.projectlombok:lombok'
@@ -113,6 +116,8 @@ dependencyManagement {
 
 tasks.named('test') {
 	useJUnitPlatform()
+	// Postgres 18 rejects legacy zone ids some hosts report (e.g. Asia/Calcutta on Windows)
+	systemProperty 'user.timezone', 'UTC'
 }
 
 // Optional local runner for a separately downloaded OpenTelemetry Java agent.
