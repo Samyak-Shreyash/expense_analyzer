@@ -62,3 +62,4 @@ agents.md
 *package*.json
 *.bat
 uploaded_sessions.json
+*.ps1
