@@ -1,0 +1,66 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  margin: 0;
+}
+
+.label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+
+.input {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  height: 2.75rem;
+  margin-top: 0.25rem;
+  padding: 0 0.75rem;
+  font: inherit;
+  font-size: 1rem;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+}
+
+.input[aria-invalid='true'] {
+  border-color: var(--debit);
+}
+
+.hint {
+  margin: 0.25rem 0 0;
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: var(--ink-muted);
+}
+
+.error {
+  margin: 0;
+  color: var(--debit);
+}
+
+.button {
+  width: 100%;
+  height: 2.75rem;
+  font: inherit;
+  font-weight: 700;
+  color: #fff;
+  background: var(--ledger);
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.footer {
+  margin: 1.5rem 0 0;
+  font-size: 0.875rem;
+  color: var(--ink-muted);
+}

@@ -2,7 +2,9 @@ import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { register } from '../../services/api'
+import { AuthLayout } from '../../components/AuthLayout'
 import { useAuth } from './AuthContext'
+import styles from './AuthForm.module.css'
 
 export function RegisterPage() {
   const { login } = useAuth()
@@ -32,42 +34,67 @@ export function RegisterPage() {
     navigate(ok ? '/dashboard' : '/login', { replace: true })
   }
 
+  const err = error ? { 'aria-invalid': true } : {}
+  const describedBy = error ? 'password-hint form-error' : 'password-hint'
+
   return (
-    <main>
-      <h1>Register</h1>
-      <form onSubmit={onSubmit}>
-        <label>
+    <AuthLayout title="Create your account" lead="It takes under a minute.">
+      <form className={styles.form} onSubmit={onSubmit}>
+        <label className={styles.label}>
           Email
-          <input name="email" type="email" autoComplete="email" required />
-        </label>
-        <label>
-          Password (at least 8 characters)
           <input
-            name="password"
-            type="password"
-            autoComplete="new-password"
-            minLength={8}
+            className={styles.input}
+            name="email"
+            type="email"
+            autoComplete="email"
             required
+            {...err}
+            aria-describedby={error ? 'form-error' : undefined}
           />
         </label>
-        <label>
+        <div>
+          <label className={styles.label}>
+            Password
+            <input
+              className={styles.input}
+              name="password"
+              type="password"
+              autoComplete="new-password"
+              minLength={8}
+              required
+              {...err}
+              aria-describedby={describedBy}
+            />
+          </label>
+          <p id="password-hint" className={styles.hint}>
+            At least 8 characters
+          </p>
+        </div>
+        <label className={styles.label}>
           Confirm password
           <input
+            className={styles.input}
             name="confirm"
             type="password"
             autoComplete="new-password"
             minLength={8}
             required
+            {...err}
+            aria-describedby={error ? 'form-error' : undefined}
           />
         </label>
-        {error && <p role="alert">{error}</p>}
-        <button type="submit" disabled={busy}>
-          Register
+        {error && (
+          <p id="form-error" role="alert" className={styles.error}>
+            {error}
+          </p>
+        )}
+        <button className={styles.button} type="submit" disabled={busy}>
+          {busy ? 'Creating account…' : 'Create account'}
         </button>
       </form>
-      <p>
+      <p className={styles.footer}>
         Have an account? <Link to="/login">Log in</Link>
       </p>
-    </main>
+    </AuthLayout>
   )
 }
