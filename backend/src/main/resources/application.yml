@@ -69,9 +69,11 @@ management:
   tracing:
     sampling:
       probability: ${MANAGEMENT_TRACING_SAMPLING_PROBABILITY:0.1}
-  otlp:
+  opentelemetry:
     tracing:
-      endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
+      export:
+        otlp:
+          endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
 
 logging:
   structured:
@@ -79,9 +81,6 @@ logging:
       console: logstash
 # OAuth2 Authorization Server Configuration
 app:
-  rate-limit:
-    max-attempt: ${OAUTH_RETRY_ATTEMPT}
-    time-to-live: ${OAUTH_TIME_TO_LIVE}
   oauth:
     client:
       id: expense-analyzer-client
