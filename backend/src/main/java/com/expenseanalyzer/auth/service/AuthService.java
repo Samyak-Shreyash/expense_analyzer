@@ -10,7 +10,6 @@ import com.expenseanalyzer.user.model.NotificationMode;
 import com.expenseanalyzer.user.repository.PreferenceRepository;
 import com.expenseanalyzer.user.repository.UserRepository;
 
-import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -70,14 +69,8 @@ public class AuthService {
             throw new IllegalArgumentException("Email already registered");
         }
 
-        // Create new user using repository constructor with UUID
-        UUID uuid = java.util.UUID.randomUUID();
-        User user = userRepository.findByUuid(uuid)
-            .orElseGet(() -> {
-                User newUser = new User(request.email(), passwordEncoder.encode(request.password()));
-                newUser.setFullName("");
-                return newUser;
-            });
+        User user = new User(request.email(), passwordEncoder.encode(request.password()));
+        user.setFullName("");
 
         // Assign ADMIN role if no admin users exist, otherwise USER
         if (!hasAdminUser) {
