@@ -29,12 +29,13 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
     List<Transaction> findByUserId(UUID userId);
 
     /**
-     * Find all transactions for a specific statement (bank account).
+     * Find a user's transactions for a specific statement (bank account).
      *
+     * @param userId the owner's UUID
      * @param statementId the statement's UUID
      * @return list of transactions
      */
-    List<Transaction> findByStatementId(UUID statementId);
+    List<Transaction> findByUserIdAndStatementId(UUID userId, UUID statementId);
 
     /**
      * Find transactions within a date range for a user.
