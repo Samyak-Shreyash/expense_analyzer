@@ -22,7 +22,7 @@
   font-size: 1rem;
   color: var(--ink);
   background: var(--surface);
-  border: 1px solid var(--rule);
+  border: 1px solid var(--ink-muted);
   border-radius: 6px;
 }
 
