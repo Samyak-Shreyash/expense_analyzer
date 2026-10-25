@@ -2,6 +2,7 @@ package com.expenseanalyzer.auth.controller;
 
 import com.expenseanalyzer.auth.dto.*;
 import com.expenseanalyzer.auth.service.AuthService;
+import com.expenseanalyzer.auth.service.RefreshTokenService;
 import com.expenseanalyzer.user.model.User;
 import com.expenseanalyzer.user.repository.UserRepository;
 
@@ -10,7 +11,9 @@ import lombok.RequiredArgsConstructor;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -26,6 +29,11 @@ public class AuthController {
     private final JwtTokenProvider tokenProvider;
     private final UserRepository userRepository;
     private final AuthService authService;
+    private final RefreshTokenService refreshTokenService;
+
+    // Refresh cookie: HttpOnly (no JS access), sent only to /api/auth, never cross-site.
+    private static final String REFRESH_COOKIE = "refresh_token";
+    private static final String REFRESH_COOKIE_PATH = "/api/auth";
 
     private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
 
@@ -45,7 +53,9 @@ public class AuthController {
             String email = authentication.getName();
             User user = userRepository.findByEmail(email).orElse(null);
             if (user != null) {
-                return ResponseEntity.ok(new AuthResponse(jwt));
+                return ResponseEntity.ok()
+                        .header(HttpHeaders.SET_COOKIE, refreshCookie(refreshTokenService.issue(user), refreshTokenService.getRefreshTokenSeconds()))
+                        .body(new AuthResponse(jwt));
             }
         }
 
@@ -89,4 +99,44 @@ public class AuthController {
         return ResponseEntity.ok("Email not found");
     }
 
+    /**
+     * Exchange the refresh cookie for a new access token. Rotates the refresh token.
+     * POST /api/auth/refresh
+     */
+    @PostMapping("/refresh")
+    public ResponseEntity<AuthResponse> refresh(@CookieValue(name = REFRESH_COOKIE, required = false) String refreshToken) {
+        if (refreshToken == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        return refreshTokenService.consume(refreshToken)
+                .map(user -> ResponseEntity.ok()
+                        .header(HttpHeaders.SET_COOKIE, refreshCookie(refreshTokenService.issue(user), refreshTokenService.getRefreshTokenSeconds()))
+                        .body(new AuthResponse(tokenProvider.generateToken(new UsernamePasswordAuthenticationToken(user.getEmail(), null)))))
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .header(HttpHeaders.SET_COOKIE, refreshCookie("", 0))
+                        .build());
+    }
+
+    /**
+     * Revoke the refresh token and clear its cookie.
+     * POST /api/auth/logout
+     */
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(@CookieValue(name = REFRESH_COOKIE, required = false) String refreshToken) {
+        if (refreshToken != null) {
+            refreshTokenService.revoke(refreshToken);
+        }
+        return ResponseEntity.noContent().header(HttpHeaders.SET_COOKIE, refreshCookie("", 0)).build();
+    }
+
+    private static String refreshCookie(String value, long maxAgeSeconds) {
+        return ResponseCookie.from(REFRESH_COOKIE, value)
+                .httpOnly(true)
+                .secure(true) // browsers accept Secure cookies on http://localhost
+                .sameSite("Strict")
+                .path(REFRESH_COOKIE_PATH)
+                .maxAge(maxAgeSeconds)
+                .build()
+                .toString();
+    }
 }
