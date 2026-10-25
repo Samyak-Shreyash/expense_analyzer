@@ -18,7 +18,7 @@ services:
       POSTGRES_PASSWORD: ${DB_USER_PASSWORD}
 
     ports:
-      - "${DB_PORT:-5432}:${DB_PORT:-5432}"
+      - "${DB_BIND_ADDRESS:-0.0.0.0}:${DB_PORT:-5432}:5432"
 
     volumes:
       - postgres_data:/var/lib/postgresql
@@ -29,6 +29,31 @@ services:
           "CMD-SHELL",
           "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"
         ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    networks:
+      - expense-analyzer
+
+
+  # ============================================================
+  # Redis (auth rate limiting)
+  # ============================================================
+  redis:
+    image: redis:8-alpine
+    container_name: redis
+    restart: unless-stopped
+
+    # No password: set REDIS_BIND_ADDRESS=127.0.0.1 to keep it off the network.
+    ports:
+      - "${REDIS_BIND_ADDRESS:-0.0.0.0}:${REDIS_PORT:-6379}:6379"
+
+    volumes:
+      - redis_data:/data
+
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -54,11 +79,15 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
 
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:${DB_PORT}/${DB_NAME}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${DB_NAME}
       SPRING_DATASOURCE_USERNAME: ${DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${DB_USER_PASSWORD}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT}
 
     ports:
@@ -78,13 +107,9 @@ services:
     profiles:
       - observability
 
-    env_file:
-      - ../../.env
-
     environment:
       BACKEND_PORT: ${SERVER_PORT}
       OTEL_METRICS_PORT: ${OTEL_METRICS_PORT}
-
 
     entrypoint:
       - /bin/sh
@@ -121,9 +146,6 @@ services:
     profiles:
       - observability
 
-    env_file:
-      - ../../.env
-
     command:
       - --config=/etc/otelcol-contrib/config.yml
 
@@ -153,9 +175,6 @@ services:
     profiles:
       - observability
 
-    env_file:
-      - ../../.env
-
     command:
       - -config.file=/etc/tempo/tempo.yml
 
@@ -180,9 +199,6 @@ services:
     profiles:
       - observability
 
-    env_file:
-      - ../../.env
-
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
@@ -206,6 +222,7 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:
   prometheus_data:
   tempo_data:
   grafana_data:

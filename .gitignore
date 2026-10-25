@@ -63,3 +63,7 @@ agents.md
 *.bat
 uploaded_sessions.json
 *.ps1
+
+/frontend/node_modules
+/frontend/dist
+frontend/build
