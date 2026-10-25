@@ -11,6 +11,7 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
@@ -34,6 +35,7 @@ import org.slf4j.LoggerFactory;
  * Configures authentication, authorization, and security filters.
  */
 @Configuration
+@EnableMethodSecurity // enables @PreAuthorize on controllers/services
 // @EnableWebSecurity removed - Spring Boot 4.1.1 no longer requires it
 // AuthenticationManager is created automatically when using ProviderManager
 public class SecurityConfiguration {
