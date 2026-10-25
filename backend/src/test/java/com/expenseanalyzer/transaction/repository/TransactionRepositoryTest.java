@@ -79,10 +79,10 @@ class TransactionRepositoryTest {
         // Arrange
         Transaction transaction1 = new Transaction(TEST_STATEMENT_ID, "Bank Transfer", TEST_AMOUNT_CENTS, TEST_DATE, "CREDIT");
         List<Transaction> transactions = List.of(transaction1);
-        when(transactionRepository.findByStatementId(TEST_STATEMENT_ID)).thenReturn(transactions);
+        when(transactionRepository.findByUserIdAndStatementId(TEST_USER_ID, TEST_STATEMENT_ID)).thenReturn(transactions);
 
         // Act
-        List<Transaction> result = transactionRepository.findByStatementId(TEST_STATEMENT_ID);
+        List<Transaction> result = transactionRepository.findByUserIdAndStatementId(TEST_USER_ID, TEST_STATEMENT_ID);
 
         // Assert
         assertThat(result).hasSize(1);
@@ -264,10 +264,10 @@ class TransactionRepositoryTest {
         @Test
         void findByStatementId_shouldHandleNullStatement() {
             // Arrange
-            when(transactionRepository.findByStatementId(null)).thenReturn(List.of());
+            when(transactionRepository.findByUserIdAndStatementId(TEST_USER_ID, null)).thenReturn(List.of());
 
             // Act
-            List<Transaction> result = transactionRepository.findByStatementId(null);
+            List<Transaction> result = transactionRepository.findByUserIdAndStatementId(TEST_USER_ID, null);
 
             // Assert
             assertThat(result).isEmpty();
