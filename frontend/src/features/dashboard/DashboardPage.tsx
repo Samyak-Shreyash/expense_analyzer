@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { apiFetch } from '../../services/api'
 import { useAuth } from '../auth/AuthContext'
+import styles from './DashboardPage.module.css'
 
 export function DashboardPage() {
   const { logout } = useAuth()
@@ -13,10 +14,23 @@ export function DashboardPage() {
   }, [])
 
   return (
-    <main>
-      <h1>Dashboard</h1>
-      {email && <p>Signed in as {email}</p>}
-      <button onClick={logout}>Log out</button>
-    </main>
+    <div className={styles.page}>
+      <header className={styles.header}>
+        <p className={styles.wordmark}>Expense Analyzer</p>
+        <div className={styles.account}>
+          {email && <span className={styles.email}>{email}</span>}
+          <button type="button" className={styles.logout} onClick={logout}>
+            Log out
+          </button>
+        </div>
+      </header>
+      <main className={styles.main}>
+        <h1>Your spending</h1>
+        <p className={styles.empty}>
+          No statements yet. Statement upload is coming in the next update; your
+          spending will appear here once you add one.
+        </p>
+      </main>
+    </div>
   )
 }

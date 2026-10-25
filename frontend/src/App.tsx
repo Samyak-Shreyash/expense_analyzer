@@ -1,4 +1,5 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router'
+import { BrowserRouter, Link, Navigate, Route, Routes } from 'react-router'
+import { AuthLayout } from './components/AuthLayout'
 import { AuthProvider } from './features/auth/AuthContext'
 import { LoginPage } from './features/auth/LoginPage'
 import { RegisterPage } from './features/auth/RegisterPage'
@@ -23,10 +24,14 @@ function App() {
           <Route
             path="/forbidden"
             element={
-              <main>
-                <h1>Forbidden</h1>
-                <p>You do not have access to that page.</p>
-              </main>
+              <AuthLayout
+                title="You can't open this page"
+                lead="Your account doesn't have access to it."
+              >
+                <p>
+                  <Link to="/dashboard">Go to your dashboard</Link>
+                </p>
+              </AuthLayout>
             }
           />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
