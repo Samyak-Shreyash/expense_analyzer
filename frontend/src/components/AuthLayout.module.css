@@ -1,11 +1,12 @@
 .page {
+  --pad: 1.5rem;
   min-height: 100vh;
-  padding: 1.5rem;
+  padding: var(--pad);
 }
 
 @media (min-width: 48rem) {
   .page {
-    padding: 3rem;
+    --pad: 3rem;
   }
 }
 
@@ -19,7 +20,8 @@
 
 .line {
   display: block;
-  width: 100%;
+  width: calc(100% + 2 * var(--pad));
+  margin-inline: calc(-1 * var(--pad));
   height: 120px;
 }
 
@@ -30,7 +32,6 @@
   stroke-linejoin: round;
   stroke-linecap: round;
   vector-effect: non-scaling-stroke;
-  animation: draw 1.2s ease-out 1;
 }
 
 /* Base style is the drawn state; the animation only runs from hidden to drawn.
@@ -43,6 +44,12 @@
   to {
     stroke-dasharray: 6000;
     stroke-dashoffset: 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .line polyline {
+    animation: draw 1.2s ease-out 1;
   }
 }
 
