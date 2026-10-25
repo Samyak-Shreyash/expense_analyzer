@@ -116,7 +116,9 @@ public class SecurityConfiguration {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         logger.debug("Configuring SecurityFilterChain");
         return http
-                .csrf(csrf -> csrf.ignoringRequestMatchers("/api/auth/**")) // CSRF on; auth endpoints exempt (no session yet)
+                // CSRF off for the API: auth is bearer-token only (Authorization header, no cookies/sessions),
+                // so browsers never attach credentials automatically and there is nothing to forge.
+                .csrf(csrf -> csrf.ignoringRequestMatchers("/api/**"))
                 .authorizeHttpRequests(authz -> authz
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/actuator/health/**", "/actuator/prometheus").permitAll()
