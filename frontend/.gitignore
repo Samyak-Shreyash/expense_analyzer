@@ -15,5 +15,5 @@ Thumbs.db
 .vscode/
 
 # Local env (not .env.example)
-*.env.local
-.env.production
+*.env.*
+*.env 
