@@ -61,11 +61,8 @@ dependencies {
 	// Structured JSON Logging
 	implementation "net.logstash.logback:logstash-logback-encoder:${logstashEncoderVersion}"
 
-	// Micrometer Tracing Bridge for OpenTelemetry
-	implementation 'io.micrometer:micrometer-tracing-bridge-otel'
-
-	// OpenTelemetry OTLP Exporter
-	implementation 'io.opentelemetry:opentelemetry-exporter-otlp'
+	// OpenTelemetry (Micrometer tracing bridge + OTLP exporter)
+	implementation 'org.springframework.boot:spring-boot-starter-opentelemetry'
 
 	// PostgreSQL
 	runtimeOnly 'org.postgresql:postgresql'
