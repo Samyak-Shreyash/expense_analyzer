@@ -98,6 +98,30 @@ services:
 
 
   # ============================================================
+  # Expense Analyzer Frontend (static SPA + /api proxy)
+  # ============================================================
+  frontend:
+    build:
+      context: ../../frontend
+      dockerfile: Dockerfile
+
+    container_name: frontend
+    restart: unless-stopped
+
+    depends_on:
+      - backend
+
+    environment:
+      BACKEND_URL: http://backend:${SERVER_PORT}
+
+    ports:
+      - "${FRONTEND_PORT:-3001}:80"
+
+    networks:
+      - expense-analyzer
+
+
+  # ============================================================
   # Prometheus
   # ============================================================
   prometheus:
