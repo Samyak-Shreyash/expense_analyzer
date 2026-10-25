@@ -12,6 +12,7 @@ import com.expenseanalyzer.user.repository.UserRepository;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
@@ -35,7 +36,7 @@ public class UserService {
     /**
      * Update user information.
      */
-    public UserResponse updateUser(UUID userId, UserRequest request) {
+    public UserResponse updateUser(String callerEmail, UUID userId, UserRequest request) {
         logger.debug("Updating user: {}", userId);
 
         Optional<User> optionalUser = userRepository.findById(userId);
@@ -45,6 +46,11 @@ public class UserService {
         }
 
         User updatedUser = optionalUser.get();
+
+        // Ownership: callers may only update themselves, and may not change their own role or status
+        if (!updatedUser.getEmail().equals(callerEmail) || request.role() != null || request.active() != null) {
+            throw new AccessDeniedException("Not allowed to update this user");
+        }
 
         // Update email if provided
         if (request.email() != null && !request.email().isEmpty()) {
@@ -115,11 +121,13 @@ public class UserService {
     /**
      * Get current authenticated user.
      */
-    public UserResponse getCurrentUser() {
+    public Optional<UserResponse> getCurrentUser(String email) {
         logger.debug("Getting current user");
-        String email = "user@example.com"; // Placeholder - actual implementation would use SecurityContextHolder.getContext().getAuthentication().getName();
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        Optional<User> optionalUser = userRepository.findByEmail(email);
+        if (optionalUser.isEmpty()) {
+            return Optional.empty();
+        }
+        User user = optionalUser.get();
 
         // Get preferences
         Preference currencyPref = preferenceRepository.findByUserIdAndKey(user.getId(), "currency")
@@ -134,11 +142,11 @@ public class UserService {
                 .orElse(new Preference());
         notificationPref.setNotificationMode(NotificationMode.ALL);
 
-        return new UserResponse(
+        return Optional.of(new UserResponse(
             user.getEmail(),
             user.getFullName(),
             user.getRole()
-        );
+        ));
     }
 
     /**
