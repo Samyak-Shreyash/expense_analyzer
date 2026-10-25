@@ -12,7 +12,8 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 
 @RequiredArgsConstructor
@@ -30,13 +31,13 @@ public class UserController {
      * PUT /api/user/{userId}
      */
     @PutMapping("/{userId}")
-    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<UserResponse> updateUser(
+            @AuthenticationPrincipal Jwt jwt,
             @PathVariable UUID userId,
             @RequestBody UserRequest request) {
         logger.debug("Updating user: {}", userId);
         try {
-            return ResponseEntity.ok(userService.updateUser(userId, request));
+            return ResponseEntity.ok(userService.updateUser(jwt.getSubject(), userId, request));
         } catch (IllegalArgumentException e) {
             logger.warn("Failed to update user {}: {}", userId, e.getMessage());
             return ResponseEntity.status(404).body(null);
@@ -48,15 +49,9 @@ public class UserController {
      * GET /api/user/me
      */
     @GetMapping("/me")
-    public ResponseEntity<UserResponse> getCurrentUser() {
+    public ResponseEntity<UserResponse> getCurrentUser(@AuthenticationPrincipal Jwt jwt) {
         logger.debug("Getting current user");
-        try {
-            UserResponse response = userService.getCurrentUser();
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            logger.error("Failed to get current user", e);
-            return ResponseEntity.status(401).body(null);
-        }
+        return ResponseEntity.of(userService.getCurrentUser(jwt.getSubject()));
     }
 
 }

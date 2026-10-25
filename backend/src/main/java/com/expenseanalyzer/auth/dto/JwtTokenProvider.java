@@ -34,7 +34,7 @@ public class JwtTokenProvider {
             .setIssuedAt(new java.util.Date(Instant.now().toEpochMilli()))
             .setExpiration(new java.util.Date(Instant.now().plusSeconds(EXPIRATION_TIME).toEpochMilli()))
             .claim("aud", "expense-analyzer-users")
-            .signWith(Keys.hmacShaKeyFor(SECRET_KEY.getBytes(StandardCharsets.UTF_8)))
+            .signWith(Keys.hmacShaKeyFor(SECRET_KEY.getBytes(StandardCharsets.UTF_8)), Jwts.SIG.HS256)
             .compact();
     }
 
