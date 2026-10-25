@@ -8,9 +8,10 @@ import org.springframework.stereotype.Component;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.security.Keys;
 
-import java.util.Date;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 
 @Component
 public class JwtTokenProvider {
@@ -19,36 +20,33 @@ public class JwtTokenProvider {
 
     // JWT secret key must be at least 32 bytes for jjwt 0.12.6 (HS256)
     @Value("${app.oauth.jwt.secret:default-secret-key-for-testing-only-32-bytes}")
-    private final String SECRET_KEY;
+    private String SECRET_KEY;
 
     @Value("${app.oauth.jwt.tokenExpirationSeconds:3600}")
-    private final Long EXPIRATION_TIME;
-        
+    private Long EXPIRATION_TIME;
 
     public String generateToken(Authentication authentication) {
         logger.debug("Generating JWT token for user: {}", authentication.getName());
 
-        // Create JWT token using jjwt library
-        Date now = new Date();
-        Date expiration = new Date(now.getTime() + EXPIRATION_TIME); // 1 hour
-
         return Jwts.builder()
             .setSubject(authentication.getName())
             .setIssuer("expense-analyzer")
-            .setIssuedAt(now)
-            .setExpiration(expiration)
+            .setIssuedAt(new java.util.Date(Instant.now().toEpochMilli()))
+            .setExpiration(new java.util.Date(Instant.now().plusSeconds(EXPIRATION_TIME).toEpochMilli()))
             .claim("aud", "expense-analyzer-users")
-            .signWith(SignatureAlgorithm.HS256, SECRET_KEY.getBytes())
+            .signWith(Keys.hmacShaKeyFor(SECRET_KEY.getBytes(StandardCharsets.UTF_8)))
             .compact();
     }
 
     public Claims getClaims(String token) {
         try {
+            // Get SecretKey from JWT library - returns typed object for verifyWith method
+            var secretKey = Keys.hmacShaKeyFor(SECRET_KEY.getBytes(StandardCharsets.UTF_8));
             return Jwts.parser()
-                .setSigningKey(SECRET_KEY.getBytes())
+                .verifyWith(secretKey)
                 .build()
-                .parseClaimsJws(token)
-                .getBody();
+                .parseSignedClaims(token)
+                .getPayload();
         } catch (Exception e) {
             logger.error("Failed to parse JWT token", e);
             throw e;

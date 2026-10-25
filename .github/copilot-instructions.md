@@ -7,8 +7,8 @@ feature package and match it. Do not invent packages, layers, or abstractions th
 not already exist in the repo.
 
 ## Stack
-- Java 17, Spring Boot 4, Spring MVC (servlet), Spring Security, Spring Data JPA,
-  Flyway, PostgreSQL.
+- Java 21, Spring Boot 4, Spring MVC (servlet), Spring Security, Spring Data JPA,
+  Spring Modulith, Flyway, PostgreSQL. Redis backs auth rate limiting only.
 - Gradle Groovy DSL in `backend/build.gradle` and `backend/settings.gradle`.
 - Observability: Actuator, Micrometer Prometheus, OpenTelemetry, structured Logback.
 - `frontend/` is unscaffolded — do not assume Next.js, TypeScript, or npm exists.
@@ -20,16 +20,15 @@ not already exist in the repo.
 - Feature packages: `account`, `ai`, `analytics`, `auth`, `category`, `enrichment`,
   `insight`, `merchant`, `messaging`, `notification`, `processing`, `statement`,
   `transaction`, `user`. Shared code in `common`.
-- Per feature, use `controller/`, `dto/`, `domain/`, `repository/`, `service/`.
+- Per feature, use `controller/`, `dto/`, `model/` (JPA entities), `repository/`, `service/`.
 
 ## Rules
-- Blocking MVC/JPA. Do not add WebFlux, Reactor, R2DBC, Redis, RabbitMQ, Terraform,
-  or a frontend framework unless the task explicitly requires and configures it.
-- Schema changes require a new Flyway migration. `ddl-auto` is `validate` only. Never
-  alter a released migration.
+- Blocking MVC/JPA. Do not add WebFlux, Reactor, R2DBC, RabbitMQ, Terraform, or a
+  frontend framework unless the task explicitly requires and configures it. Redis is
+  used only by `auth/config/RateLimiter`; do not add other Redis usage unless asked.
+- Schema changes require a new Flyway migration. `ddl-auto` is `none`; Flyway owns the
+  schema. Never alter a released migration.
 - Never log PII, secrets, statement contents, account numbers, transaction descriptions,
   or amounts. Preserve `X-Correlation-ID` and request-scoped MDC.
 - Preserve raw transaction data through import/enrichment. Deterministic calculations
   are authoritative; AI only explains verified data.
-- Path-scoped instructions in `.github/instructions/` define Java, test, and migration
-  conventions. Follow them for files they match.

@@ -179,4 +179,34 @@ public class User {
         this.updatedAt = null;
         this.lastLoginAt = null;
     }
+
+    // ---- Setters (Lombok @Setter generates these automatically) ----
+
+    /**
+     * Set user's email address.
+     */
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    /**
+     * Set user's full name.
+     */
+    public void setFullName(String fullName) {
+        this.fullName = fullName;
+    }
+
+    /**
+     * Set user's role.
+     */
+    public void setRole(UserRole role) {
+        this.role = role;
+    }
+
+    /**
+     * Set user's active status.
+     */
+    public void setActive(boolean active) {
+        this.active = active;
+    }
 }

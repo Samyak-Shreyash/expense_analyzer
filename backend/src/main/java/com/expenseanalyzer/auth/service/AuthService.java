@@ -10,6 +10,8 @@ import com.expenseanalyzer.user.model.NotificationMode;
 import com.expenseanalyzer.user.repository.PreferenceRepository;
 import com.expenseanalyzer.user.repository.UserRepository;
 
+import java.util.UUID;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -68,11 +70,14 @@ public class AuthService {
             throw new IllegalArgumentException("Email already registered");
         }
 
-        // Create new user - fullName not in RegisterRequest, leave as empty string
-        User user = new User();
-        user.setEmail(request.email());
-        user.setPasswordHash(passwordEncoder.encode(request.password()));
-        user.setFullName("");
+        // Create new user using repository constructor with UUID
+        UUID uuid = java.util.UUID.randomUUID();
+        User user = userRepository.findByUuid(uuid)
+            .orElseGet(() -> {
+                User newUser = new User(request.email(), passwordEncoder.encode(request.password()));
+                newUser.setFullName("");
+                return newUser;
+            });
 
         // Assign ADMIN role if no admin users exist, otherwise USER
         if (!hasAdminUser) {
