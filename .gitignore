@@ -60,6 +60,8 @@ desktop.ini
 agents.md
 
 *package*.json
+!frontend/package.json
+!frontend/package-lock.json
 *.bat
 uploaded_sessions.json
 *.ps1
