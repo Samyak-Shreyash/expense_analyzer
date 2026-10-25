@@ -98,8 +98,8 @@ app:
       secret: ${JWT_SECRET}
       issuer: http://localhost:${SERVER_PORT:8080}/oauth2/token
       audience: expense-analyzer-api
-      tokenExpirationSeconds: ${JWT_REFRESH_SECONDS}
-      refreshTokenExpirationSeconds: ${JWT_EXPIRATION_SECONDS}
+      tokenExpirationSeconds: ${JWT_EXPIRATION_SECONDS}
+      refreshTokenExpirationSeconds: ${JWT_REFRESH_SECONDS}
 
     # JWT Encoder Configuration for Spring Security 7
     jwt-encoder:
