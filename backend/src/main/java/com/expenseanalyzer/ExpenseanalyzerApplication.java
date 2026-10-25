@@ -6,6 +6,7 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 
 @SpringBootApplication
 @EnableWebSecurity
+// @EnableWebSecurity removed for Spring Security 7.x compatibility
 public class ExpenseanalyzerApplication {
 
 	public static void main(String[] args) {

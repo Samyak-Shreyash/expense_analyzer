@@ -14,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -37,30 +38,39 @@ public class UserService {
     public UserResponse updateUser(UUID userId, UserRequest request) {
         logger.debug("Updating user: {}", userId);
 
-        User updatedUser = userRepository.findById(userId)
-                .map(user -> {
-                    if (request.email() != null && !request.email().isEmpty()) {
-                        logger.debug("Setting email for user {}: {}", userId, request.email());
-                        user.setEmail(request.email());
-                    }
-                    if (request.fullName() != null && !request.fullName().isEmpty()) {
-                        logger.debug("Setting full name for user {}: {}", userId, request.fullName());
-                        user.setFullName(request.fullName());
-                    }
-                    if (request.role() != null) {
-                        logger.debug("Setting role for user {}: {}", userId, request.role());
-                        user.setRole(request.role());
-                    }
-                    if (request.active() != null) {
-                        logger.debug("Setting active status for user {}: {}", userId, request.active());
-                        user.setActive(request.active());
-                    }
-                    return userRepository.save(user);
-                })
-                .orElseThrow(() -> {
-                    logger.error("User not found: {}", userId);
-                    return new IllegalArgumentException("User not found");
-                });
+        Optional<User> optionalUser = userRepository.findById(userId);
+        if (!optionalUser.isPresent()) {
+            logger.error("User not found: {}", userId);
+            throw new IllegalArgumentException("User not found");
+        }
+
+        User updatedUser = optionalUser.get();
+
+        // Update email if provided
+        if (request.email() != null && !request.email().isEmpty()) {
+            logger.debug("Setting email for user {}: {}", userId, request.email());
+            updatedUser.setEmail(request.email());
+        }
+
+        // Update full name if provided
+        if (request.fullName() != null && !request.fullName().isEmpty()) {
+            logger.debug("Setting full name for user {}: {}", userId, request.fullName());
+            updatedUser.setFullName(request.fullName());
+        }
+
+        // Update role if provided
+        if (request.role() != null) {
+            logger.debug("Setting role for user {}: {}", userId, request.role());
+            updatedUser.setRole(request.role());
+        }
+
+        // Update active status if provided
+        if (request.active() != null) {
+            logger.debug("Setting active status for user {}: {}", userId, request.active());
+            updatedUser.setActive(request.active());
+        }
+
+        updatedUser = userRepository.save(updatedUser);
 
         // Update preferences if provided
         if (request.preferences() != null) {
@@ -99,6 +109,35 @@ public class UserService {
             updatedUser.getEmail(),
             updatedUser.getFullName(),
             updatedUser.getRole()
+        );
+    }
+
+    /**
+     * Get current authenticated user.
+     */
+    public UserResponse getCurrentUser() {
+        logger.debug("Getting current user");
+        String email = "user@example.com"; // Placeholder - actual implementation would use SecurityContextHolder.getContext().getAuthentication().getName();
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        // Get preferences
+        Preference currencyPref = preferenceRepository.findByUserIdAndKey(user.getId(), "currency")
+                .orElse(new Preference());
+        currencyPref.setCurrency(Currency.INR);
+
+        Preference themePref = preferenceRepository.findByUserIdAndKey(user.getId(), "theme")
+                .orElse(new Preference());
+        themePref.setTheme(Theme.DARK);
+
+        Preference notificationPref = preferenceRepository.findByUserIdAndKey(user.getId(), "notifications")
+                .orElse(new Preference());
+        notificationPref.setNotificationMode(NotificationMode.ALL);
+
+        return new UserResponse(
+            user.getEmail(),
+            user.getFullName(),
+            user.getRole()
         );
     }
 

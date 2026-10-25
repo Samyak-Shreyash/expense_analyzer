@@ -79,14 +79,17 @@ logging:
       console: logstash
 # OAuth2 Authorization Server Configuration
 app:
+  rate-limit:
+    max-attempt: ${OAUTH_RETRY_ATTEMPT}
+    time-to-live: ${OAUTH_TIME_TO_LIVE}
   oauth:
-    # Client Registration (for external clients to register)
     client:
       id: expense-analyzer-client
-      secret: ${OAUTH_SECRET}
+      secret: ${JWT_SECRET}
 
     # OAuth2 Server endpoints
     server:
+      secret: ${OAUTH_SECRET}
       url: http://localhost:${SERVER_PORT:8080}/oauth2/registration
       token: http://localhost:${SERVER_PORT:8080}/oauth2/token
       revoke: http://localhost:${SERVER_PORT:8080}/oauth2/revoke

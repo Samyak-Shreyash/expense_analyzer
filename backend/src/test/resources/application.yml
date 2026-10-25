@@ -43,6 +43,11 @@ logging:
     format:
       console: logstash
 
+app:
+  oauth:
+    jwt:
+      secret: test-jwt-secret-key-for-testing-only-1234567890abcdef
+
 server:
   # Prevent Spring from resolving the production-only SERVER_PORT placeholder.
   port: 0

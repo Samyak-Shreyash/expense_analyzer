@@ -10,6 +10,7 @@ import com.expenseanalyzer.user.model.NotificationMode;
 import com.expenseanalyzer.user.repository.PreferenceRepository;
 import com.expenseanalyzer.user.repository.UserRepository;
 
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -68,10 +69,7 @@ public class AuthService {
             throw new IllegalArgumentException("Email already registered");
         }
 
-        // Create new user - fullName not in RegisterRequest, leave as empty string
-        User user = new User();
-        user.setEmail(request.email());
-        user.setPasswordHash(passwordEncoder.encode(request.password()));
+        User user = new User(request.email(), passwordEncoder.encode(request.password()));
         user.setFullName("");
 
         // Assign ADMIN role if no admin users exist, otherwise USER

@@ -26,6 +26,8 @@ HELP.md
 .apt_generated/
 .springBeans
 .sts4-cache
+.gradle/
+build/
 
 # NetBeans
 /nbproject/private/
@@ -58,3 +60,5 @@ desktop.ini
 agents.md
 
 *package*.json
+*.bat
+uploaded_sessions.json

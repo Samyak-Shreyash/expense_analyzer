@@ -5,10 +5,11 @@ plugins {
 }
 
 ext {
-    // Centralized version management
-    logstashEncoderVersion = '7.4'
-    openTelemetryVersion = '1.33.0'
-    springModulithVersion = "2.1.1"
+	// Centralized version management
+	logstashEncoderVersion = '7.4'
+	openTelemetryVersion = '1.33.0'
+	springModulithVersion = "2.1.1"
+	springSecurityVersion = '7.2.0-M2' // Spring Security 7.x
 }
 
 group = 'com.expenseanalyzer'
@@ -29,7 +30,7 @@ sourceSets {
 
 java {
 	toolchain {
-		languageVersion = JavaLanguageVersion.of(17)
+		languageVersion = JavaLanguageVersion.of(21)
 	}
 }
 
@@ -38,59 +39,71 @@ repositories {
 }
 
 dependencies {
-    // Spring Boot Starters
-    implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.springframework.modulith:spring-modulith-starter-core'
-    implementation 'org.springframework.boot:spring-boot-starter-actuator'
-    implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
-    implementation 'org.springframework.security:spring-security-oauth2-jose'
-    implementation 'org.springframework.security:spring-security-oauth2-authorization-server'
-    implementation 'org.springframework.security:spring-security-config'
-    implementation 'org.springframework.boot:spring-boot-starter-validation'
+	// Spring Boot Starters
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springframework.modulith:spring-modulith-starter-core'
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
 
-    // Spring Security 7 OAuth2 Authorization Server + JWT
-    implementation 'org.springframework.security:spring-security-oauth2-jose'
-    implementation 'org.springframework.security:spring-security-oauth2-authorization-server'
+	// Spring Boot Starter for @Value annotation support
+	implementation 'org.springframework.boot:spring-boot-starter'
 
-    implementation 'io.micrometer:micrometer-registry-prometheus'
+	// Spring Security 7.x (7.2.0-M2) - Core, OAuth2 JWT, Authorization Server, Web, Config
+	implementation "org.springframework.security:spring-security-core:${springSecurityVersion}"
+	implementation "org.springframework.security:spring-security-oauth2-jose:${springSecurityVersion}"
+	implementation "org.springframework.security:spring-security-oauth2-authorization-server:${springSecurityVersion}"
+	implementation "org.springframework.security:spring-security-web:${springSecurityVersion}"
+	implementation "org.springframework.security:spring-security-config:${springSecurityVersion}"
 
-      // Structured JSON Logging
-    implementation "net.logstash.logback:logstash-logback-encoder:${logstashEncoderVersion}"
+	implementation 'io.micrometer:micrometer-registry-prometheus'
 
-    // Micrometer Tracing Bridge for OpenTelemetry
-    implementation 'io.micrometer:micrometer-tracing-bridge-otel'
+	// Structured JSON Logging
+	implementation "net.logstash.logback:logstash-logback-encoder:${logstashEncoderVersion}"
 
-    // OpenTelemetry OTLP Exporter
-    implementation 'io.opentelemetry:opentelemetry-exporter-otlp'
+	// Micrometer Tracing Bridge for OpenTelemetry
+	implementation 'io.micrometer:micrometer-tracing-bridge-otel'
 
-    // PostgreSQL
-    runtimeOnly 'org.postgresql:postgresql'
+	// OpenTelemetry OTLP Exporter
+	implementation 'io.opentelemetry:opentelemetry-exporter-otlp'
 
-    // Flyway
-    implementation 'org.flywaydb:flyway-core'
-    implementation 'org.flywaydb:flyway-database-postgresql'
+	// PostgreSQL
+	runtimeOnly 'org.postgresql:postgresql'
 
-    compileOnly 'org.projectlombok:lombok'
-    annotationProcessor 'org.projectlombok:lombok'
+	// Flyway
+	implementation 'org.flywaydb:flyway-core'
+	implementation 'org.flywaydb:flyway-database-postgresql'
 
-    developmentOnly 'org.springframework.boot:spring-boot-devtools'
-    developmentOnly 'org.springframework.boot:spring-boot-docker-compose'
+	// Redis for rate limiting
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 
-    testImplementation 'org.springframework.boot:spring-boot-starter-test'
-    testImplementation 'org.springframework.security:spring-security-test'
-    testImplementation 'org.springframework.boot:spring-boot-autoconfigure-processor'
-    testImplementation 'org.springframework.boot:spring-boot-test-autoconfigure'
-    testImplementation 'org.mockito:mockito-core'
-    testImplementation 'org.mockito:mockito-junit-jupiter'
-    testImplementation 'org.springframework.modulith:spring-modulith-starter-test'
-    testRuntimeOnly 'com.h2database:h2'
+	// JWT library for token generation
+	implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
+	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
+	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
 
-    testCompileOnly 'org.projectlombok:lombok'
-    testAnnotationProcessor 'org.projectlombok:lombok'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+	compileOnly 'org.projectlombok:lombok'
+	annotationProcessor 'org.projectlombok:lombok'
+	annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
 
-    // Test observability
-    testImplementation 'io.micrometer:micrometer-observation-test'
+	developmentOnly 'org.springframework.boot:spring-boot-devtools'
+	developmentOnly 'org.springframework.boot:spring-boot-docker-compose'
+
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testImplementation 'org.springframework.security:spring-security-test'
+	testImplementation 'org.springframework.boot:spring-boot-autoconfigure-processor'
+	testImplementation 'org.springframework.boot:spring-boot-test-autoconfigure'
+	testImplementation 'org.mockito:mockito-core'
+	testImplementation 'org.mockito:mockito-junit-jupiter'
+	testImplementation 'org.springframework.modulith:spring-modulith-starter-test'
+	testRuntimeOnly 'com.h2database:h2'
+
+	testCompileOnly 'org.projectlombok:lombok'
+	testAnnotationProcessor 'org.projectlombok:lombok'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+	// Test observability
+	testImplementation 'io.micrometer:micrometer-observation-test'
 
 }
 
@@ -106,25 +119,25 @@ tasks.named('test') {
 
 // Optional local runner for a separately downloaded OpenTelemetry Java agent.
 tasks.register('bootRunWithOtel', JavaExec) {
-    group = 'application'
-    description = 'Run the app with the OpenTelemetry Java agent attached.'
-    dependsOn tasks.named('classes')
-    classpath = sourceSets.main.runtimeClasspath
-    mainClass = 'com.expenseanalyzer.ExpenseanalyzerApplication'
+	group = 'application'
+	description = 'Run the app with the OpenTelemetry Java agent attached.'
+	dependsOn tasks.named('classes')
+	classpath = sourceSets.main.runtimeClasspath
+	mainClass = 'com.expenseanalyzer.ExpenseanalyzerApplication'
 
-    def agentJar = layout.projectDirectory.file('agents/opentelemetry-javaagent.jar').asFile
-    doFirst {
-        if (!agentJar.isFile()) {
-            throw new GradleException("OpenTelemetry agent not found at ${agentJar}. Download it before running bootRunWithOtel.")
-        }
-    }
+	def agentJar = layout.projectDirectory.file('agents/opentelemetry-javaagent.jar').asFile
+	doFirst {
+		if (!agentJar.isFile()) {
+			throw new GradleException("OpenTelemetry agent not found at ${agentJar}. Download it before running bootRunWithOtel.")
+		}
+	}
 
-    jvmArgs = [
-        "-javaagent:${agentJar}",
-        '-Dotel.service.name=expense-analyzer',
-        '-Dotel.exporter.otlp.endpoint=http://localhost:4317',
-        '-Dotel.traces.exporter=otlp',
-        '-Dotel.metrics.exporter=otlp',
-        '-Dotel.logs.exporter=otlp'
-    ]
+	jvmArgs = [
+		"-javaagent:${agentJar}",
+		'-Dotel.service.name=expense-analyzer',
+		'-Dotel.exporter.otlp.endpoint=http://localhost:4317',
+		'-Dotel.traces.exporter=otlp',
+		'-Dotel.metrics.exporter=otlp',
+		'-Dotel.logs.exporter=otlp'
+	]
 }
