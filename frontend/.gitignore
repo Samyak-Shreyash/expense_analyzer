@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.env*.*
+# Root .gitignore excludes *package*.json; the frontend needs them committed
+!package.json
+!package-lock.json
