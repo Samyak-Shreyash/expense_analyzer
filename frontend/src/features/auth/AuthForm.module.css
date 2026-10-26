@@ -52,15 +52,31 @@
   border: 0;
   border-radius: 6px;
   cursor: pointer;
+  transition: background-color 150ms ease-out;
+}
+
+.button:hover:not(:disabled) {
+  background: var(--ink);
+}
+
+.button:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
 .button:disabled {
   opacity: 0.6;
-  cursor: wait;
+  cursor: not-allowed;
 }
 
 .footer {
   margin: 1.5rem 0 0;
   font-size: 0.875rem;
+  color: var(--ink-muted);
+}
+
+.loading {
+  margin: 0;
+  padding: 3rem 1.5rem;
+  text-align: center;
   color: var(--ink-muted);
 }
