@@ -12,6 +12,7 @@ import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 
 @Service
 @ConditionalOnProperty(name = "app.storage.type", havingValue = "s3", matchIfMissing = true)
@@ -19,18 +20,26 @@ public class S3StatementStorage implements StatementStorage {
 
     private final S3Client s3Client;
     private final String bucket;
+    private final boolean serverSideEncryption;
 
-    public S3StatementStorage(S3Client s3Client, @Value("${app.storage.bucket}") String bucket) {
+    public S3StatementStorage(
+            S3Client s3Client,
+            @Value("${app.storage.bucket}") String bucket,
+            @Value("${app.storage.server-side-encryption:true}") boolean serverSideEncryption) {
         this.s3Client = s3Client;
         this.bucket = bucket;
+        this.serverSideEncryption = serverSideEncryption;
     }
 
     @Override
     public void put(String key, byte[] bytes, String contentType) {
         try {
-            s3Client.putObject(
-                    PutObjectRequest.builder().bucket(bucket).key(key).contentType(contentType).build(),
-                    RequestBody.fromBytes(bytes));
+            PutObjectRequest.Builder request =
+                    PutObjectRequest.builder().bucket(bucket).key(key).contentType(contentType);
+            if (serverSideEncryption) {
+                request.serverSideEncryption(ServerSideEncryption.AES256);
+            }
+            s3Client.putObject(request.build(), RequestBody.fromBytes(bytes));
         } catch (SdkException e) {
             throw new StatementStorageException("Failed to store statement object", e);
         }

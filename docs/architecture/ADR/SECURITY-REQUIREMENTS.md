@@ -1530,6 +1530,7 @@ Uploaded statement files are stored through the `StatementStorage` abstraction (
 - **Metadata:** original filename, content type, size, SHA-256 and status live in PostgreSQL, not in object tags or object user metadata.
 - **Bucket access:** the bucket is private. No public ACL and no public bucket policy. Public access block is enabled.
 - **Encryption:** server-side encryption is required. Cloud uses SSE-S3. Local MinIO may run without KMS; this is a dev-only gap and must not be carried into any deployed environment.
+- **SSE enforcement:** SSE-S3 (`AES256`) is requested on every put unless `APP_STORAGE_SSE=false`, which is allowed only for local MinIO without KMS.
 - **No presigned URLs in the MVP:** any download is streamed through the authenticated backend after an ownership check.
 - **Retention:** a statement object is kept until the owning user deletes the statement.
 - **Deletion order:** delete the object first, then the database row. `delete` is idempotent, so deleting a missing key succeeds.
