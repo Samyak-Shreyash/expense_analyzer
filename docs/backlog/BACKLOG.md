@@ -134,6 +134,24 @@ BACKLOG / READY / IN_PROGRESS / BLOCKED / IN_REVIEW / DONE
 | AI-005 | P1 | Add response grounding/validation | AI-004 | READY |
 | AI-006 | P1 | Add AI fallback to deterministic analytics | AI-005 | READY |
 
+## TXN-001 Scope Resolution (#222)
+
+Decision: **#110 and the backlog row TXN-001 are the same work; the duplicate is merged, not kept as separate scope.** Only a bounded remainder stays open, under #224.
+
+Evidence:
+- #110 "[TXN-001] Create Transaction Domain and Repository" is CLOSED, completed by merged PR #269 (merged 2026-09-14). Its acceptance criteria were the `Transaction` entity and a user/statement-scoped Spring Data repository.
+- #98 (the parent named by #222, #223 and #224) no longer exists: the GitHub API returns HTTP 410 "This issue was deleted". It cannot be compared; the sub-issues' own text is the only record of its scope.
+- Delivered by #110, present today: `backend/src/main/java/com/expenseanalyzer/transaction/model/Transaction.java` (raw and normalized description, merchant_id, category_id, amount_cents, date, type, user_id, statement_id, timestamps), `.../transaction/repository/TransactionRepository.java` (`findByUserId`, `findByUserIdAndStatementId` and other user-scoped queries), `backend/src/main/resources/db/migration/V2__create_transactions_table.sql` (indexes `idx_transactions_user_date` on `(user_id, date)` and `idx_transactions_merchant_id`), and `TransactionTest` / `TransactionRepositoryTest` under `backend/src/test/java/com/expenseanalyzer/transaction/`.
+- The "Implement Transaction domain" row above (TXN-001, depends on DOC-002) therefore describes work already merged in #110. Do not start a second implementation of the entity or repository.
+
+What remains distinct, and is the only scope of #224 ("Implement only the transaction-domain work not already covered by #110"). These are gaps between the code above and the target model in `docs/architecture/LLD.md` section 5.4 and `docs/domain/DOMAIN-MODEL.md` (Transaction):
+- Missing columns: `account_id`, `posting_date`, `currency`, `direction` (the entity has a free-text `type`), `category_confidence`, `merchant_confidence`, `transaction_fingerprint`. No code under `backend/src/main` references a fingerprint. Any change needs a new Flyway migration, never an edit to V2.
+- Missing indexes from LLD 5.4: `(statement_id)`, `(account_id, transaction_date)`, and the category, merchant and direction indexes combined with date.
+- Fingerprint generation and its uniqueness strategy belong to TXN-003; #224 should add only the column and constraint if TXN-003 has not, and must not implement the algorithm. Row validation belongs to TXN-002 and persistence of extracted rows to TXN-004.
+- Design questions (field semantics, direction, refunds and transfers) belong to #223 (DOMAIN-MODEL.md), not #224.
+
+Overlap with #187 ("[TEST] Test transaction invariants", parent #110, OPEN): #187 owns tests for constraints, fingerprints, ownership filtering and the transaction lifecycle. #224 must not write those tests. Note for #187: `TransactionRepositoryTest` uses `@Spy` on the `TransactionRepository` interface with Mockito stubbing, so it does not run the queries against a database; real constraint and ownership tests do not yet exist. #187 depends on #224 for any new columns before it can test fingerprints.
+
 ## Future P2/P3 Work
 - Direct bank integrations.
 - Account Aggregator.
