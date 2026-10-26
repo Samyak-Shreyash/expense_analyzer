@@ -7,6 +7,7 @@ import java.time.format.ResolverStyle;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 /** Maps one row of cells to a ParsedTransaction or a RowError, by header name. */
 public class StatementRowMapper {
@@ -99,11 +100,15 @@ public class StatementRowMapper {
         return null;
     }
 
+    private static final Pattern PLAIN_AMOUNT =
+            Pattern.compile("-?(\\d{1,3}(,\\d{3})+|\\d+)(\\.\\d+)?");
+
     private static BigDecimal parseAmount(String s) {
-        try {
-            return new BigDecimal(s.replace(",", ""));
-        } catch (NumberFormatException e) {
+        if (!PLAIN_AMOUNT.matcher(s).matches()) {
             return null;
         }
+        BigDecimal v = new BigDecimal(s.replace(",", ""));
+        // Transaction.amount_cents is numeric(12,2): max 2 fraction digits, 10 integer digits
+        return v.scale() > 2 || v.precision() - v.scale() > 10 ? null : v;
     }
 }

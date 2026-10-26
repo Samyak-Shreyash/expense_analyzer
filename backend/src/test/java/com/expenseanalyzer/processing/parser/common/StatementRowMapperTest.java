@@ -70,9 +70,16 @@ class StatementRowMapperTest {
 
     @Test
     void invalidAmounts() {
-        for (String a : List.of("abc", "$5", "0")) {
+        for (String a : List.of("abc", "$5", "0", "1e5", "9E999999999", "1,2,3", "+5", "1.234", "12345678901")) {
             err(amt.map(2, List.of("2025-12-31", "x", a)), RowErrorCode.INVALID_AMOUNT);
         }
+    }
+
+    @Test
+    void groupedAmountIsValid() {
+        assertThat(amt.map(2, List.of("2025-12-31", "x", "1,234.56")))
+                .isInstanceOfSatisfying(ParsedTransaction.class,
+                        p -> assertThat(p.amount()).isEqualByComparingTo("1234.56"));
     }
 
     @Test
