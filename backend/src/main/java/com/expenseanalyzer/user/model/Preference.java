@@ -1,6 +1,8 @@
 package com.expenseanalyzer.user.model;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
@@ -39,8 +41,9 @@ public class Preference {
     private NotificationMode notificationMode;
 
     // JSONB field for dynamic preferences (flexibility)
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "value", nullable = false, columnDefinition = "jsonb")
-    private Map<String, Object> value;
+    private Map<String, Object> value = Map.of();
 
     @Column(name = "created_at", nullable = false)
     @Temporal(TemporalType.TIMESTAMP)
