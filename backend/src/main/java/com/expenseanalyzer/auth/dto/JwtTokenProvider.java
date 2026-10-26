@@ -26,7 +26,7 @@ public class JwtTokenProvider {
     private Long EXPIRATION_TIME;
 
     public String generateToken(Authentication authentication) {
-        logger.debug("Generating JWT token for user: {}", authentication.getName());
+        logger.debug("Generating JWT token");
 
         return Jwts.builder()
             .setSubject(authentication.getName())

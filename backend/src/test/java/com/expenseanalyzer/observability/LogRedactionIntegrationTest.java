@@ -1,6 +1,7 @@
 package com.expenseanalyzer.observability;
 
 import com.expenseanalyzer.auth.dto.RegisterRequest;
+import com.expenseanalyzer.auth.dto.JwtTokenProvider;
 import com.expenseanalyzer.auth.service.AuthService;
 import com.expenseanalyzer.user.model.User;
 import com.expenseanalyzer.user.repository.UserRepository;
@@ -13,6 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.util.Optional;
@@ -29,6 +31,9 @@ class LogRedactionIntegrationTest {
 
     @MockitoBean
     private UserRepository userRepository;
+
+    @Autowired
+    private JwtTokenProvider jwtTokenProvider;
 
     @Autowired
     private AuthService authService;
@@ -63,5 +68,20 @@ class LogRedactionIntegrationTest {
 
         assertThat(output).contains("Registration failed").doesNotContain("Sh0rt!")
                 .doesNotContain(email);
+    }
+
+    @Test
+    void tokenGenerationDoesNotLogEmail(CapturedOutput output) {
+        ch.qos.logback.classic.Logger providerLog =
+                (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(JwtTokenProvider.class);
+        ch.qos.logback.classic.Level old = providerLog.getLevel();
+        providerLog.setLevel(ch.qos.logback.classic.Level.DEBUG);
+        try {
+            jwtTokenProvider.generateToken(new UsernamePasswordAuthenticationToken("jwt-pii@example.com", "x"));
+        } finally {
+            providerLog.setLevel(old);
+        }
+
+        assertThat(output).contains("Generating JWT token").doesNotContain("jwt-pii@example.com");
     }
 }

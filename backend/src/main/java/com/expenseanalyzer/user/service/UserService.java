@@ -54,7 +54,7 @@ public class UserService {
 
         // Update email if provided
         if (request.email() != null && !request.email().isEmpty()) {
-            logger.debug("Setting email for user {}: {}", userId, request.email());
+            logger.debug("Setting email for user {}", userId);
             updatedUser.setEmail(request.email());
         }
 
