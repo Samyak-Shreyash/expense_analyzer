@@ -4,6 +4,7 @@ import com.expenseanalyzer.statement.model.Statement;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /**
@@ -28,6 +29,15 @@ public interface StatementRepository extends JpaRepository<Statement, UUID> {
      * @return statement if found, null otherwise
      */
     Statement findByUserIdAndAccountNumber(UUID userId, String accountNumber);
+
+    /** A user's statements, newest first. */
+    List<Statement> findByUserIdOrderByCreatedAtDesc(UUID userId);
+
+    /** A statement only if the user owns it. */
+    Optional<Statement> findByIdAndUserId(UUID id, UUID userId);
+
+    /** A user's statement with the given content hash, for duplicate detection. */
+    Optional<Statement> findByUserIdAndSha256(UUID userId, String sha256);
 
     /**
      * Count statements for a user.

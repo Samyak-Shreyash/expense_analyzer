@@ -5,6 +5,12 @@ spring:
   application:
     name: expenseanalyzer
 
+  servlet:
+    multipart:
+      # Matches app.statement.upload.max-size-bytes (20 MB); the request limit allows multipart overhead.
+      max-file-size: 20MB
+      max-request-size: 21MB
+
   datasource:
     url: 
     username: ${DB_USER:app_user}
