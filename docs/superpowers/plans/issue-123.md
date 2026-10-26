@@ -39,3 +39,24 @@ Test (`ApplicationContextRunner`, no full app): register `JwtTokenProvider` (and
 Verify: `cd backend && ./gradlew.bat test --tests "com.expenseanalyzer.security.MissingSecretStartupTest"`
 
 Finally run `cd backend && ./gradlew.bat clean build` to confirm all existing tests pass with the test profile.
+
+## Execution record (from SDD ledger)
+
+Spec: GitHub issue #123 acceptance criteria (no separate spec doc).
+Preflight scan:
+| Pair/Task | Produces/consumes | Finding |
+|---|---|---|
+| T1->T2 | T1 removes @Value fallbacks for JWT secret; T2 asserts context fails without app.oauth.jwt.secret | consistent (T2 depends on T1) |
+| T1 self | test yml already supplies secrets, so removing defaults must keep suite green | ok |
+| T2 self | ok | ok |
+Task 1: dispatched (BASE 7358233)
+Task 1: minor (deferred): NoHardcodedSecretsTest regex end-anchored (misses trailing comment/quoted defaults; "key" substring matches); test 2 checks one literal; UserEndpointSecurityTest.java:50 keeps a test-only @Value default
+Task 1: complete (commits 7358233..d125170, review clean)
+Task 2: dispatched (BASE d125170)
+Task 2: minor (deferred): failure assertion matches property name only (could use root cause type); expiration=3600 equals default
+Task 2: cannot-verify (test profile supplies secret) — resolved: Task 1 review confirmed test yml supplies app.oauth.jwt.secret
+Task 2: complete (commits d125170..6d961b9, review clean)
+Final review (a64fb99..6d961b9): ready to merge; deferred minors non-blocking.
+Final review: parked — application-test.yml in src/main/resources ships test JWT secrets in prod jar — Ruling: not moved; CLAUDE.md documents that location as test config; user decides (move to src/test/resources or record as exception) — cost if wrong: a test profile activated in prod runs with a known key
+Final review: PR must state partial scope — env vars only; S3/AI keys absent; rotation = change env + restart; sub-issues #149-#151 open
+Local dev: bootRun without DB_USER_PASSWORD now fails fast (intended); README lists no required env vars
