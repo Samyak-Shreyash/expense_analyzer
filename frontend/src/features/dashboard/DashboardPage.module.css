@@ -2,7 +2,7 @@
   --pad: 1.5rem;
   box-sizing: border-box;
   min-height: 100vh;
-  padding: var(--pad);
+  padding: 0 var(--pad) var(--pad);
 }
 
 @media (min-width: 48rem) {
@@ -17,8 +17,14 @@
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem 1rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid var(--rule);
+  margin-inline: calc(-1 * var(--pad));
+  padding: 1.25rem var(--pad);
+  background: var(--night);
+  color: var(--on-night);
+}
+
+.header :focus-visible {
+  outline-color: var(--on-night);
 }
 
 .wordmark {
@@ -26,7 +32,6 @@
   font-family: var(--font-display);
   font-size: 1.25rem;
   font-weight: 600;
-  color: var(--ink);
 }
 
 .account {
@@ -39,7 +44,6 @@
   min-width: 0;
   overflow-wrap: anywhere;
   font-size: 0.875rem;
-  color: var(--ink-muted);
 }
 
 .logout {
@@ -47,14 +51,14 @@
   border: 0;
   background: none;
   font: inherit;
-  color: var(--ledger);
+  color: var(--credit-on-night);
   text-decoration: underline;
   cursor: pointer;
 }
 
 .main {
   max-width: 34rem;
-  margin-top: 2rem;
+  margin-top: 2.5rem;
 }
 
 .main h1 {

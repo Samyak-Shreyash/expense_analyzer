@@ -7,8 +7,10 @@ type Props = { title: string; lead: string; children: ReactNode }
 export function AuthLayout({ title, lead, children }: Props) {
   return (
     <div className={styles.page}>
-      <p className={styles.wordmark}>Expense Analyzer</p>
-      <BalanceLine />
+      <header className={styles.band}>
+        <p className={styles.wordmark}>Expense Analyzer</p>
+        <BalanceLine />
+      </header>
       <main className={styles.main}>
         <h1>{title}</h1>
         <p className={styles.lead}>{lead}</p>
