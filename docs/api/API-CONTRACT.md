@@ -64,10 +64,20 @@ Delete/archive an account according to retention rules.
 
 ## 4. Statements
 
-### POST `/statements`
-Multipart upload plus account selection.
+Statement endpoints are served under `/api/statements` (not `/api/v1`). All require a bearer JWT (401 otherwise). The caller is taken from the token, never from request parameters. Every read and write is scoped to the owner: a statement owned by someone else is reported as 404, never 403.
 
-Response:
+Status values: `QUEUED`, `PROCESSING`, `PROCESSED`, `FAILED`. An upload persists the statement as `QUEUED`; no broker handoff exists yet (tracked in #189).
+
+Account selection is deferred: upload takes no account field until an Account module exists. Account fields on a statement are filled after parsing.
+
+Errors are Problem Details bodies (`application/problem+json`). Invalid-file errors carry `title: "Invalid file"` and a `reason` property. Other errors added by the upload endpoint carry a `code` property (see below).
+
+### POST `/api/statements`
+Multipart upload (`multipart/form-data`) with a single part named `file`. Accepted formats: CSV, XLS, XLSX. Maximum size is 20 MB, set by `app.statement.upload.max-size-bytes` (default `20971520`).
+
+Duplicate detection is idempotent per user on the SHA-256 of the file content.
+
+Response `202 Accepted`:
 ```json
 {
   "id": "stmt_123",
@@ -76,17 +86,26 @@ Response:
 }
 ```
 
-### GET `/statements`
-List owned statements.
+| Status | When | Body |
+|---|---|---|
+| 202 | Accepted and stored | `{id, status: "QUEUED", fileName}` |
+| 400 | Missing, empty, unsupported or mismatched file | `reason`: `EMPTY_FILE`, `UNSUPPORTED_EXTENSION`, `MIME_TYPE_MISMATCH` or `SIGNATURE_MISMATCH` |
+| 401 | Missing or invalid token | |
+| 409 | Same user already uploaded identical content | `code: "STATEMENT_DUPLICATE"`; reveals only the existing statement `id` |
+| 413 | File larger than the maximum size | `reason: "FILE_TOO_LARGE"` |
+| 503 | Object storage failure | `code: "STATEMENT_STORAGE_UNAVAILABLE"` |
 
-### GET `/statements/{statementId}`
-Get metadata/status.
+### GET `/api/statements`
+List owned statements, newest first.
 
-### GET `/statements/{statementId}/status`
-Get processing status and safe error details.
+### GET `/api/statements/{id}`
+Get metadata and status. 404 if not owned.
 
-### DELETE `/statements/{statementId}`
-Delete a statement subject to data-retention rules.
+### GET `/api/statements/{id}/status`
+Get processing status and safe error details (an error code only, never file contents). 404 if not owned.
+
+### DELETE `/api/statements/{id}`
+Delete a statement: removes the stored object, then the row. Returns 204. 404 if not owned.
 
 ## 5. Transactions
 
