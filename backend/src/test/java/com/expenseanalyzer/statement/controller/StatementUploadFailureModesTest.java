@@ -90,4 +90,19 @@ class StatementUploadFailureModesTest {
                 .andExpect(jsonPath("$.code").value("STATEMENT_STORAGE_UNAVAILABLE"));
         assertThat(statementRepository.count()).isEqualTo(1);
     }
+
+    @Test
+    void storageOutageOnDeleteIs503AndTheRowSurvives() throws Exception {
+        UUID id = UUID.fromString(new com.fasterxml.jackson.databind.ObjectMapper()
+                .readTree(mockMvc.perform(csv(SMALL_CSV)).andExpect(status().isAccepted())
+                        .andReturn().getResponse().getContentAsString()).get("id").asText());
+        doThrow(new StatementStorageException("down", null)).when(storage).delete(anyString());
+        String token = jwtTokenProvider.generateToken(new UsernamePasswordAuthenticationToken(EMAIL, null));
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .delete("/api/statements/" + id).header("Authorization", "Bearer " + token))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("STATEMENT_STORAGE_UNAVAILABLE"));
+        assertThat(statementRepository.findById(id)).isPresent();
+    }
 }
