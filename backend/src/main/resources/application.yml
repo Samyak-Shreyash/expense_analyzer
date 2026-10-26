@@ -83,6 +83,9 @@ logging:
       customizer: com.expenseanalyzer.observability.SensitiveLogRedactor
 # OAuth2 Authorization Server Configuration
 app:
+  statement:
+    upload:
+      max-size-bytes: ${STATEMENT_UPLOAD_MAX_BYTES:20971520}
   oauth:
     client:
       id: expense-analyzer-client
