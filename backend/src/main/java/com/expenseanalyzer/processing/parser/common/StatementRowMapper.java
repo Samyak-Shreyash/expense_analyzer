@@ -58,8 +58,8 @@ public class StatementRowMapper {
         String type;
         String field;
         if (debitIdx >= 0 || creditIdx >= 0) {
-            String debit = cell(cells, debitIdx);
-            String credit = cell(cells, creditIdx);
+            String debit = blankIfZero(cell(cells, debitIdx));
+            String credit = blankIfZero(cell(cells, creditIdx));
             if (debit.isEmpty() == credit.isEmpty()) {
                 return new RowError(rowNumber, RowErrorCode.AMBIGUOUS_DIRECTION, null);
             }
@@ -87,6 +87,12 @@ public class StatementRowMapper {
             return "";
         }
         return cells.get(idx).trim();
+    }
+
+    /** A zero Debit/Credit cell means "unused column", common in bank exports. */
+    private static String blankIfZero(String s) {
+        BigDecimal v = parseAmount(s);
+        return v != null && v.signum() == 0 ? "" : s;
     }
 
     private static LocalDate parseDate(String s) {

@@ -31,6 +31,13 @@ class CsvStatementParserTest {
     }
 
     @Test
+    void zeroInUnusedDebitCreditColumn() {
+        ParsedStatement r = parse("Date,Description,Debit,Credit\n2025-01-05,Coffee,4.50,0.00\n2025-01-06,Salary,0,3000.00\n");
+        assertThat(r.errors()).isEmpty();
+        assertThat(r.transactions()).extracting(t -> t.type()).containsExactly("DEBIT", "CREDIT");
+    }
+
+    @Test
     void parsesSingleAmountColumn() {
         ParsedStatement r = parse("Date,Description,Amount\n2025-01-05,Coffee,-12.00\n2025-01-06,Refund,12.00\n");
         assertThat(r.errors()).isEmpty();
