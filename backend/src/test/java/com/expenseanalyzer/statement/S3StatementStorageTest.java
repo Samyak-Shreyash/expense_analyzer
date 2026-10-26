@@ -24,6 +24,7 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 
 @ExtendWith(MockitoExtension.class)
 class S3StatementStorageTest {
@@ -34,7 +35,25 @@ class S3StatementStorageTest {
     S3Client s3Client;
 
     private S3StatementStorage storage() {
-        return new S3StatementStorage(s3Client, "bucket");
+        return new S3StatementStorage(s3Client, "bucket", true);
+    }
+
+    @Test
+    void putRequestsAes256WhenEncryptionEnabled() {
+        new S3StatementStorage(s3Client, "bucket", true).put(KEY, new byte[] {1}, "text/csv");
+
+        ArgumentCaptor<PutObjectRequest> captor = ArgumentCaptor.forClass(PutObjectRequest.class);
+        verify(s3Client).putObject(captor.capture(), any(RequestBody.class));
+        assertThat(captor.getValue().serverSideEncryption()).isEqualTo(ServerSideEncryption.AES256);
+    }
+
+    @Test
+    void putSetsNoEncryptionWhenDisabled() {
+        new S3StatementStorage(s3Client, "bucket", false).put(KEY, new byte[] {1}, "text/csv");
+
+        ArgumentCaptor<PutObjectRequest> captor = ArgumentCaptor.forClass(PutObjectRequest.class);
+        verify(s3Client).putObject(captor.capture(), any(RequestBody.class));
+        assertThat(captor.getValue().serverSideEncryption()).isNull();
     }
 
     @Test

@@ -90,6 +90,7 @@ app:
     region: ${APP_STORAGE_REGION:us-east-1}
     access-key: ${APP_STORAGE_ACCESS_KEY}
     secret-key: ${APP_STORAGE_SECRET_KEY}
+    server-side-encryption: ${APP_STORAGE_SSE:true}
   statement:
     upload:
       max-size-bytes: ${STATEMENT_UPLOAD_MAX_BYTES:20971520}
