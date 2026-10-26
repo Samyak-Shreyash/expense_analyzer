@@ -1,0 +1,6 @@
+package com.expenseanalyzer.processing.parser.common;
+
+public enum RowErrorCode {
+    MISSING_HEADER, INVALID_DATE, INVALID_AMOUNT, AMBIGUOUS_DIRECTION,
+    MISSING_DESCRIPTION, DESCRIPTION_TOO_LONG, MALFORMED_ROW, UNREADABLE_FILE
+}

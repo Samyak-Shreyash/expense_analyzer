@@ -8,7 +8,7 @@ spring:
   datasource:
     url: 
     username: ${DB_USER:app_user}
-    password: ${DB_USER_PASSWORD:app_password}
+    password: ${DB_USER_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -79,8 +79,13 @@ logging:
   structured:
     format:
       console: logstash
+    json:
+      customizer: com.expenseanalyzer.observability.SensitiveLogRedactor
 # OAuth2 Authorization Server Configuration
 app:
+  statement:
+    upload:
+      max-size-bytes: ${STATEMENT_UPLOAD_MAX_BYTES:20971520}
   oauth:
     client:
       id: expense-analyzer-client

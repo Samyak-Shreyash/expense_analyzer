@@ -19,14 +19,14 @@ public class JwtTokenProvider {
     private static final Logger logger = LoggerFactory.getLogger(JwtTokenProvider.class);
 
     // JWT secret key must be at least 32 bytes for jjwt 0.12.6 (HS256)
-    @Value("${app.oauth.jwt.secret:default-secret-key-for-testing-only-32-bytes}")
+    @Value("${app.oauth.jwt.secret}")
     private String SECRET_KEY;
 
     @Value("${app.oauth.jwt.tokenExpirationSeconds:3600}")
     private Long EXPIRATION_TIME;
 
     public String generateToken(Authentication authentication) {
-        logger.debug("Generating JWT token for user: {}", authentication.getName());
+        logger.debug("Generating JWT token");
 
         return Jwts.builder()
             .setSubject(authentication.getName())
