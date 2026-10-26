@@ -90,6 +90,7 @@ Response `202 Accepted`:
 |---|---|---|
 | 202 | Accepted and stored | `{id, status: "QUEUED", fileName}` |
 | 400 | Missing, empty, unsupported or mismatched file | `reason`: `EMPTY_FILE`, `UNSUPPORTED_EXTENSION`, `MIME_TYPE_MISMATCH` or `SIGNATURE_MISMATCH` |
+| 400 | Multipart request has no `file` part | `code: "STATEMENT_FILE_MISSING"` |
 | 401 | Missing or invalid token | |
 | 409 | Same user already uploaded identical content | `code: "STATEMENT_DUPLICATE"`; reveals only the existing statement `id` |
 | 413 | File larger than the maximum size | `reason: "FILE_TOO_LARGE"` |
@@ -99,13 +100,13 @@ Response `202 Accepted`:
 List owned statements, newest first.
 
 ### GET `/api/statements/{id}`
-Get metadata and status. 404 if not owned.
+Get metadata and status. 404 with `code: "STATEMENT_NOT_FOUND"` if not owned.
 
 ### GET `/api/statements/{id}/status`
-Get processing status and safe error details (an error code only, never file contents). 404 if not owned.
+Get processing status and safe error details (an error code only, never file contents). 404 with `code: "STATEMENT_NOT_FOUND"` if not owned.
 
 ### DELETE `/api/statements/{id}`
-Delete a statement: removes the stored object, then the row. Returns 204. 404 if not owned.
+Delete a statement: removes the stored object, then the row. Returns 204. 404 with `code: "STATEMENT_NOT_FOUND"` if not owned. 503 with `code: "STATEMENT_STORAGE_UNAVAILABLE"` on object storage failure.
 
 ## 5. Transactions
 
