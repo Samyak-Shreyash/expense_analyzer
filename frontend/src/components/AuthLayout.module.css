@@ -2,7 +2,7 @@
   --pad: 1.5rem;
   box-sizing: border-box;
   min-height: 100vh;
-  padding: var(--pad);
+  padding: 0 var(--pad) var(--pad);
 }
 
 @media (min-width: 48rem) {
@@ -11,52 +11,100 @@
   }
 }
 
+/* The one loud element: a full-bleed night-teal band carrying the balance line. */
+.band {
+  margin-inline: calc(-1 * var(--pad));
+  padding: var(--pad) var(--pad) 1.5rem;
+  background: var(--night);
+  color: var(--on-night);
+}
+
 .wordmark {
-  margin: 0 0 1rem;
+  margin: 0;
   font-family: var(--font-display);
   font-size: 1.25rem;
   font-weight: 600;
-  color: var(--ink);
+}
+
+.chart {
+  position: relative;
+  height: 12rem;
+  margin: 1.5rem calc(-1 * var(--pad)) 0;
+}
+
+@media (min-width: 48rem) {
+  .chart {
+    height: 17rem;
+  }
 }
 
 .line {
   display: block;
-  width: calc(100% + 2 * var(--pad));
-  margin-inline: calc(-1 * var(--pad));
-  height: 120px;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
 }
 
-.line polyline {
-  fill: none;
-  stroke: var(--ledger);
-  stroke-width: 2.5;
-  stroke-linejoin: round;
+.line line {
+  stroke-width: 3;
   stroke-linecap: round;
   vector-effect: non-scaling-stroke;
 }
 
-/* Base style is the drawn state; the animation only runs from hidden to drawn.
-   Dash length exceeds the on-screen path length (non-scaling-stroke uses px). */
-@keyframes draw {
+.credit {
+  stroke: var(--credit-on-night);
+}
+
+.debit {
+  stroke: var(--debit-on-night);
+}
+
+.figure {
+  position: absolute;
+  transform: translate(-50%, calc(-100% - 0.75rem));
+  font-size: 0.875rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--on-night);
+}
+
+.figure[data-low] {
+  transform: translate(-50%, 0.75rem);
+}
+
+.figure[data-edge='end'] {
+  transform: translate(calc(-100% - var(--pad)), calc(-100% - 0.75rem));
+}
+
+/* One orchestrated moment: the line draws left to right, then the figures settle in. */
+@keyframes reveal {
   from {
-    stroke-dasharray: 6000;
-    stroke-dashoffset: 6000;
+    clip-path: inset(0 100% 0 0);
   }
   to {
-    stroke-dasharray: 6000;
-    stroke-dashoffset: 0;
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+@keyframes appear {
+  from {
+    opacity: 0;
   }
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .line polyline {
-    animation: draw 1.2s ease-out 1;
+  .line {
+    animation: reveal 1.4s ease-out both;
+  }
+  .figure {
+    animation: appear 0.4s ease-out 1.3s both;
   }
 }
 
 .main {
   max-width: 22rem;
-  margin-top: 2rem;
+  margin-top: 2.5rem;
 }
 
 .main h1 {
