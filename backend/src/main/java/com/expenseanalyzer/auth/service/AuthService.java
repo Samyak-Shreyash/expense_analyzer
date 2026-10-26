@@ -45,17 +45,17 @@ public class AuthService {
      */
     @Transactional
     public User register(RegisterRequest request) {
-        logger.debug("Registering user with email: {}", request.email());
+        logger.debug("Registering user");
 
         // Validate email is not null
         if (request.email() == null) {
-            logger.warn("Registration failed: Email is required. Request email: {}", request.email());
+            logger.warn("Registration failed: Email is required");
             throw new IllegalArgumentException("Email is required");
         }
 
         // Validate password is not null
         if (request.password() == null) {
-            logger.warn("Registration failed: Password is required. Request password: {}", request.password());
+            logger.warn("Registration failed: Password is required");
             throw new IllegalArgumentException("Password is required");
         }
 
@@ -67,7 +67,7 @@ public class AuthService {
 
         // Check if email already exists
         if (userRepository.findByEmail(request.email()).isPresent()) {
-            logger.warn("Registration failed: Email already registered. Attempting email: {}", request.email());
+            logger.warn("Registration failed: Email already registered");
             throw new IllegalArgumentException("Email already registered");
         }
 

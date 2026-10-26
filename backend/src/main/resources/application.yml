@@ -79,6 +79,8 @@ logging:
   structured:
     format:
       console: logstash
+    json:
+      customizer: com.expenseanalyzer.observability.SensitiveLogRedactor
 # OAuth2 Authorization Server Configuration
 app:
   oauth:
