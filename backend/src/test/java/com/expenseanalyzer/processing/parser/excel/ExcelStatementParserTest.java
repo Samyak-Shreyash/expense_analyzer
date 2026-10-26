@@ -84,6 +84,18 @@ class ExcelStatementParserTest {
     }
 
     @Test
+    void numericZeroInUnusedColumnAndWholeNumbersMatchCsvScale() throws IOException {
+        ParsedStatement r = parse(workbook(new Object[][] {
+            {"Date", "Description", "Debit", "Credit"},
+            {"05/01/2025", 12345.0, 1001.0, 0.0}}));
+        assertThat(r.errors()).isEmpty();
+        assertThat(r.transactions()).hasSize(1);
+        assertThat(r.transactions().get(0).type()).isEqualTo("DEBIT");
+        assertThat(r.transactions().get(0).amount()).isEqualTo(new java.math.BigDecimal("1001"));
+        assertThat(r.transactions().get(0).rawDescription()).isEqualTo("12345");
+    }
+
+    @Test
     void reportsInvalidRowsAndKeepsValidOnes() throws IOException {
         ParsedStatement r = parse(workbook(new Object[][] {
             {"Date", "Description", "Amount"},

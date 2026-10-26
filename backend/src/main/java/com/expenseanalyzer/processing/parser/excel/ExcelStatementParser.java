@@ -70,7 +70,7 @@ public class ExcelStatementParser {
             case STRING -> c.getStringCellValue().trim();
             case NUMERIC -> DateUtil.isCellDateFormatted(c)
                     ? c.getLocalDateTimeCellValue().toLocalDate().toString()
-                    : BigDecimal.valueOf(c.getNumericCellValue()).toPlainString();
+                    : BigDecimal.valueOf(c.getNumericCellValue()).stripTrailingZeros().toPlainString();
             case FORMULA -> text(c, c.getCachedFormulaResultType());
             default -> "";
         };

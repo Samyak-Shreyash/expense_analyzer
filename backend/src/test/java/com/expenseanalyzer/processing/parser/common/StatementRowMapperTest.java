@@ -69,6 +69,15 @@ class StatementRowMapperTest {
     }
 
     @Test
+    void zeroInUnusedColumnIsIgnored() {
+        ParsedTransaction d = tx(dc.map(2, List.of("2025-12-31", "x", "12.50", "0.00")));
+        assertThat(d.type()).isEqualTo("DEBIT");
+        assertThat(d.amount()).isEqualTo(new BigDecimal("12.50"));
+        assertThat(tx(dc.map(3, List.of("2025-12-31", "x", "0", "7"))).type()).isEqualTo("CREDIT");
+        err(dc.map(4, List.of("2025-12-31", "x", "0.00", "0")), RowErrorCode.AMBIGUOUS_DIRECTION);
+    }
+
+    @Test
     void invalidAmounts() {
         for (String a : List.of("abc", "$5", "0", "1e5", "9E999999999", "1,2,3", "+5", "1.234", "12345678901")) {
             err(amt.map(2, List.of("2025-12-31", "x", a)), RowErrorCode.INVALID_AMOUNT);
