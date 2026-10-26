@@ -95,3 +95,32 @@ Test cases:
 7. `readsFirstSheetOnly`.
 
 Verify: `cd backend && ./gradlew.bat test --tests "com.expenseanalyzer.processing.parser.excel.ExcelStatementParserTest"`, then final `cd backend && ./gradlew.bat clean build`.
+
+## Execution record (from SDD ledger)
+
+Spec: GitHub issue #111 acceptance criteria (no separate spec doc).
+Preflight scan:
+| Pair/Task | Produces/consumes | Finding |
+|---|---|---|
+| T1->T2, T1->T3 | T1 adds deps + ParsedTransaction/RowError/ParsedStatement/StatementRowMapper; T2 CSV and T3 XLSX parsers consume them | consistent |
+| T2<->T3 | independent parsers sharing mapper; no shared file edits | ok |
+| T1/T2/T3 self | ok | ok |
+Task 1: dispatched (BASE 1db8188)
+Task 1: minor (deferred): map() returns Object; negative Debit/Credit silently abs()'d; catch RuntimeException too broad; ParsedStatement lists not copied; test gaps; build.gradle deps uncommented
+Task 1: cannot-verify (BOM on first header) — Ruling: carry into Task 2 CSV parser (strip BOM there) — cost if wrong: BOM CSVs fail header detection
+Task 1: cannot-verify (new deps compile under Boot 4) — resolved: implementer's full test run compiled with them; clean build at finish
+Task 1: fix round 1 dispatched (FIX_BASE 8be44ae) — Important: lenient BigDecimal parsing (sci-notation, loose comma strip)
+Task 1: fix round 1/5 (1 addressed, 0 open — lenient BigDecimal parsing; commits 8be44ae..19dbf84)
+Task 1: minor (deferred): no Unicode-digit test; leading-zero grouping (01,234) accepted; 1.000 rejected; PLAIN_AMOUNT declared mid-class
+Task 1: complete (commits 1db8188..19dbf84, review clean)
+Task 2: dispatched (BASE 19dbf84)
+Task 2: minor (deferred): BOM before a quoted first header not stripped (strip at stream level); mid-file malformed record discards all rows, untested; FQ Tuple.tuple
+Task 2: complete (commits 19dbf84..8260785, review clean)
+Task 3: dispatched (BASE 8260785)
+Task 3: minor (deferred): catch(Exception) wraps whole sheet loop (narrow to workbook open); whole-number cells render "1001.0"; numeric 0 in unused Debit/Credit → AMBIGUOUS_DIRECTION; no FORMULA/empty-sheet/negative-amount tests; Javadoc stream ownership
+Task 3: note for upload (#229): POI XSSF builds full DOM — rely on upload size cap; optionally ZipSecureFile.setMaxEntrySize
+Task 3: cannot-verify (clean build) — resolved at finish
+Task 3: complete (commits 8260785..1b016a8, review clean)
+Final review: 1 Important (zero in unused Debit/Credit → AMBIGUOUS_DIRECTION) + recommended Minor (XLSX whole numbers render 1001.0) — final fix wave dispatched (FIX_BASE 1b016a8)
+Final fix wave: 2 addressed, 0 open (commits 1b016a8..443224a); re-review clean
+Final review: parked — "0.000" in unused column not blanked (scale>2 rejected) — Ruling: edge case, row reported not thrown — cost if wrong: rare 3-decimal-zero exports get AMBIGUOUS_DIRECTION
