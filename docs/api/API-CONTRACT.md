@@ -73,7 +73,7 @@ Account selection is deferred: upload takes no account field until an Account mo
 Errors are Problem Details bodies (`application/problem+json`). Invalid-file errors carry `title: "Invalid file"` and a `reason` property. Other errors added by the upload endpoint carry a `code` property (see below).
 
 ### POST `/api/statements`
-Multipart upload (`multipart/form-data`) with a single part named `file`. Accepted formats: CSV, XLS, XLSX. Maximum size is 20 MB, set by `app.statement.upload.max-size-bytes` (default `20971520`).
+Multipart upload (`multipart/form-data`) with a single part named `file`. Accepted formats: CSV, XLSX, PDF. PDF files are stored and queued like the others; parsing them is not yet available. Maximum size is 20 MB, set by `app.statement.upload.max-size-bytes` (default `20971520`).
 
 Duplicate detection is idempotent per user on the SHA-256 of the file content.
 
