@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -130,6 +131,41 @@ class StatementServiceTest {
 
         assertThatThrownBy(() -> service.delete(EMAIL, id)).isInstanceOf(StatementNotFoundException.class);
         verify(storage, never()).delete(anyString());
+        verify(statementRepository, never()).delete(any());
+    }
+
+    @Test
+    void objectKeyNeverContainsOriginalFilename() {
+        when(statementRepository.findByUserIdAndSha256(userId, CSV_SHA256)).thenReturn(Optional.empty());
+        when(statementRepository.save(any(Statement.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.upload(EMAIL, "my-secret-bank-march.csv", "text/csv", CSV);
+
+        ArgumentCaptor<String> key = ArgumentCaptor.forClass(String.class);
+        verify(storage).put(key.capture(), any(), anyString());
+        assertThat(key.getValue()).startsWith("statements/" + userId + "/")
+                .doesNotContain("secret").doesNotContain("march").doesNotContain(".csv");
+    }
+
+    @Test
+    void getAndStatusOfStatementNotOwnedAreNotFoundAndNeverTouchStorage() {
+        UUID id = UUID.randomUUID();
+        when(statementRepository.findByIdAndUserId(id, userId)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.get(EMAIL, id)).isInstanceOf(StatementNotFoundException.class);
+        assertThatThrownBy(() -> service.status(EMAIL, id)).isInstanceOf(StatementNotFoundException.class);
+        assertThatThrownBy(() -> service.delete(EMAIL, id)).isInstanceOf(StatementNotFoundException.class);
+        verifyNoInteractions(storage);
+    }
+
+    @Test
+    void deleteKeepsRowWhenStorageIsDown() {
+        Statement s = new Statement(userId, null, null);
+        s.setObjectKey("statements/" + userId + "/" + s.getId());
+        when(statementRepository.findByIdAndUserId(s.getId(), userId)).thenReturn(Optional.of(s));
+        doThrow(new StatementStorageException("down", null)).when(storage).delete(s.getObjectKey());
+
+        assertThatThrownBy(() -> service.delete(EMAIL, s.getId())).isInstanceOf(StatementStorageException.class);
         verify(statementRepository, never()).delete(any());
     }
 
