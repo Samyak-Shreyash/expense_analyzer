@@ -103,7 +103,7 @@ public class SecurityConfiguration {
      * Decodes Bearer tokens issued by JwtTokenProvider (HS256, shared secret).
      */
     @Bean
-    public JwtDecoder jwtDecoder(@Value("${app.oauth.jwt.secret:default-secret-key-for-testing-only-32-bytes}") String secret) {
+    public JwtDecoder jwtDecoder(@Value("${app.oauth.jwt.secret}") String secret) {
         SecretKeySpec key = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
         return NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS256).build();
     }
