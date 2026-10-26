@@ -49,3 +49,15 @@ Tests (name -> request -> expected):
 
 Verify: `cd backend && ./gradlew.bat test --tests "com.expenseanalyzer.security.AuthorizationMatrixTest"`; then `cd backend && ./gradlew.bat test --tests "com.expenseanalyzer.security.UserEndpointSecurityTest"` and `cd backend && ./gradlew.bat clean build` before finishing.
 Note: check-email may need `UserAuthRepository`/`existsByEmail` stubbing depending on `AuthService`; if the mocked `UserRepository` default (false) is insufficient, stub it explicitly.
+
+## Execution record (from SDD ledger)
+
+Spec: GitHub issue #115 acceptance criteria (no separate spec doc).
+Preflight scan:
+| Task | Finding |
+|---|---|
+| T1 self | test-only; mirrors UserEndpointSecurityTest; ok |
+Task 1: dispatched (BASE db46b97)
+Task 1: minor (deferred): positive controls assert 200 only (no save/fullName check); refresh-401 assertion weak; Basic-header 401 lacks dedicated control
+Task 1: complete (commits db46b97..f9f3d1e, review clean)
+Final review (a64fb99..f9f3d1e): ready to merge; no Critical/Important; deferred minors judged non-blocking. clean build green.
