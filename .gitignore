@@ -69,3 +69,5 @@ uploaded_sessions.json
 /frontend/node_modules
 /frontend/dist
 frontend/build
+
+/.playwright-mcp/
