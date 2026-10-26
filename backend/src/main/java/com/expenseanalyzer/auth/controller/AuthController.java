@@ -86,13 +86,13 @@ public class AuthController {
      */
     @GetMapping("/register/check-email")
     public ResponseEntity<String> checkEmail(@RequestParam String email) {
-        logger.debug("Checking if email is registered: {}", email);
+        logger.debug("Checking if email is registered");
         try {
             if (authService.isEmailRegistered(email)) {
                 return ResponseEntity.status(HttpStatus.CONFLICT).body("Email already registered");
             }
         } catch (Exception e) {
-            logger.error("Error checking email registration for: {}", email, e);
+            logger.error("Error checking email registration", e);
             // Ignore exceptions and return default response
         }
 
