@@ -46,6 +46,8 @@ logging:
       customizer: com.expenseanalyzer.observability.SensitiveLogRedactor
 
 app:
+  storage:
+    type: memory
   oauth:
     jwt:
       secret: test-jwt-secret-key-for-testing-only-1234567890abcdef
