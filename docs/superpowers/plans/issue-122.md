@@ -64,3 +64,29 @@ Verify: `cd backend && ./gradlew.bat test --tests "com.expenseanalyzer.observabi
 ## Controller ruling (applies to Task 2)
 
 Ruling: email addresses logged at `AuthService.java:48,52,70` and `AuthController.java:89,95` are IN scope for Task 2 — repo rules forbid logging PII. Remove the email from those log calls (keep the log event, drop the address). Add an assertion to `LogRedactionIntegrationTest` that a login/register log line does not contain the test email.
+
+## Execution record (from SDD ledger)
+
+Spec: GitHub issue #122 acceptance criteria (no separate spec doc).
+Preflight scan:
+| Pair/Task | Produces/consumes | Finding |
+|---|---|---|
+| T1->T2 | T1 creates SensitiveLogRedactor customizer; T2 registers it via logging.structured.json.customizer | consistent |
+| T1 self | tests vs code consistent | ok |
+| T2 self | wiring + AuthService:58 fix + integration test | ok |
+Ruling: email logging in AuthService/AuthController brought into Task 2 scope — repo rule forbids PII in logs — cost if wrong: revert a few log lines.
+Task 1: dispatched (BASE d0dad9c)
+Task 1: minor (deferred): SensitiveLogRedactor.java:42 comment wrong; "Authorization: Bearer" renders "[REDACTED] [REDACTED]"
+Task 1: minor (deferred): Bearer rule over-redacts prose ("bearer of"); description rule eats rest of line
+Task 1: minor (deferred): test assertions on short strings only doesNotContain; add contains("[REDACTED]")
+Task 1: cannot-verify item (customizer path match + MDC untouched) — Ruling: carried into Task 2 as a required integration assertion — cost if wrong: unwired redaction ships
+Task 1: complete (commits d0dad9c..3986ed5, review clean)
+Task 2: dispatched (BASE 3986ed5)
+Task 2: note: implementer reports real register() against H2 throws SQLGrammarException (pre-existing, out of scope) — surface to user
+Task 2: minor (deferred): JwtTokenProvider.java:29 logs authentication.getName() (likely email) — PII, outside ruling's list
+Task 2: minor (deferred): AuthController.java:95 logs exception object (message could embed email); correlation assertion is substring; debug-line email absence not proven
+Task 2: complete (commits 3986ed5..d2c825e, review clean)
+Final review: 2 Important (UserService.java:57 logs email; JwtTokenProvider.java:29 logs getName()=email) — final fix wave dispatched (FIX_BASE d2c825e)
+Final review: minor (deferred): AuthService.java:64 logs password length
+Final fix wave: 2 addressed, 0 open (commits d2c825e..9503128); re-review clean
+Final review: parked — UserService.java:63 logs request.fullName(), :83 logs request.preferences() at DEBUG — Ruling: residual PII outside reviewed scope; no second fix wave; surfaced to user as follow-up — cost if wrong: names/preferences appear in DEBUG logs until fixed
