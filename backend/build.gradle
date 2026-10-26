@@ -9,6 +9,7 @@ ext {
 	logstashEncoderVersion = '7.4'
 	openTelemetryVersion = '1.33.0'
 	springModulithVersion = "2.1.1"
+	awsSdkVersion = '2.31.9'
 	springSecurityVersion = '7.2.0-M2' // Spring Security 7.x
 }
 
@@ -75,6 +76,9 @@ dependencies {
 	// Redis for rate limiting
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 
+	// S3-compatible statement object storage (version from the AWS SDK BOM)
+	implementation 'software.amazon.awssdk:s3'
+
 	implementation 'org.apache.commons:commons-csv:1.12.0'
 	implementation 'org.apache.poi:poi-ooxml:5.3.0'
 
@@ -113,6 +117,7 @@ dependencies {
 
 dependencyManagement {
 	imports {
+		mavenBom "software.amazon.awssdk:bom:${awsSdkVersion}"
 		mavenBom "org.springframework.modulith:spring-modulith-bom:${springModulithVersion}"
 	}
 }
