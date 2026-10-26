@@ -34,7 +34,8 @@
 
 @media (min-width: 48rem) {
   .chart {
-    height: 17rem;
+    /* Shrink on short screens so the form stays above the fold. */
+    height: clamp(8rem, 22vh, 17rem);
   }
 }
 
