@@ -90,3 +90,23 @@ public class GlobalExceptionHandler {
 Tests (plain unit, no Spring context): `FILE_TOO_LARGE` -> status 413, `detail == "msg"`, `getProperties().get("reason") == "FILE_TOO_LARGE"`; `UNSUPPORTED_EXTENSION` -> 400. Fail before the change (class missing). Then confirm existing security/context tests still pass via the full build (the advice only matches this exception).
 
 Verify: `cd backend && ./gradlew.bat test --tests "com.expenseanalyzer.common.exception.GlobalExceptionHandlerTest"`, then `cd backend && ./gradlew.bat clean build`.
+
+## Execution record (from SDD ledger)
+
+Spec: GitHub issue #116 acceptance criteria (no separate spec doc).
+Preflight scan:
+| Pair/Task | Produces/consumes | Finding |
+|---|---|---|
+| T1->T2 | T1 InvalidFileException + Reason enum; T2 GlobalExceptionHandler maps it (413 FILE_TOO_LARGE, else 400) | consistent |
+| T1 self / T2 self | ok | ok |
+Task 1: dispatched (BASE 0f46ca5)
+Ruling: CSV MIME allow-list = text/csv, application/csv, application/vnd.ms-excel, text/plain (implementer choice, brief silent) — browsers send these for .csv — cost if wrong: narrow the list
+Task 1: minor (deferred): no test for UTF-8 head cut mid-character (endOfInput=false); log assertion only for one reason; reject() NPE-looking deref at StatementFileValidator.java:92
+Task 1: cannot-verify (caller passes head <= 8192 bytes) — Ruling: no caller exists until upload endpoint #229; noted for that issue — cost if wrong: larger head only changes UTF-8 scan size, not correctness
+Task 1: complete (commits 0f46ca5..947878e, review clean)
+Task 2: dispatched (BASE 947878e)
+Task 2: minor (deferred): test derefs getBody() without null check; only one 400 reason tested; no MVC-wiring test for the advice; terse names s/p
+Task 2: cannot-verify (messages filename-free) — resolved: Task 1 review confirmed fixed-string messages
+Task 2: complete (commits 947878e..d3a0ae2, review clean)
+Final review (a64fb99..d3a0ae2): ready to merge; no Critical/Important. Deferred minors all non-blocking.
+Final review notes for #229: set spring.servlet.multipart.max-file-size/max-request-size (default 1 MB blocks 1-20 MB files before validator); pass real byte count and head <= 8192 bytes; xlsx magic matches any ZIP; PAYLOAD_TOO_LARGE deprecated (CONTENT_TOO_LARGE).
