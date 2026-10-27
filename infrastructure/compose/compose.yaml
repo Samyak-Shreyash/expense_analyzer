@@ -63,6 +63,30 @@ services:
 
 
   # ============================================================
+  # RustFS (S3-compatible object storage for uploaded statements)
+  # ============================================================
+  rustfs:
+    image: rustfs/rustfs:latest
+    container_name: rustfs
+    restart: unless-stopped
+
+    environment:
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:?set RUSTFS_ACCESS_KEY in .env}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:?set RUSTFS_SECRET_KEY in .env}
+      RUSTFS_CONSOLE_ENABLE: "true"
+
+    ports:
+      - "${RUSTFS_BIND_ADDRESS:-0.0.0.0}:${RUSTFS_API_PORT:-9000}:9000"
+      - "${RUSTFS_BIND_ADDRESS:-0.0.0.0}:${RUSTFS_CONSOLE_PORT:-9001}:9001"
+
+    volumes:
+      - rustfs_data:/data
+
+    networks:
+      - expense-analyzer
+
+
+  # ============================================================
   # Expense Analyzer Backend
   # ============================================================
   backend:
@@ -247,6 +271,7 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  rustfs_data:
   prometheus_data:
   tempo_data:
   grafana_data:

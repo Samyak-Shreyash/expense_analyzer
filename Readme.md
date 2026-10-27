@@ -309,7 +309,7 @@ React / Next.js
 
 ```text
 Kubernetes (optional)
-MinIO (object storage)
+RustFS (object storage)
 Prometheus + Grafana (observability)
 OpenTelemetry (distributed tracing)
 ```
@@ -346,7 +346,7 @@ OpenTelemetry (distributed tracing)
 ## Phase 3 — Statement Processing 🚧 In Progress
 
 * File upload functionality
-* Object storage integration (MinIO)
+* Object storage integration (RustFS)
 * CSV parser implemented
 * Transaction extraction pipeline
 * Async processing with Kafka
