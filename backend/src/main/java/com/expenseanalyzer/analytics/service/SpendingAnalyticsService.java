@@ -75,7 +75,8 @@ public class SpendingAnalyticsService {
     private final PersonRepository personRepository;
     private final EffectiveCategoryResolver categoryResolver;
 
-    private record Totals(BigDecimal inflowCents, BigDecimal outflowCents, long count) {
+    private record Totals(BigDecimal inflowCents, BigDecimal outflowCents, long count,
+                          BigDecimal nonSpendingCents) {
     }
 
     /** Per-merchant net spend in cents, before names are attached. */
@@ -109,11 +110,12 @@ public class SpendingAnalyticsService {
         Totals cur = totals(userId, from, to, resolution);
         Totals prev = totals(userId, prevFrom, prevTo, resolution);
         PeriodTotals previous = new PeriodTotals(prevFrom, prevTo, money(prev.inflowCents()), money(prev.outflowCents()),
-                money(prev.inflowCents().subtract(prev.outflowCents())), prev.count());
+                money(prev.inflowCents().subtract(prev.outflowCents()).subtract(prev.nonSpendingCents())), prev.count(),
+                money(prev.nonSpendingCents()));
         return new SpendingSummary(from, to, CURRENCY, money(cur.inflowCents()), money(cur.outflowCents()),
-                money(cur.inflowCents().subtract(cur.outflowCents())), cur.count(), previous,
-                changePercent(cur.inflowCents(), prev.inflowCents()),
-                changePercent(cur.outflowCents(), prev.outflowCents()));
+                money(cur.inflowCents().subtract(cur.outflowCents()).subtract(cur.nonSpendingCents())), cur.count(),
+                previous, changePercent(cur.inflowCents(), prev.inflowCents()),
+                changePercent(cur.outflowCents(), prev.outflowCents()), money(cur.nonSpendingCents()));
     }
 
     @Transactional // not readOnly: first access seeds the user's default categories
@@ -236,20 +238,23 @@ public class SpendingAnalyticsService {
 
     // ---- aggregation helpers ----
 
-    /** Inflow and count cover everything; outflow is spending only. */
+    /** Inflow and count cover everything; outflow is spending only; nonSpending = all DEBITs - spending DEBITs. */
     private Totals totals(UUID userId, LocalDate from, LocalDate to, Resolution resolution) {
         BigDecimal in = BigDecimal.ZERO;
+        BigDecimal allOut = BigDecimal.ZERO;
         long count = 0;
         for (Object[] r : transactionRepository.sumByDirection(userId, start(from), endExclusive(to))) {
             if ("CREDIT".equals(r[0])) {
                 in = in.add((BigDecimal) r[1]);
+            } else {
+                allOut = allOut.add((BigDecimal) r[1]);
             }
             count += (Long) r[2];
         }
         BigDecimal out = groups(userId, from, to, resolution).stream()
                 .filter(g -> !g.credit() && g.spending())
                 .map(Group::cents).reduce(BigDecimal.ZERO, BigDecimal::add);
-        return new Totals(in, out, count);
+        return new Totals(in, out, count, allOut.subtract(out));
     }
 
     /** SQL groups for the range, each resolved to its effective category. */
@@ -295,15 +300,15 @@ public class SpendingAnalyticsService {
     private Map<YearMonth, Totals> monthly(UUID userId, LocalDate from, LocalDate to) {
         Map<YearMonth, Totals> months = new LinkedHashMap<>();
         for (YearMonth m = YearMonth.from(from); !m.isAfter(YearMonth.from(to)); m = m.plusMonths(1)) {
-            months.put(m, new Totals(BigDecimal.ZERO, BigDecimal.ZERO, 0));
+            months.put(m, new Totals(BigDecimal.ZERO, BigDecimal.ZERO, 0, BigDecimal.ZERO));
         }
         for (Object[] r : transactionRepository.sumByMonthAndDirection(userId, start(from), endExclusive(to))) {
             YearMonth m = YearMonth.of(((Number) r[0]).intValue(), ((Number) r[1]).intValue());
             BigDecimal amount = (BigDecimal) r[3];
             Totals t = months.get(m);
             months.put(m, "CREDIT".equals(r[2])
-                    ? new Totals(t.inflowCents().add(amount), t.outflowCents(), t.count())
-                    : new Totals(t.inflowCents(), t.outflowCents().add(amount), t.count()));
+                    ? new Totals(t.inflowCents().add(amount), t.outflowCents(), t.count(), t.nonSpendingCents())
+                    : new Totals(t.inflowCents(), t.outflowCents().add(amount), t.count(), t.nonSpendingCents()));
         }
         return months;
     }

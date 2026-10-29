@@ -15,12 +15,13 @@ public final class AnalyticsDtos {
     }
 
     public record PeriodTotals(LocalDate from, LocalDate to, BigDecimal inflow, BigDecimal outflow, BigDecimal net,
-                               long transactionCount) {
+                               long transactionCount, BigDecimal nonSpendingOutflow) {
     }
 
     public record SpendingSummary(LocalDate from, LocalDate to, String currency, BigDecimal inflow,
                                   BigDecimal outflow, BigDecimal net, long transactionCount, PeriodTotals previous,
-                                  BigDecimal inflowChangePercent, BigDecimal outflowChangePercent) {
+                                  BigDecimal inflowChangePercent, BigDecimal outflowChangePercent,
+                                  BigDecimal nonSpendingOutflow) {
     }
 
     public record MerchantSpend(UUID merchantId, String name, BigDecimal spend, BigDecimal sharePercent,
