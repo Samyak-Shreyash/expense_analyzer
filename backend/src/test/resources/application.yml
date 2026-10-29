@@ -12,6 +12,11 @@ spring:
       ddl-auto: create-drop
   flyway:
     enabled: false
+  kafka:
+    admin:
+      auto-create: false
+    listener:
+      auto-startup: false
 
 management:
   endpoints:
@@ -46,6 +51,9 @@ logging:
       customizer: com.expenseanalyzer.observability.SensitiveLogRedactor
 
 app:
+  outbox:
+    scheduler:
+      enabled: false
   storage:
     endpoint: http://localhost:9000
     access-key: test-access-key

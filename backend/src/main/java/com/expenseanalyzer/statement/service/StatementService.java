@@ -1,6 +1,7 @@
 package com.expenseanalyzer.statement.service;
 
 import com.expenseanalyzer.common.exception.InvalidFileException;
+import com.expenseanalyzer.messaging.service.OutboxService;
 import com.expenseanalyzer.common.exception.InvalidFileException.Reason;
 import com.expenseanalyzer.statement.model.Statement;
 import com.expenseanalyzer.statement.model.StatementFormat;
@@ -18,6 +19,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -47,10 +49,11 @@ public class StatementService {
     private final UserRepository userRepository;
     private final StatementFileValidator validator;
     private final StatementStorage storage;
+    private final OutboxService outboxService;
 
     /**
      * Validates, de-duplicates by content hash, persists metadata and stores the original file.
-     * A storage failure rolls the metadata back.
+     * A storage failure rolls the metadata back. Queues processing via the outbox.
      */
     @Transactional
     public Statement upload(String email, MultipartFile file) {
@@ -81,6 +84,13 @@ public class StatementService {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+        // Same transaction as the row: the processing request cannot be lost (LLD 23).
+        s.setStatus(StatementStatus.QUEUED);
+        outboxService.enqueue(OutboxService.STATEMENT_UPLOADED, s.getId(), user.getId(), Map.of(
+                "statementId", s.getId(),
+                "storageKey", key,
+                "format", format.name(),
+                "fileHash", hash));
         log.info("Statement uploaded: statementId={} format={}", s.getId(), format);
         return s;
     }

@@ -1,6 +1,9 @@
 package com.expenseanalyzer.statement.controller;
 
 import com.expenseanalyzer.auth.dto.JwtTokenProvider;
+import com.expenseanalyzer.messaging.model.OutboxEvent;
+import com.expenseanalyzer.messaging.repository.OutboxEventRepository;
+import com.expenseanalyzer.observability.CorrelationIdFilter;
 import com.expenseanalyzer.statement.model.Statement;
 import com.expenseanalyzer.statement.repository.StatementRepository;
 import com.expenseanalyzer.statement.service.StatementStorage;
@@ -55,6 +58,8 @@ class StatementControllerTest {
     private JwtTokenProvider jwtTokenProvider;
     @Autowired
     private StatementRepository statementRepository;
+    @Autowired
+    private OutboxEventRepository outboxRepository;
 
     @MockitoBean
     private UserRepository userRepository;
@@ -66,7 +71,9 @@ class StatementControllerTest {
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
+        mockMvc = MockMvcBuilders.webAppContextSetup(context)
+                .addFilters(context.getBean(CorrelationIdFilter.class)) // runs before security, as in the app
+                .apply(springSecurity()).build();
         alice = user(ALICE);
         user(BOB);
     }
@@ -74,6 +81,7 @@ class StatementControllerTest {
     @AfterEach
     void cleanUp() {
         statementRepository.deleteAll();
+        outboxRepository.deleteAll();
     }
 
     private User user(String email) {
@@ -107,7 +115,7 @@ class StatementControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").isNotEmpty())
                 .andExpect(jsonPath("$.fileName").value("statement.csv"))
-                .andExpect(jsonPath("$.status").value("UPLOADED"))
+                .andExpect(jsonPath("$.status").value("QUEUED"))
                 .andExpect(jsonPath("$.storageKey").doesNotExist());
 
         Statement saved = statementRepository.findAll().getFirst();
@@ -115,6 +123,23 @@ class StatementControllerTest {
         assertThat(saved.getFileHash()).hasSize(64);
         assertThat(saved.getStorageKey()).isEqualTo(StatementStorage.keyFor(alice.getId(), saved.getId()));
         verify(storage).store(eq(saved.getStorageKey()), any(), eq((long) CSV.length), eq("text/csv"));
+    }
+
+    @Test
+    void uploadEnqueuesStatementUploadedEventWithCorrelationId() throws Exception {
+        mockMvc.perform(multipart("/api/statements").file(csv(CSV))
+                        .header("Authorization", bearer(ALICE))
+                        .header("X-Correlation-ID", "corr-upload-1"))
+                .andExpect(status().isCreated());
+
+        Statement saved = statementRepository.findAll().getFirst();
+        OutboxEvent event = outboxRepository.findAll().getFirst();
+        assertThat(event.getEventType()).isEqualTo("StatementUploaded");
+        assertThat(event.getAggregateId()).isEqualTo(saved.getId());
+        String json = event.getPayload();
+        assertThat((String) JsonPath.read(json, "$.correlationId")).isEqualTo("corr-upload-1");
+        assertThat((String) JsonPath.read(json, "$.payload.storageKey")).isEqualTo(saved.getStorageKey());
+        assertThat((String) JsonPath.read(json, "$.payload.format")).isEqualTo("CSV");
     }
 
     @Test
@@ -167,6 +192,7 @@ class StatementControllerTest {
         mockMvc.perform(multipart("/api/statements").file(csv(CSV)).header("Authorization", bearer(ALICE)))
                 .andExpect(status().isServiceUnavailable());
         assertThat(statementRepository.count()).isZero();
+        assertThat(outboxRepository.count()).isZero();
     }
 
     @Test
@@ -190,7 +216,7 @@ class StatementControllerTest {
                 .andExpect(jsonPath("$.format").value("CSV"));
         mockMvc.perform(get("/api/statements/" + id + "/status").header("Authorization", bearer(ALICE)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.status").value("UPLOADED"));
+                .andExpect(jsonPath("$.status").value("QUEUED"));
     }
 
     @Test

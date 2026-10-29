@@ -82,6 +82,9 @@ dependencies {
 	// Object storage (S3 API; RustFS locally)
 	implementation 'software.amazon.awssdk:s3'
 
+	// Statement processing events (outbox -> Kafka)
+	implementation 'org.springframework.boot:spring-boot-starter-kafka'
+
 	// JWT library for token generation
 	implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
 	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
