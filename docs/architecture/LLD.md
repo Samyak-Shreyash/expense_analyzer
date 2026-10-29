@@ -536,6 +536,67 @@ Responsibilities:
 
 Do not silently infer ambiguous financial values.
 
+### 8.2.1 Implemented CSV mapping
+
+This subsection describes what `CsvStatementParser` and `StatementRowMapper` do today. Where it differs from the responsibilities listed above, this subsection describes the code. There is no ADR for the CSV format yet.
+
+**Input and encoding**
+
+- The stream is read as UTF-8. A leading UTF-8 byte order mark on the header row is removed. No other encoding is detected or converted, and a stream that is not valid UTF-8 is not rejected (malformed bytes are decoded as replacement characters).
+- The only delimiter is a comma, with `"` as the quote character. Quoted cells may contain commas and line breaks and keep them in the value. The delimiter is not configurable.
+- Each cell is trimmed of surrounding whitespace. Completely empty lines are skipped and do not count towards row numbers.
+- The caller owns the stream; the parser does not close it.
+
+**Header**
+
+- The first non-empty record is the header. Header names are trimmed and compared case-insensitively, in any column order. Extra columns (for example `Balance`) are ignored.
+- There are no aliases. The only recognized names are `date`, `description`, `debit`, `credit` and `amount`. Names such as `Transaction Date`, `Narration` or `Withdrawal` are not recognized.
+- If a name appears more than once, the first column with that name is used.
+- The header is valid when it has `Date`, `Description`, and at least one of `Debit`, `Credit` or `Amount`. Otherwise the parse fails with a single `MISSING_HEADER` error on row 1. An empty file gets the same error.
+
+**Amount and direction**
+
+- If a `Debit` or `Credit` column exists, those columns decide the direction and any `Amount` column is ignored. Otherwise the `Amount` column is used.
+- Debit/Credit columns: a cell that is missing, blank, or numerically zero (`0`, `0.00`) counts as unused. Exactly one of the two must hold a value, otherwise the row is `AMBIGUOUS_DIRECTION` (both filled, both empty, or both zero). A header with only `Debit` (or only `Credit`) works the same way: a row with an empty cell there is `AMBIGUOUS_DIRECTION`. The column that is used gives the direction (`DEBIT` or `CREDIT`).
+- Amount column: a negative value is a `DEBIT` and a positive value is a `CREDIT`.
+- `ParsedTransaction.amount` is always the absolute value, and `type` is the string `DEBIT` or `CREDIT`. A minus sign in a Debit/Credit cell is accepted and dropped, so it does not change the direction.
+- Accepted amount text: an optional leading `-`, digits with optional comma thousands grouping (groups of exactly three digits, such as `1,250.50`), and an optional decimal part. Rejected as `INVALID_AMOUNT`: a leading `+`, currency symbols, exponents (`1e5`), misplaced commas (`1,2,3`), more than two decimal digits (`1.234`, also `1.500`), more than ten integer digits, and zero. The scale of the text is kept (`100` stays `100`, `12.50` stays `12.50`).
+- Currency is not read from the file; the parser produces no currency value.
+
+**Dates**
+
+- Accepted formats are `yyyy-MM-dd`, `dd/MM/yyyy` and `dd-MM-yyyy`, tried in that order with strict resolving. `12/31/2025` is not accepted, and neither is `31/02/2025`. Anything else, including an empty cell, is `INVALID_DATE`.
+- Dates are only parsed. There is no time or time zone.
+
+**Description**
+
+- `rawDescription` is the cell value with surrounding whitespace trimmed. Inner spacing, case, punctuation and embedded line breaks are kept unchanged (`  AMZN*MKTP  IN ` becomes `AMZN*MKTP  IN`). No normalization happens in the parser.
+- An empty description is `MISSING_DESCRIPTION`. A description longer than 2048 characters is `DESCRIPTION_TOO_LONG` (exactly 2048 is accepted).
+
+**Row errors**
+
+- A row is either a `ParsedTransaction` or one `RowError(rowNumber, code, field)`. Checks run in this order and the first failure wins: date, description presence, description length, direction, amount.
+- `rowNumber` is the CSV record number, where the header is 1. It counts records, not physical lines, so a quoted cell with a line break is one record. `field` is a column name (`Date`, `Description`, `Debit`, `Credit`, `Amount`) or null. A `RowError` never contains a cell value.
+- A bad row does not stop the parse. Valid rows are returned together with the errors of the others, in file order. A file with only a header returns no transactions and no errors.
+- A row shorter than the header is not an error by itself; missing cells are treated as blank and then fail whichever check needs them. A row longer than the header has its extra cells ignored.
+- File-level failures return no transactions and one error: `MISSING_HEADER` (row 1) as above, and `UNREADABLE_FILE` (row 0) when the CSV library cannot read the stream, for example an unterminated quoted cell. This discards rows parsed before the failure.
+- `RowErrorCode` also defines `MALFORMED_ROW`, but nothing in the code produces it.
+
+| Code | Produced when |
+|---|---|
+| `MISSING_HEADER` | Empty input, or required header columns are missing |
+| `UNREADABLE_FILE` | The CSV library fails while reading |
+| `INVALID_DATE` | Date cell is not one of the three formats or is not a real date |
+| `MISSING_DESCRIPTION` | Description is empty after trimming |
+| `DESCRIPTION_TOO_LONG` | Description is over 2048 characters |
+| `AMBIGUOUS_DIRECTION` | Debit/Credit columns do not have exactly one non-zero value |
+| `INVALID_AMOUNT` | Amount text is not accepted (see above) or is zero |
+| `MALFORMED_ROW` | Defined but never produced |
+
+**Not implemented**
+
+A configurable delimiter, header aliases, currency columns, a running balance check, a row-count limit and spreadsheet formula-injection handling do not exist in the CSV parser. `Balance` columns are ignored.
+
 ## 8.3 PDF Parser
 
 Initial target:

@@ -21,6 +21,12 @@ spring:
   application:
     name: expenseanalyzer
 
+  servlet:
+    multipart:
+      # Matches app.statement.upload.max-size-bytes (20 MB); the request limit allows multipart overhead.
+      max-file-size: 20MB
+      max-request-size: 21MB
+
   datasource:
     url: 
     username: ${DB_USER:app_user}
@@ -99,6 +105,14 @@ logging:
       customizer: com.expenseanalyzer.observability.SensitiveLogRedactor
 # OAuth2 Authorization Server Configuration
 app:
+  storage:
+    type: ${APP_STORAGE_TYPE:s3}
+    endpoint: ${APP_STORAGE_ENDPOINT:}
+    bucket: ${APP_STORAGE_BUCKET}
+    region: ${APP_STORAGE_REGION:us-east-1}
+    access-key: ${APP_STORAGE_ACCESS_KEY}
+    secret-key: ${APP_STORAGE_SECRET_KEY}
+    server-side-encryption: ${APP_STORAGE_SSE:true}
   statement:
     upload:
       max-size-bytes: ${STATEMENT_UPLOAD_MAX_BYTES:20971520}
