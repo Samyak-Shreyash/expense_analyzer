@@ -19,11 +19,13 @@ export function MerchantCell({ t, reload }: Props) {
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [suggest, setSuggest] = useState(false)
   const [saving, setSaving] = useState(false)
   const trigger = useRef<HTMLButtonElement>(null)
 
   function open() {
     setName('')
+    setSuggest(false)
     setError(null)
     setEditing(true)
   }
@@ -33,12 +35,12 @@ export function MerchantCell({ t, reload }: Props) {
     trigger.current?.focus()
   }
 
-  async function submit() {
+  async function submit(chosen: string, share: boolean, closeEditor: boolean) {
     setSaving(true)
     setError(null)
     try {
-      await setTransactionMerchant(t.id, name.trim())
-      close()
+      await setTransactionMerchant(t.id, chosen, share)
+      if (closeEditor) close()
       reload()
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Could not save that.')
@@ -49,15 +51,36 @@ export function MerchantCell({ t, reload }: Props) {
 
   if (!editing) {
     return (
-      <button
-        ref={trigger}
-        type="button"
-        className={shared.quiet}
-        aria-label={`Add merchant for ${t.description}`}
-        onClick={open}
-      >
-        Add merchant
-      </button>
+      <>
+        {t.suggestedMerchantName && (
+          <span>
+            Suggested: {t.suggestedMerchantName}{' '}
+            <button
+              type="button"
+              className={shared.quiet}
+              disabled={saving}
+              aria-label={`Use ${t.suggestedMerchantName} for ${t.description}`}
+              onClick={() => submit(t.suggestedMerchantName!, false, false)}
+            >
+              Use this
+            </button>
+          </span>
+        )}
+        <button
+          ref={trigger}
+          type="button"
+          className={shared.quiet}
+          aria-label={`Add merchant for ${t.description}`}
+          onClick={open}
+        >
+          Add merchant
+        </button>
+        {error && (
+          <p className={shared.error} role="alert">
+            {error}
+          </p>
+        )}
+      </>
     )
   }
 
@@ -66,7 +89,7 @@ export function MerchantCell({ t, reload }: Props) {
       className={styles.categoryEditor}
       onSubmit={(e) => {
         e.preventDefault()
-        if (name.trim()) submit()
+        if (name.trim()) submit(name.trim(), suggest, true)
       }}
       onKeyDown={(e) => {
         if (e.key === 'Escape') {
@@ -85,6 +108,18 @@ export function MerchantCell({ t, reload }: Props) {
           autoComplete="off"
           onChange={(e) => setName(e.target.value)}
         />
+      </label>
+      <label>
+        <input
+          type="checkbox"
+          checked={suggest}
+          onChange={(e) => setSuggest(e.target.checked)}
+        />{' '}
+        Suggest this name to other users
+        <span className={shared.muted}>
+          {' '}
+          Only the merchant name is shared, never your transactions.
+        </span>
       </label>
       <div className={styles.editorActions}>
         <button

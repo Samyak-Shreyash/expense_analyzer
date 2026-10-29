@@ -10,4 +10,6 @@ import org.springframework.stereotype.Repository;
 public interface MerchantRepository extends JpaRepository<Merchant, UUID> {
 
     Optional<Merchant> findByCanonicalName(String canonicalName);
+
+    Optional<Merchant> findFirstByCanonicalNameIgnoreCaseOrderByCreatedAtAsc(String canonicalName);
 }
