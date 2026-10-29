@@ -41,7 +41,7 @@ public interface MerchantSuggestionVoteRepository
     int repoint(UUID userId, String payeeKey, UUID merchantId, Instant now);
 
     /** Locks the voter's user row so one user's concurrent vote replacements run one at a time. */
-    @Query(nativeQuery = true, value = "SELECT id FROM users WHERE id = :userId FOR UPDATE")
+    @Query(nativeQuery = true, value = "SELECT id FROM users WHERE id = :userId FOR NO KEY UPDATE")
     List<Object> lockVoter(UUID userId);
 
     @Modifying(flushAutomatically = true)
