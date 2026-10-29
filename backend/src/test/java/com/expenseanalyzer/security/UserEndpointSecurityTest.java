@@ -18,12 +18,16 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
+import com.nimbusds.jose.jwk.source.ImmutableSecret;
+import javax.crypto.spec.SecretKeySpec;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.JwsHeader;
+import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
+import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.Date;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -97,12 +101,15 @@ class UserEndpointSecurityTest {
     }
 
     private String signedToken(String secret, Instant expiresAt) {
-        return "Bearer " + Jwts.builder()
+        JwtClaimsSet claims = JwtClaimsSet.builder()
                 .subject(EMAIL)
-                .issuedAt(Date.from(expiresAt.minusSeconds(3600)))
-                .expiration(Date.from(expiresAt))
-                .signWith(Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8)), Jwts.SIG.HS256)
-                .compact();
+                .issuedAt(expiresAt.minusSeconds(3600))
+                .expiresAt(expiresAt)
+                .build();
+        SecretKeySpec key = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+        return "Bearer " + new NimbusJwtEncoder(new ImmutableSecret<>(key))
+                .encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).build(), claims))
+                .getTokenValue();
     }
 
     @Test

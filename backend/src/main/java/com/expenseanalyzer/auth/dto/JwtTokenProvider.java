@@ -6,9 +6,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
+import com.nimbusds.jose.jwk.source.ImmutableSecret;
+import javax.crypto.spec.SecretKeySpec;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.JwsHeader;
+import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
+import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -18,7 +22,7 @@ public class JwtTokenProvider {
 
     private static final Logger logger = LoggerFactory.getLogger(JwtTokenProvider.class);
 
-    // JWT secret key must be at least 32 bytes for jjwt 0.12.6 (HS256)
+    // HS256 needs a secret of at least 32 bytes
     @Value("${app.oauth.jwt.secret}")
     private String SECRET_KEY;
 
@@ -28,28 +32,17 @@ public class JwtTokenProvider {
     public String generateToken(Authentication authentication) {
         logger.debug("Generating JWT token");
 
-        return Jwts.builder()
-            .setSubject(authentication.getName())
-            .setIssuer("expense-analyzer")
-            .setIssuedAt(new java.util.Date(Instant.now().toEpochMilli()))
-            .setExpiration(new java.util.Date(Instant.now().plusSeconds(EXPIRATION_TIME).toEpochMilli()))
+        Instant now = Instant.now();
+        JwtClaimsSet claims = JwtClaimsSet.builder()
+            .subject(authentication.getName())
+            .issuer("expense-analyzer")
+            .issuedAt(now)
+            .expiresAt(now.plusSeconds(EXPIRATION_TIME))
             .claim("aud", "expense-analyzer-users")
-            .signWith(Keys.hmacShaKeyFor(SECRET_KEY.getBytes(StandardCharsets.UTF_8)), Jwts.SIG.HS256)
-            .compact();
-    }
-
-    public Claims getClaims(String token) {
-        try {
-            // Get SecretKey from JWT library - returns typed object for verifyWith method
-            var secretKey = Keys.hmacShaKeyFor(SECRET_KEY.getBytes(StandardCharsets.UTF_8));
-            return Jwts.parser()
-                .verifyWith(secretKey)
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
-        } catch (Exception e) {
-            logger.error("Failed to parse JWT token", e);
-            throw e;
-        }
+            .build();
+        SecretKeySpec key = new SecretKeySpec(SECRET_KEY.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+        return new NimbusJwtEncoder(new ImmutableSecret<>(key))
+            .encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).build(), claims))
+            .getTokenValue();
     }
 }
