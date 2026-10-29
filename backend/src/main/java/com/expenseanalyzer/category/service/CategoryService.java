@@ -3,7 +3,10 @@ package com.expenseanalyzer.category.service;
 import com.expenseanalyzer.analytics.service.SpendingAnalyticsService;
 import com.expenseanalyzer.category.dto.CategoryRequest;
 import com.expenseanalyzer.category.model.Category;
+import com.expenseanalyzer.category.model.UserMerchantCategory;
 import com.expenseanalyzer.category.repository.CategoryRepository;
+import com.expenseanalyzer.category.repository.UserMerchantCategoryRepository;
+import com.expenseanalyzer.merchant.repository.MerchantRepository;
 import com.expenseanalyzer.merchant.service.MerchantNormalizer;
 import com.expenseanalyzer.transaction.repository.TransactionRepository;
 import com.expenseanalyzer.user.model.User;
@@ -31,6 +34,8 @@ public class CategoryService {
     private final CategoryRepository categoryRepository;
     private final TransactionRepository transactionRepository;
     private final UserRepository userRepository;
+    private final UserMerchantCategoryRepository merchantCategoryRepository;
+    private final MerchantRepository merchantRepository;
 
     public UUID userId(String email) {
         return userRepository.findByEmail(email).map(User::getId)
@@ -77,11 +82,12 @@ public class CategoryService {
         return category;
     }
 
-    /** Clears every reference to the category, then deletes it. Tasks 2-3 add their reference tables here. */
+    /** Clears every reference to the category, then deletes it. Task 3 adds its reference table here. */
     @Transactional
     public void delete(String email, UUID id) {
         Category category = owned(userId(email), id);
         transactionRepository.clearCategory(id);
+        merchantCategoryRepository.deleteByCategoryId(id);
         categoryRepository.delete(category);
     }
 
@@ -93,7 +99,23 @@ public class CategoryService {
         return true;
     }
 
-    private Category owned(UUID userId, UUID id) {
+    /** Sets (or, with a null categoryId, clears) the caller's category for a merchant. Unknown merchant or category: 404. */
+    @Transactional
+    public void setMerchantCategory(String email, UUID merchantId, UUID categoryId) {
+        UUID userId = userId(email);
+        if (!merchantRepository.existsById(merchantId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        }
+        if (categoryId == null) {
+            merchantCategoryRepository.findByUserIdAndMerchantId(userId, merchantId)
+                    .ifPresent(merchantCategoryRepository::delete);
+            return;
+        }
+        owned(userId, categoryId);
+        merchantCategoryRepository.save(new UserMerchantCategory(userId, merchantId, categoryId));
+    }
+
+    public Category owned(UUID userId, UUID id) {
         return categoryRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
     }
