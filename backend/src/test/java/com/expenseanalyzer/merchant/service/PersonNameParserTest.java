@@ -25,7 +25,9 @@ class PersonNameParserTest {
             "UPI/P2A/412345678906/ ANNA  D'SOUZA /ICICI Bank~Anna D'Souza",
             // a dash is part of the name when the description uses / or | delimiters
             "UPI/P2A/412345678907/MARY-ANNE JOSEPH/HDFC BANK~Mary-Anne Joseph",
-            "UPI|P2A|412345678908|D'SOUTA-RAO|HDFC BANK~D'Souta-Rao"})
+            "UPI|P2A|412345678908|D'SOUTA-RAO|HDFC BANK~D'Souta-Rao",
+            // the delimiter is the one around the reference, not whichever character appears anywhere
+            "UPI-P2A-412345678902-ANITA DESAI-x@okhdfcbank-HDFC0001234-pay/rent~Anita Desai"})
     void extractsTitleCasedName(String description, String expected) {
         assertThat(PersonNameParser.parse(description)).contains(expected);
     }

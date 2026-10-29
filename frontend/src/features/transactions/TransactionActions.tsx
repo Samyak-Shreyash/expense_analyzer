@@ -175,7 +175,11 @@ export function TransactionActions({
       </fieldset>
 
       {/* Always mounted so screen readers announce the text when it is swapped in. */}
-      <p className={shared.muted} role="status">
+      <p
+        className={shared.muted}
+        role="status"
+        style={status?.ok ? undefined : { margin: 0 }}
+      >
         {status?.ok ? status.text : ''}
       </p>
       {status && !status.ok && (
