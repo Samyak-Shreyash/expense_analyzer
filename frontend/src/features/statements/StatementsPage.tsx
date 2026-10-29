@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { Link } from 'react-router'
 import shared from '../../components/shared.module.css'
 import { dayLabel, validateStatementFile } from '../../lib/format'
@@ -109,6 +110,13 @@ export function StatementsPage() {
     setConfirming(null)
     await deleteStatement(id)
     reload()
+    // The row is gone; keep keyboard users in the list rather than at the top of the page.
+    document.getElementById('uploaded')?.focus()
+  }
+
+  function keep(id: string) {
+    flushSync(() => setConfirming(null))
+    document.getElementById(`delete-${id}`)?.focus()
   }
 
   return (
@@ -192,7 +200,9 @@ export function StatementsPage() {
       )}
 
       <section className={shared.section} aria-labelledby="uploaded">
-        <h2 id="uploaded">Uploaded statements</h2>
+        <h2 id="uploaded" tabIndex={-1}>
+          Uploaded statements
+        </h2>
         {loadError && (
           <p className={shared.error}>
             Could not load your statements. Reload the page to try again.
@@ -239,13 +249,20 @@ export function StatementsPage() {
                               type="button"
                               className={shared.danger}
                               onClick={() => remove(s.id)}
+                              onKeyDown={(e) =>
+                                e.key === 'Escape' && keep(s.id)
+                              }
                             >
                               Delete it and its transactions
                             </button>
                             <button
                               type="button"
                               className={shared.quiet}
-                              onClick={() => setConfirming(null)}
+                              autoFocus
+                              onClick={() => keep(s.id)}
+                              onKeyDown={(e) =>
+                                e.key === 'Escape' && keep(s.id)
+                              }
                             >
                               Keep
                             </button>
@@ -253,6 +270,7 @@ export function StatementsPage() {
                         ) : (
                           <button
                             type="button"
+                            id={`delete-${s.id}`}
                             className={shared.danger}
                             onClick={() => setConfirming(s.id)}
                           >
