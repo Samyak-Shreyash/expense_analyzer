@@ -1,5 +1,7 @@
 package com.expenseanalyzer.auth.controller;
 
+import com.expenseanalyzer.audit.model.AuditAction;
+import com.expenseanalyzer.audit.service.AuditService;
 import com.expenseanalyzer.auth.dto.*;
 import com.expenseanalyzer.auth.service.AuthService;
 import com.expenseanalyzer.auth.service.RefreshTokenService;
@@ -18,6 +20,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -30,6 +33,7 @@ public class AuthController {
     private final UserRepository userRepository;
     private final AuthService authService;
     private final RefreshTokenService refreshTokenService;
+    private final AuditService auditService;
 
     // Refresh cookie: HttpOnly (no JS access), sent only to /api/auth, never cross-site.
     private static final String REFRESH_COOKIE = "refresh_token";
@@ -39,9 +43,16 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.email(), request.password())
-        );
+        Authentication authentication;
+        try {
+            authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(request.email(), request.password()));
+        } catch (AuthenticationException e) {
+            // Record the account id when the email exists; never the email itself.
+            auditService.record(AuditAction.AUTH_LOGIN_FAILED,
+                    userRepository.findByEmail(request.email()).map(User::getId).orElse(null));
+            throw e;
+        }
         if (authentication.isAuthenticated() && !authentication.getAuthorities().isEmpty()) {
             String jwt = tokenProvider.generateToken(authentication);
             
@@ -53,6 +64,7 @@ public class AuthController {
             String email = authentication.getName();
             User user = userRepository.findByEmail(email).orElse(null);
             if (user != null) {
+                auditService.record(AuditAction.AUTH_LOGIN_SUCCEEDED, user.getId());
                 return ResponseEntity.ok()
                         .header(HttpHeaders.SET_COOKIE, refreshCookie(refreshTokenService.issue(user), refreshTokenService.getRefreshTokenSeconds()))
                         .body(new AuthResponse(jwt));
@@ -72,6 +84,7 @@ public class AuthController {
         try {
             // Call AuthService to create the user and save to database
             User user = authService.register(request);
+            auditService.record(AuditAction.AUTH_REGISTERED, user.getId());
 
             return ResponseEntity.ok("User registered successfully");
         } catch (IllegalArgumentException e) {

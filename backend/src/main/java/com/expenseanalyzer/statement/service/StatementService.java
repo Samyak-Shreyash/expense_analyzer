@@ -1,5 +1,7 @@
 package com.expenseanalyzer.statement.service;
 
+import com.expenseanalyzer.audit.model.AuditAction;
+import com.expenseanalyzer.audit.service.AuditService;
 import com.expenseanalyzer.common.exception.InvalidFileException;
 import com.expenseanalyzer.messaging.service.OutboxService;
 import com.expenseanalyzer.common.exception.InvalidFileException.Reason;
@@ -43,6 +45,7 @@ public class StatementService {
 
     private static final Logger log = LoggerFactory.getLogger(StatementService.class);
     private static final int HEAD_BYTES = 8192;
+    private static final String RESOURCE_TYPE = "STATEMENT";
 
     private final StatementRepository statementRepository;
     private final TransactionRepository transactionRepository;
@@ -50,6 +53,7 @@ public class StatementService {
     private final StatementFileValidator validator;
     private final StatementStorage storage;
     private final OutboxService outboxService;
+    private final AuditService auditService;
 
     /**
      * Validates, de-duplicates by content hash, persists metadata and stores the original file.
@@ -91,6 +95,7 @@ public class StatementService {
                 "storageKey", key,
                 "format", format.name(),
                 "fileHash", hash));
+        auditService.record(AuditAction.STATEMENT_UPLOADED, user.getId(), RESOURCE_TYPE, s.getId());
         log.info("Statement uploaded: statementId={} format={}", s.getId(), format);
         return s;
     }
@@ -103,6 +108,14 @@ public class StatementService {
     @Transactional(readOnly = true)
     public Optional<Statement> find(String email, UUID id) {
         return statementRepository.findByIdAndUserId(id, currentUser(email).getId());
+    }
+
+    /** {@link #find} for an owner viewing the statement; successful views are audited. */
+    @Transactional
+    public Optional<Statement> view(String email, UUID id) {
+        Optional<Statement> found = find(email, id);
+        found.ifPresent(s -> auditService.record(AuditAction.STATEMENT_ACCESSED, s.getUserId(), RESOURCE_TYPE, s.getId()));
+        return found;
     }
 
     /** @return false if the statement does not exist or belongs to someone else */
@@ -118,6 +131,7 @@ public class StatementService {
         if (s.getStorageKey() != null) {
             storage.delete(s.getStorageKey());
         }
+        auditService.record(AuditAction.STATEMENT_DELETED, s.getUserId(), RESOURCE_TYPE, s.getId());
         log.info("Statement deleted: statementId={}", s.getId());
         return true;
     }

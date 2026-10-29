@@ -51,12 +51,12 @@ public class StatementController {
 
     @GetMapping("/{id}")
     public ResponseEntity<StatementResponse> get(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
-        return ResponseEntity.of(statementService.find(jwt.getSubject(), id).map(StatementResponse::from));
+        return ResponseEntity.of(statementService.view(jwt.getSubject(), id).map(StatementResponse::from));
     }
 
     @GetMapping("/{id}/status")
     public ResponseEntity<StatementStatusResponse> status(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
-        return ResponseEntity.of(statementService.find(jwt.getSubject(), id).map(StatementStatusResponse::from));
+        return ResponseEntity.of(statementService.view(jwt.getSubject(), id).map(StatementStatusResponse::from));
     }
 
     @DeleteMapping("/{id}")
