@@ -21,6 +21,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -79,6 +80,12 @@ public class TransactionController {
     @PutMapping("/{id}/merchant")
     public TransactionResponse setMerchant(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
                                            @RequestBody MerchantNameRequest body) {
-        return transactionService.setMerchant(jwt.getSubject(), id, body.name(), body.shouldSuggest());
+        return transactionService.setMerchant(jwt.getSubject(), id, body.name(), body.share());
+    }
+
+    @PostMapping("/{id}/suggestion-report")
+    public ResponseEntity<Void> reportSuggestion(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
+        transactionService.reportSuggestion(jwt.getSubject(), id);
+        return ResponseEntity.noContent().build();
     }
 }

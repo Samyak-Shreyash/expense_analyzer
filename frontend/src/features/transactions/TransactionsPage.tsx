@@ -5,6 +5,7 @@ import shared from '../../components/shared.module.css'
 import { dayLabel, rupees } from '../../lib/format'
 import {
   listCategories,
+  listMerchantNames,
   listTransactions,
   type Category,
   type Page,
@@ -25,6 +26,7 @@ export function TransactionsPage() {
   const [error, setError] = useState(false)
   const [open, setOpen] = useState<string | null>(null)
   const [categories, setCategories] = useState<Category[]>([])
+  const [sharing, setSharing] = useState(false)
   // Bumped to refetch after a change that can touch other rows.
   const [version, setVersion] = useState(0)
   // Row whose merchant was just named: its trigger unmounts, so focus moves on after the refetch.
@@ -40,6 +42,9 @@ export function TransactionsPage() {
   useEffect(() => {
     listCategories()
       .then(setCategories)
+      .catch(() => {})
+    listMerchantNames()
+      .then((m) => setSharing(m.shareMerchantNames && !m.sharingRevoked))
       .catch(() => {})
   }, [])
 
@@ -260,6 +265,7 @@ export function TransactionsPage() {
                             <span className={shared.muted}>Not matched</span>
                             <MerchantCell
                               t={t}
+                              sharing={sharing}
                               reload={() => {
                                 focusRow.current = t.id
                                 setVersion((v) => v + 1)

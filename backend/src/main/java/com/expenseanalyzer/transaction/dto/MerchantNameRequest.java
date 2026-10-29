@@ -1,9 +1,8 @@
 package com.expenseanalyzer.transaction.dto;
 
-/** Body for naming the merchant of an unmatched payment; {@code suggest} opts in to sharing the name (default off). */
-public record MerchantNameRequest(String name, Boolean suggest) {
-
-    public boolean shouldSuggest() {
-        return Boolean.TRUE.equals(suggest);
-    }
+/**
+ * Body for naming the merchant of an unmatched payment. {@code share} (optional) applies only while the account shares
+ * merchant names: missing or true shares this name, false opts it out.
+ */
+public record MerchantNameRequest(String name, Boolean share) {
 }

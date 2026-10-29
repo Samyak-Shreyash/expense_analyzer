@@ -11,6 +11,7 @@ import java.util.UUID;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -41,6 +42,15 @@ public class UserMerchantAlias {
     @Column(name = "display_name", nullable = false, length = 100)
     private String displayName;
 
+    /** Stable id the owner uses to address this alias (the primary key is user + payee). */
+    @Column(name = "public_id", nullable = false, updatable = false)
+    private UUID publicId;
+
+    /** True when the user chose not to share this name even while account-level sharing is on. */
+    @ColumnDefault("false")
+    @Column(name = "share_opt_out", nullable = false)
+    private boolean shareOptOut;
+
     @JdbcTypeCode(SqlTypes.TIMESTAMP)
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -50,6 +60,7 @@ public class UserMerchantAlias {
         this.payeeKey = payeeKey;
         this.merchantId = merchantId;
         this.displayName = displayName;
+        this.publicId = UUID.randomUUID();
         this.createdAt = Instant.now();
     }
 }

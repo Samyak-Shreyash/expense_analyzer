@@ -15,6 +15,8 @@ vi.mock('../../services/finance', async (orig) => ({
   setMerchantCategory: vi.fn(),
   updatePerson: vi.fn(),
   setTransactionMerchant: vi.fn(),
+  listMerchantNames: vi.fn(),
+  reportSuggestion: vi.fn(),
 }))
 
 const swiggy: Transaction = {
@@ -57,6 +59,11 @@ function renderPage(url = '/transactions') {
 describe('TransactionsPage', () => {
   beforeEach(() => {
     vi.mocked(finance.listCategories).mockResolvedValue(categories)
+    vi.mocked(finance.listMerchantNames).mockResolvedValue({
+      shareMerchantNames: false,
+      sharingRevoked: false,
+      items: [],
+    })
     vi.mocked(finance.listTransactions).mockResolvedValue({
       items: [swiggy],
       page: 0,
@@ -408,7 +415,7 @@ describe('TransactionsPage', () => {
         expect(finance.setTransactionMerchant).toHaveBeenCalledWith(
           't1',
           'Acme Store',
-          false,
+          undefined,
         ),
       )
       await waitFor(() =>
@@ -465,24 +472,35 @@ describe('TransactionsPage', () => {
       expect(document.activeElement).toBe(search)
     })
 
-    it('links the sharing hint to the checkbox', async () => {
+    it('hides the share checkbox while sharing is off and links to the setting', async () => {
       renderPage()
       fireEvent.click(await screen.findByRole('button', { name: addMerchant }))
-      const box = screen.getByRole('checkbox', {
-        name: 'Suggest this name to other users',
+      expect(screen.queryByRole('checkbox')).toBeNull()
+      const link = screen.getByRole('link', {
+        name: 'Sharing is off — manage in Merchant names',
       })
+      expect(link.getAttribute('href')).toBe('/categories?tab=merchant-names')
+    })
+
+    it('shows the share checkbox, checked, with the warning while sharing is on', async () => {
+      vi.mocked(finance.listMerchantNames).mockResolvedValue({
+        shareMerchantNames: true,
+        sharingRevoked: false,
+        items: [],
+      })
+      vi.mocked(finance.setTransactionMerchant).mockResolvedValue(unmatched)
+      renderPage()
+      const trigger = await screen.findByRole('button', { name: addMerchant })
+      await waitFor(() => expect(finance.listMerchantNames).toHaveBeenCalled())
+      fireEvent.click(trigger)
+      const box = (await screen.findByRole('checkbox', {
+        name: 'Share this name with other users',
+      })) as HTMLInputElement
+      expect(box.checked).toBe(true)
       const hint = document.getElementById(
         box.getAttribute('aria-describedby')!,
       )
-      expect(hint?.textContent).toMatch(/never your transactions/)
-    })
-
-    it('shares the name only when the box is ticked', async () => {
-      vi.mocked(finance.setTransactionMerchant).mockResolvedValue(unmatched)
-      renderPage()
-      fireEvent.click(await screen.findByRole('button', { name: addMerchant }))
-      const box = screen.getByLabelText(/Suggest this name to other users/)
-      expect((box as HTMLInputElement).checked).toBe(false)
+      expect(hint?.textContent).toMatch(/Offensive names are reported/)
       fireEvent.click(box)
       fireEvent.change(screen.getByLabelText('Merchant name'), {
         target: { value: 'Acme Store' },
@@ -492,8 +510,47 @@ describe('TransactionsPage', () => {
         expect(finance.setTransactionMerchant).toHaveBeenCalledWith(
           't1',
           'Acme Store',
-          true,
+          false,
         ),
+      )
+    })
+
+    it('reports a suggested name after confirming; Escape cancels', async () => {
+      vi.mocked(finance.reportSuggestion).mockResolvedValue(null)
+      vi.mocked(finance.listTransactions).mockResolvedValue({
+        items: [{ ...unmatched, suggestedMerchantName: 'Acme Store' }],
+        page: 0,
+        size: 50,
+        totalItems: 1,
+        totalPages: 1,
+      })
+      renderPage()
+      const report = await screen.findByRole('button', {
+        name: 'Report suggested name Acme Store',
+      })
+      fireEvent.click(report)
+      expect(
+        screen.getByText(/Report this name as offensive or wrong\?/),
+      ).toBeTruthy()
+      const cancel = screen.getByRole('button', { name: 'Cancel' })
+      expect(document.activeElement).toBe(cancel)
+      fireEvent.keyDown(cancel, { key: 'Escape' })
+      expect(document.activeElement?.getAttribute('aria-label')).toBe(
+        'Report suggested name Acme Store',
+      )
+      expect(finance.reportSuggestion).not.toHaveBeenCalled()
+
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: 'Report suggested name Acme Store',
+        }),
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+      await waitFor(() =>
+        expect(finance.reportSuggestion).toHaveBeenCalledWith('t1'),
+      )
+      await waitFor(() =>
+        expect(screen.queryByText(/Suggested: Acme Store/)).toBeNull(),
       )
     })
 

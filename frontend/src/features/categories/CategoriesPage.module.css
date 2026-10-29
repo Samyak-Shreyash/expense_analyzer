@@ -41,3 +41,26 @@
   flex-wrap: wrap;
   gap: 0.5rem 1rem;
 }
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid currentColor;
+  margin-bottom: 1rem;
+}
+
+.tab,
+.tabActive {
+  font: inherit;
+  padding: 0.5rem 1rem;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.tabActive {
+  border-bottom-color: currentColor;
+  font-weight: 600;
+}

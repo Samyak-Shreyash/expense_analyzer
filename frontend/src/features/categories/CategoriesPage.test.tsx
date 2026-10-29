@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { MemoryRouter, useLocation } from 'react-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import * as finance from '../../services/finance'
 import { CategoriesPage } from './CategoriesPage'
@@ -11,7 +12,57 @@ vi.mock('../../services/finance', async (orig) => ({
   updateCategory: vi.fn(),
   deleteCategory: vi.fn(),
   updatePerson: vi.fn(),
+  listMerchantNames: vi.fn(),
+  setMerchantNameSharing: vi.fn(),
+  setMerchantNameShared: vi.fn(),
 }))
+
+function Location() {
+  return <output data-testid="location">{useLocation().search}</output>
+}
+
+function renderPage(url = '/categories') {
+  return render(
+    <MemoryRouter initialEntries={[url]}>
+      <CategoriesPage />
+      <Location />
+    </MemoryRouter>,
+  )
+}
+
+const acme: finance.MerchantName = {
+  id: 'a1',
+  name: 'Acme Store',
+  payee: 'ACME STORE',
+  transactionCount: 3,
+  shared: false,
+  optedOut: false,
+  shareable: true,
+  notShareableReason: null,
+  reported: false,
+}
+const rahul: finance.MerchantName = {
+  ...acme,
+  id: 'a2',
+  name: 'Rahul Shop',
+  payee: 'RAHUL KUMAR',
+  shareable: false,
+  notShareableReason: 'TRANSFER',
+}
+const beta: finance.MerchantName = {
+  ...acme,
+  id: 'a3',
+  name: 'Beta Mart',
+  payee: 'BETA MART',
+}
+const names = (
+  over: Partial<finance.MerchantNames> = {},
+): finance.MerchantNames => ({
+  shareMerchantNames: false,
+  sharingRevoked: false,
+  items: [acme, beta, rahul],
+  ...over,
+})
 
 const food = { id: 'c1', name: 'Food', countsAsSpending: true }
 const loan = { id: 'c2', name: 'Loan', countsAsSpending: false }
@@ -26,7 +77,7 @@ beforeEach(() => {
 
 describe('CategoriesPage', () => {
   it('lists categories with their counts-as-spending switch', async () => {
-    render(<CategoriesPage />)
+    renderPage()
     const food = await screen.findByRole('switch', {
       name: /Food counts as spending/,
     })
@@ -41,7 +92,7 @@ describe('CategoriesPage', () => {
       name: 'Pets',
       countsAsSpending: true,
     })
-    render(<CategoriesPage />)
+    renderPage()
     fireEvent.change(await screen.findByLabelText('New category name'), {
       target: { value: 'Pets' },
     })
@@ -56,7 +107,7 @@ describe('CategoriesPage', () => {
     vi.mocked(finance.createCategory).mockRejectedValue(
       new finance.ApiError(409, 'You already have a category with that name.'),
     )
-    render(<CategoriesPage />)
+    renderPage()
     fireEvent.change(await screen.findByLabelText('New category name'), {
       target: { value: 'food' },
     })
@@ -71,7 +122,7 @@ describe('CategoriesPage', () => {
       ...food,
       countsAsSpending: false,
     })
-    render(<CategoriesPage />)
+    renderPage()
     fireEvent.click(
       await screen.findByRole('switch', { name: /Food counts as spending/ }),
     )
@@ -93,7 +144,7 @@ describe('CategoriesPage', () => {
     vi.mocked(finance.updateCategory).mockRejectedValueOnce(
       new finance.ApiError(400, 'Use a name of 1 to 50 characters.'),
     )
-    render(<CategoriesPage />)
+    renderPage()
     fireEvent.click(
       await screen.findByRole('button', { name: 'Rename category Food' }),
     )
@@ -117,7 +168,7 @@ describe('CategoriesPage', () => {
 
   it('confirms before deleting; Escape keeps it and returns focus', async () => {
     vi.mocked(finance.deleteCategory).mockResolvedValue(null)
-    render(<CategoriesPage />)
+    renderPage()
     fireEvent.click(
       await screen.findByRole('button', { name: 'Delete category Food' }),
     )
@@ -145,7 +196,8 @@ describe('CategoriesPage', () => {
       name: 'Ravi',
       categoryId: 'c2',
     })
-    render(<CategoriesPage />)
+    renderPage()
+    fireEvent.click(await screen.findByRole('tab', { name: 'People' }))
     fireEvent.change(
       await screen.findByLabelText('Default category for Ravi'),
       {
@@ -155,5 +207,165 @@ describe('CategoriesPage', () => {
     await waitFor(() =>
       expect(finance.updatePerson).toHaveBeenCalledWith('p1', 'Ravi', 'c2'),
     )
+  })
+
+  it('switches tabs with the arrow keys and keeps the URL in sync', async () => {
+    vi.mocked(finance.listMerchantNames).mockResolvedValue(names())
+    renderPage()
+    const categoriesTab = await screen.findByRole('tab', { name: 'Categories' })
+    expect(categoriesTab.getAttribute('aria-selected')).toBe('true')
+    fireEvent.keyDown(categoriesTab, { key: 'ArrowRight' })
+    const people = screen.getByRole('tab', { name: 'People' })
+    expect(people.getAttribute('aria-selected')).toBe('true')
+    expect(document.activeElement).toBe(people)
+    expect(screen.getByTestId('location').textContent).toBe('?tab=people')
+    fireEvent.keyDown(people, { key: 'End' })
+    expect(screen.getByTestId('location').textContent).toBe(
+      '?tab=merchant-names',
+    )
+    expect(
+      screen.getByRole('tabpanel', { name: 'Merchant names' }),
+    ).toBeTruthy()
+    fireEvent.keyDown(document.activeElement!, { key: 'ArrowRight' })
+    expect(document.activeElement).toBe(categoriesTab)
+    expect(screen.getByTestId('location').textContent).toBe('')
+  })
+
+  describe('merchant names', () => {
+    const open = () => renderPage('/categories?tab=merchant-names')
+    const shareSwitch = () =>
+      screen.findByRole('switch', {
+        name: 'Share my merchant names to improve suggestions for other users',
+      }) as Promise<HTMLInputElement>
+
+    it('is off by default with every row disabled', async () => {
+      vi.mocked(finance.listMerchantNames).mockResolvedValue(names())
+      open()
+      expect((await shareSwitch()).checked).toBe(false)
+      const box = screen.getByRole('checkbox', {
+        name: 'Share Acme Store',
+      }) as HTMLInputElement
+      expect(box.disabled).toBe(true)
+      expect(
+        document.getElementById(box.getAttribute('aria-describedby')!)
+          ?.textContent,
+      ).toMatch(/Turn on sharing above/)
+      expect(screen.getByText(/Offensive names are reported/)).toBeTruthy()
+    })
+
+    it('confirms turning on with the number of names to share', async () => {
+      vi.mocked(finance.listMerchantNames).mockResolvedValue(names())
+      vi.mocked(finance.setMerchantNameSharing).mockResolvedValue(
+        names({ shareMerchantNames: true }),
+      )
+      open()
+      fireEvent.click(await shareSwitch())
+      expect(screen.getByText('2 names will be shared.')).toBeTruthy()
+      const cancel = screen.getByRole('button', { name: 'Cancel' })
+      expect(document.activeElement).toBe(cancel)
+      fireEvent.keyDown(cancel, { key: 'Escape' })
+      expect(screen.queryByText('2 names will be shared.')).toBeNull()
+      expect(finance.setMerchantNameSharing).not.toHaveBeenCalled()
+
+      fireEvent.click(await shareSwitch())
+      fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+      await waitFor(() =>
+        expect(finance.setMerchantNameSharing).toHaveBeenCalledWith(true),
+      )
+      await waitFor(async () =>
+        expect((await shareSwitch()).checked).toBe(true),
+      )
+    })
+
+    it('opts a single name out through its checkbox', async () => {
+      vi.mocked(finance.listMerchantNames).mockResolvedValue(
+        names({ shareMerchantNames: true }),
+      )
+      vi.mocked(finance.setMerchantNameShared).mockResolvedValue({
+        ...acme,
+        optedOut: true,
+      })
+      open()
+      const box = (await screen.findByRole('checkbox', {
+        name: 'Share Acme Store',
+      })) as HTMLInputElement
+      expect(box.checked).toBe(true)
+      fireEvent.click(box)
+      await waitFor(() =>
+        expect(finance.setMerchantNameShared).toHaveBeenCalledWith('a1', false),
+      )
+      await waitFor(() => expect(box.checked).toBe(false))
+    })
+
+    it('disables rows that cannot be shared and says why', async () => {
+      vi.mocked(finance.listMerchantNames).mockResolvedValue(
+        names({
+          shareMerchantNames: true,
+          items: [
+            rahul,
+            { ...beta, shareable: false, notShareableReason: 'NAME_OFFENSIVE' },
+          ],
+        }),
+      )
+      open()
+      const box = (await screen.findByRole('checkbox', {
+        name: 'Share Rahul Shop',
+      })) as HTMLInputElement
+      expect(box.disabled).toBe(true)
+      expect(screen.getByText(/Transfer to a person/)).toBeTruthy()
+      const blocked = screen.getByRole('checkbox', { name: 'Share Beta Mart' })
+      const hint = document.getElementById(
+        blocked.getAttribute('aria-describedby')!,
+      )
+      expect(hint?.textContent).toMatch(/This name can.t be shared/)
+      expect(hint?.textContent).toMatch(/Offensive names are reported/)
+    })
+
+    it('marks a reported shared name and offers to unshare it', async () => {
+      vi.mocked(finance.listMerchantNames).mockResolvedValue(
+        names({
+          shareMerchantNames: true,
+          items: [{ ...acme, shared: true, reported: true }],
+        }),
+      )
+      vi.mocked(finance.setMerchantNameShared).mockResolvedValue({
+        ...acme,
+        optedOut: true,
+        reported: true,
+      })
+      open()
+      expect(await screen.findByText('Reported')).toBeTruthy()
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Unshare Acme Store' }),
+      )
+      await waitFor(() =>
+        expect(finance.setMerchantNameShared).toHaveBeenCalledWith('a1', false),
+      )
+    })
+
+    it('explains a revoked account and disables every control', async () => {
+      vi.mocked(finance.listMerchantNames).mockResolvedValue(
+        names({ sharingRevoked: true }),
+      )
+      open()
+      expect((await shareSwitch()).disabled).toBe(true)
+      expect(
+        screen.getByText(/Sharing has been turned off for your account/),
+      ).toBeTruthy()
+      const box = screen.getByRole('checkbox', {
+        name: 'Share Acme Store',
+      }) as HTMLInputElement
+      expect(box.disabled).toBe(true)
+    })
+
+    it('shows the empty state', async () => {
+      vi.mocked(finance.listMerchantNames).mockResolvedValue(
+        names({ items: [] }),
+      )
+      open()
+      expect(
+        await screen.findByText(/You haven.t named any merchants yet/),
+      ).toBeTruthy()
+    })
   })
 })
