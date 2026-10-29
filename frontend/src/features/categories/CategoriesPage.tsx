@@ -154,8 +154,10 @@ export function CategoriesPage() {
 
   async function remove(c: Category) {
     setConfirming(null)
+    let deleted = false
     await run(async () => {
       await deleteCategory(c.id)
+      deleted = true
       setCategories((all) => all!.filter((x) => x.id !== c.id))
       // The server clears this category from people too.
       setPeople((all) =>
@@ -165,6 +167,11 @@ export function CategoriesPage() {
       )
       document.getElementById('category-list')?.focus()
     }, setCategoryError).catch(() => {})
+    if (!deleted) {
+      // The failed row is back to its Delete button once the confirmation closed; put focus there.
+      flushSync(() => {})
+      document.getElementById(`delete-${c.id}`)?.focus()
+    }
   }
 
   function select(id: Tab) {

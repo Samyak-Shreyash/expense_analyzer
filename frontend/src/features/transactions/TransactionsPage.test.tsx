@@ -704,6 +704,135 @@ describe('TransactionsPage', () => {
     )
   })
 
+  describe('detail-row actions', () => {
+    const person = {
+      ...swiggy,
+      merchantId: null,
+      merchantName: null,
+      personId: 'p1',
+      personName: 'Ravi Kumar',
+    }
+    const only = (t: Transaction) =>
+      vi.mocked(finance.listTransactions).mockResolvedValue({
+        items: [t],
+        page: 0,
+        size: 50,
+        totalItems: 1,
+        totalPages: 1,
+      })
+
+    it('sets the category for all of a merchant and refetches', async () => {
+      vi.mocked(finance.setMerchantCategory).mockResolvedValue(null)
+      renderPage()
+      fireEvent.click(
+        await screen.findByRole('button', { name: /SWIGGY ORDER/ }),
+      )
+      fireEvent.change(
+        await screen.findByLabelText(/Set category for all Swiggy/),
+        {
+          target: { value: 'c2' },
+        },
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Apply to all' }))
+
+      await waitFor(() =>
+        expect(finance.setMerchantCategory).toHaveBeenCalledWith('m1', 'c2'),
+      )
+      await waitFor(() =>
+        expect(finance.listTransactions).toHaveBeenCalledTimes(2),
+      )
+      const saved = await screen.findByText(
+        'Default category saved for Swiggy.',
+      )
+      expect(saved.getAttribute('role')).toBe('status')
+    })
+
+    it('sets the category for all of a person', async () => {
+      only(person)
+      vi.mocked(finance.updatePerson).mockResolvedValue({
+        id: 'p1',
+        name: 'Ravi Kumar',
+        categoryId: 'c2',
+      })
+      renderPage()
+      fireEvent.click(
+        await screen.findByRole('button', { name: /SWIGGY ORDER/ }),
+      )
+      fireEvent.change(
+        await screen.findByLabelText(/Set category for all Ravi Kumar/),
+        { target: { value: 'c2' } },
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Apply to all' }))
+
+      await waitFor(() =>
+        expect(finance.updatePerson).toHaveBeenCalledWith(
+          'p1',
+          'Ravi Kumar',
+          'c2',
+        ),
+      )
+      await waitFor(() =>
+        expect(finance.listTransactions).toHaveBeenCalledTimes(2),
+      )
+    })
+
+    it('switches a person back to a merchant', async () => {
+      only(person)
+      vi.mocked(finance.setCounterparty).mockResolvedValue(swiggy)
+      renderPage()
+      fireEvent.click(
+        await screen.findByRole('button', { name: /SWIGGY ORDER/ }),
+      )
+      fireEvent.click(await screen.findByLabelText('This is a merchant'))
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+      await waitFor(() =>
+        expect(finance.setCounterparty).toHaveBeenCalledWith(
+          't1',
+          'MERCHANT',
+          undefined,
+        ),
+      )
+    })
+
+    it('prefills the person name from the cleaned-up description', async () => {
+      renderPage()
+      fireEvent.click(
+        await screen.findByRole('button', { name: /SWIGGY ORDER/ }),
+      )
+      fireEvent.click(await screen.findByLabelText('This is a person'))
+      expect(
+        (screen.getByLabelText("Person's name") as HTMLInputElement).value,
+      ).toBe('SWIGGY ORDER')
+    })
+
+    it('says it applies to one transaction when there is no cleaned-up description', async () => {
+      only({ ...swiggy, normalizedDescription: null })
+      vi.mocked(finance.setCounterparty).mockResolvedValue(person)
+      renderPage()
+      fireEvent.click(
+        await screen.findByRole('button', { name: /UPI-SWIGGY-ORDER/ }),
+      )
+      fireEvent.click(await screen.findByLabelText('This is a person'))
+      expect(
+        (screen.getByLabelText("Person's name") as HTMLInputElement).value,
+      ).toBe('UPI-SWIGGY-ORDER-12345678')
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+      const saved = await screen.findByText('Saved for this transaction.')
+      expect(saved.getAttribute('role')).toBe('status')
+    })
+  })
+
+  it('tells the user when the categories could not be loaded', async () => {
+    vi.mocked(finance.listCategories).mockRejectedValue(new Error('down'))
+    renderPage()
+    expect((await screen.findByRole('alert')).textContent).toMatch(
+      /Could not load your categories/,
+    )
+    expect(await screen.findByText('Swiggy')).toBeTruthy()
+  })
+
   it('invites an upload when there are no transactions at all', async () => {
     vi.mocked(finance.listTransactions).mockResolvedValue({
       items: [],
