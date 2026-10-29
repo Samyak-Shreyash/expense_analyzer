@@ -7,5 +7,6 @@ import java.util.UUID;
 
 /** Optional list filters; dates are inclusive, amounts in currency units, q matches descriptions. */
 public record TransactionFilter(String q, UUID statementId, LocalDate from, LocalDate to, UUID merchantId,
-                                TransactionDirection direction, BigDecimal minAmount, BigDecimal maxAmount) {
+                                TransactionDirection direction, BigDecimal minAmount, BigDecimal maxAmount,
+                                String category) {
 }

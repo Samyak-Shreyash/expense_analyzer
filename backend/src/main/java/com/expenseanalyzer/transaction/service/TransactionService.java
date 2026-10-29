@@ -1,5 +1,6 @@
 package com.expenseanalyzer.transaction.service;
 
+import com.expenseanalyzer.analytics.service.SpendingAnalyticsService;
 import com.expenseanalyzer.merchant.model.Merchant;
 import com.expenseanalyzer.merchant.repository.MerchantRepository;
 import com.expenseanalyzer.transaction.dto.TransactionFilter;
@@ -8,6 +9,9 @@ import com.expenseanalyzer.transaction.model.Transaction;
 import com.expenseanalyzer.transaction.repository.TransactionRepository;
 import com.expenseanalyzer.user.model.User;
 import com.expenseanalyzer.user.repository.UserRepository;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Locale;
@@ -55,6 +59,9 @@ public class TransactionService {
         if (f.merchantId() != null) {
             spec = spec.and((root, q, cb) -> cb.equal(root.get("merchantId"), f.merchantId()));
         }
+        if (f.category() != null && !f.category().isBlank()) {
+            spec = spec.and(categoryIs(f.category()));
+        }
         if (f.direction() != null) {
             spec = spec.and((root, q, cb) -> cb.equal(root.get("type"), f.direction().name()));
         }
@@ -88,6 +95,19 @@ public class TransactionService {
                 .collect(Collectors.toSet());
         return merchantRepository.findAllById(ids).stream()
                 .collect(Collectors.toMap(Merchant::getId, Function.identity()));
+    }
+
+    /** Same category semantics as spending analytics: merchant categoryHint, else "Uncategorized". */
+    private static Specification<Transaction> categoryIs(String category) {
+        return (root, q, cb) -> {
+            Subquery<UUID> sub = q.subquery(UUID.class);
+            Root<Merchant> m = sub.from(Merchant.class);
+            boolean uncategorized = SpendingAnalyticsService.UNCATEGORIZED.equals(category);
+            sub.select(m.get("id")).where(uncategorized ? cb.isNull(m.get("categoryHint"))
+                    : cb.equal(m.get("categoryHint"), category));
+            Predicate inMerchants = root.get("merchantId").in(sub);
+            return uncategorized ? cb.or(cb.isNull(root.get("merchantId")), inMerchants) : inMerchants;
+        };
     }
 
     /** Escapes LIKE wildcards so user text matches literally (escape character is a backslash). */

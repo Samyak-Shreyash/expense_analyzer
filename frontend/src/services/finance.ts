@@ -180,6 +180,7 @@ export type TransactionQuery = {
   direction?: string
   merchantId?: string
   statementId?: string
+  category?: string
   page?: number
 }
 
