@@ -15,6 +15,7 @@ public final class PersonNameParser {
     private static final Pattern SEGMENT_SPLIT = Pattern.compile("[/|\\-]");
     private static final Pattern REFERENCE = Pattern.compile("\\d{9,}");
     private static final int MAX_LENGTH = 100;
+    private static final Pattern TRANSFER_TOKEN = Pattern.compile("(?<![A-Z0-9])P2[AP](?![A-Z0-9])", Pattern.CASE_INSENSITIVE);
 
     private PersonNameParser() {
     }
@@ -26,6 +27,11 @@ public final class PersonNameParser {
             }
             return Optional.of(titleCase(name.length() > MAX_LENGTH ? name.substring(0, MAX_LENGTH) : name));
         });
+    }
+
+    /** True when the description has a P2A or P2P token anywhere, whether or not a name can be parsed from it. */
+    public static boolean isTransfer(String rawDescription) {
+        return rawDescription != null && TRANSFER_TOKEN.matcher(rawDescription).find();
     }
 
     /**

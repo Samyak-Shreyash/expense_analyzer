@@ -7,6 +7,7 @@ import com.expenseanalyzer.category.service.EffectiveCategoryResolver;
 import com.expenseanalyzer.category.service.EffectiveCategoryResolver.Resolution;
 import com.expenseanalyzer.merchant.model.Merchant;
 import com.expenseanalyzer.merchant.model.Person;
+import com.expenseanalyzer.merchant.model.UserMerchantAlias;
 import com.expenseanalyzer.merchant.repository.MerchantRepository;
 import com.expenseanalyzer.merchant.service.MerchantMatch;
 import com.expenseanalyzer.merchant.service.MerchantNormalizer;
@@ -107,7 +108,9 @@ public class TransactionService {
         Page<Transaction> page = transactionRepository.findAll(spec, pageable);
         Map<UUID, Merchant> merchants = merchants(page.getContent());
         Map<UUID, String> suggested = suggestions(userId, page.getContent());
-        return page.map(t -> response(t, merchants.get(t.getMerchantId()), resolution, suggested.get(t.getId())));
+        Map<UUID, String> ownNames = ownMerchantNames(userId, page.getContent());
+        return page.map(t -> response(t, merchants.get(t.getMerchantId()), ownNames.get(t.getId()), resolution,
+                suggested.get(t.getId())));
     }
 
     @Transactional
@@ -167,6 +170,11 @@ public class TransactionService {
             row.setUpdatedAt(now);
         }
         transactionRepository.saveAll(rows);
+        if (person != null) { // a person is never a merchant: drop the caller's own name and shared vote for it
+            merchantService.forget(userId, rows.stream()
+                    .map(r -> PayeeKey.of(r.getRawDescription(), r.getNormalizedDescription()))
+                    .filter(Objects::nonNull).collect(Collectors.toSet()));
+        }
         return response(t, userId);
     }
 
@@ -184,10 +192,11 @@ public class TransactionService {
         if (key == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Transaction has no payee");
         }
-        UUID merchantId = merchantService.resolve(new MerchantMatch(clean, clean, null, null)).getId();
-        merchantService.saveAlias(userId, key, merchantId);
-        if (suggest && PersonNameParser.parse(t.getRawDescription()).isEmpty()) { // transfers to people are never shared
-            merchantService.vote(userId, key, merchantId);
+        Merchant merchant = merchantService.resolve(new MerchantMatch(clean, clean, null, null));
+        UUID merchantId = merchant.getId();
+        merchantService.saveAlias(userId, key, merchantId, clean);
+        if (suggest && shareable(t)) {
+            merchantService.vote(userId, key, merchant);
         } else {
             merchantService.withdrawVote(userId, key);
         }
@@ -205,27 +214,55 @@ public class TransactionService {
     }
 
     private TransactionResponse response(Transaction t, UUID userId) {
-        return response(t, merchants(List.of(t)).get(t.getMerchantId()), categoryResolver.forUser(userId),
+        return response(t, merchants(List.of(t)).get(t.getMerchantId()),
+                ownMerchantNames(userId, List.of(t)).get(t.getId()), categoryResolver.forUser(userId),
                 suggestions(userId, List.of(t)).get(t.getId()));
     }
 
-    private static TransactionResponse response(Transaction t, Merchant merchant, Resolution resolution,
-                                                String suggested) {
-        return TransactionResponse.from(t, merchant, resolution.person(t), resolution.resolve(t, merchant), suggested);
+    private static TransactionResponse response(Transaction t, Merchant merchant, String ownName,
+                                                Resolution resolution, String suggested) {
+        return TransactionResponse.from(t, merchant, ownName, resolution.person(t), resolution.resolve(t, merchant),
+                suggested);
     }
 
     /**
-     * Suggested merchant names by transaction id, only for the given unmatched rows (no merchant, no person, not a
-     * transfer to a person) whose payee key has a suggestion from at least two other users. Two queries per page.
+     * Only a UPI P2M merchant payment that is not a transfer to a person (no P2A/P2P token, no linked person) may be
+     * shared or receive a shared suggestion.
+     */
+    private static boolean shareable(Transaction t) {
+        return t.getPersonId() == null && !PersonNameParser.isTransfer(t.getRawDescription())
+                && PayeeKey.ofP2m(t.getRawDescription()).isPresent();
+    }
+
+    /**
+     * The caller's own spelling by transaction id, for rows whose merchant came from the caller's alias for that
+     * payee. One query per page.
+     */
+    private Map<UUID, String> ownMerchantNames(UUID userId, List<Transaction> transactions) {
+        if (transactions.stream().allMatch(t -> t.getMerchantId() == null)) {
+            return Map.of();
+        }
+        Map<String, UserMerchantAlias> aliases = merchantService.aliasEntries(userId);
+        Map<UUID, String> out = new HashMap<>();
+        for (Transaction t : transactions) {
+            UserMerchantAlias alias = t.getMerchantId() == null ? null
+                    : aliases.get(PayeeKey.of(t.getRawDescription(), t.getNormalizedDescription()));
+            if (alias != null && alias.getMerchantId().equals(t.getMerchantId())) {
+                out.put(t.getId(), alias.getDisplayName());
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Suggested merchant names by transaction id, only for the given unmatched, shareable rows (no merchant; see
+     * {@link #shareable}) whose payee key has a winning suggestion from at least two other users. Two queries per page.
      */
     private Map<UUID, String> suggestions(UUID userId, List<Transaction> transactions) {
         Map<UUID, String> keys = new HashMap<>();
         for (Transaction t : transactions) {
-            if (t.getMerchantId() == null && t.getPersonId() == null && PersonNameParser.parse(t.getRawDescription()).isEmpty()) {
-                String key = PayeeKey.of(t.getRawDescription(), t.getNormalizedDescription());
-                if (key != null) {
-                    keys.put(t.getId(), key);
-                }
+            if (t.getMerchantId() == null && shareable(t)) {
+                keys.put(t.getId(), PayeeKey.ofP2m(t.getRawDescription()).orElseThrow());
             }
         }
         Map<String, UUID> winners = merchantService.suggestions(userId, Set.copyOf(keys.values()));
@@ -233,6 +270,7 @@ public class TransactionService {
             return Map.of();
         }
         Map<UUID, String> names = merchantRepository.findAllById(winners.values()).stream()
+                .filter(m -> MerchantService.suggestable(m.getCanonicalName()))
                 .collect(Collectors.toMap(Merchant::getId, Merchant::getCanonicalName));
         Map<UUID, String> out = new HashMap<>();
         keys.forEach((id, key) -> {

@@ -5,6 +5,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.expenseanalyzer.auth.dto.JwtTokenProvider;
@@ -19,15 +20,22 @@ import com.expenseanalyzer.user.repository.UserRepository;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import java.math.BigDecimal;
+import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -56,8 +64,13 @@ class MerchantSuggestionTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @MockitoBean
     private UserRepository userRepository;
+
+    private final List<UUID> users = new ArrayList<>();
 
     private MockMvc mockMvc;
 
@@ -72,15 +85,27 @@ class MerchantSuggestionTest {
         voteRepository.deleteAll();
         aliasRepository.deleteAll();
         merchantRepository.deleteAll();
+        users.forEach(id -> jdbcTemplate.update("DELETE FROM users WHERE id = ?", id));
+        users.clear();
     }
 
+    /** A user whose account is old enough for their votes to count. */
     private User user(String email) {
+        return user(email, Duration.ofDays(30));
+    }
+
+    /** A user stored with the given account age (votes count only from accounts at least 7 days old). */
+    private User user(String email, Duration age) {
         User u = new User();
         u.setId(UUID.randomUUID());
         u.setEmail(email);
         u.setFullName(email);
         u.setRole(UserRole.USER);
         when(userRepository.findByEmail(email)).thenReturn(Optional.of(u));
+        Timestamp created = Timestamp.from(Instant.now().minus(age));
+        jdbcTemplate.update("INSERT INTO users (id, email, password_hash, role, is_active, categories_seeded, "
+                + "created_at, updated_at) VALUES (?, ?, 'x', 'USER', TRUE, FALSE, ?, ?)", u.getId(), email, created, created);
+        users.add(u.getId());
         return u;
     }
 
@@ -108,6 +133,15 @@ class MerchantSuggestionTest {
                 .andExpect(status().isOk());
     }
 
+    private JsonNode rowFor(User u, UUID tx) throws Exception {
+        for (JsonNode row : list(u).get("items")) {
+            if (row.get("id").asText().equals(tx.toString())) {
+                return row;
+            }
+        }
+        throw new AssertionError("row not found");
+    }
+
     private JsonNode list(User u) throws Exception {
         String body = mockMvc.perform(get("/api/transactions").header("Authorization", bearer(u)))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
@@ -115,12 +149,8 @@ class MerchantSuggestionTest {
     }
 
     private String suggestedFor(User u, UUID tx) throws Exception {
-        for (JsonNode row : list(u).get("items")) {
-            if (row.get("id").asText().equals(tx.toString())) {
-                return row.get("suggestedMerchantName").isNull() ? null : row.get("suggestedMerchantName").asText();
-            }
-        }
-        throw new AssertionError("row not found");
+        JsonNode suggested = rowFor(u, tx).get("suggestedMerchantName");
+        return suggested.isNull() ? null : suggested.asText();
     }
 
     /** Two users suggest "Acme Store" for the Acme payee. */
@@ -247,5 +277,116 @@ class MerchantSuggestionTest {
 
         assertThat(merchantRepository.findAll()).hasSize(1)
                 .allSatisfy(m -> assertThat(m.getCanonicalName()).isEqualTo("Acme Store"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "UPI/P2A/412345678902/9876543210/HDFC/x",
+            "UPI/P2A/412345678902/rahul@okhdfc/HDFC/x",
+            "NEFT/N123456789012/RAHUL KUMAR/HDFC",
+            "UPI/P2M/412345678902/ACME STORE/P2A/x"})
+    void nonMerchantPayeesAreNeverRecorded(String raw) throws Exception {
+        User a = user("a@example.com");
+        name(a, tx(a, raw, "NORMALIZED " + raw.length()), "Rahul Store", true);
+
+        assertThat(voteRepository.findAll()).isEmpty();
+        assertThat(aliasRepository.findByUserId(a.getId())).hasSize(1);
+    }
+
+    @Test
+    void merchantPaymentsStillRecordAndReplaceTheVote() throws Exception {
+        User a = user("a@example.com");
+        UUID aTx = tx(a, ACME + "x", "P2M ACME STORE X");
+        name(a, aTx, "Acme Store", true);
+        name(a, aTx, "Acme Shop", true);
+
+        assertThat(voteRepository.findAll()).singleElement().satisfies(v -> assertThat(v.getMerchantId())
+                .isEqualTo(merchantRepository.findByCanonicalName("Acme Shop").orElseThrow().getId()));
+    }
+
+    @Test
+    void aRowWithATransferTokenNeverShowsASuggestion() throws Exception {
+        User a = user("a@example.com");
+        User b = user("b@example.com");
+        User c = user("c@example.com");
+        twoVoters(a, b);
+        UUID transfer = tx(c, ACME + "P2A/z", "P2M ACME STORE P2A Z");
+
+        assertThat(suggestedFor(c, transfer)).isNull();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"Acme 24x7", "www.acme.com", "acme@pay", "Acme/Store", "A", "Call: 98765"})
+    void unsafeNamesAreNotRecordedButStillNameTheMerchant(String unsafe) throws Exception {
+        User a = user("a@example.com");
+        UUID aTx = tx(a, ACME + "x", "P2M ACME STORE X");
+        name(a, aTx, unsafe, true);
+
+        assertThat(voteRepository.findAll()).isEmpty();
+        assertThat(transactionRepository.findById(aTx).orElseThrow().getMerchantId()).isNotNull();
+    }
+
+    @Test
+    void safeNamesInAnyScriptAreRecorded() throws Exception {
+        User a = user("a@example.com");
+        name(a, tx(a, ACME + "x", "P2M ACME STORE X"), "Dr. O'Brien & Sons - काफ़ी", true);
+
+        assertThat(voteRepository.findAll()).hasSize(1);
+    }
+
+    @Test
+    void aTieShowsNothing() throws Exception {
+        User[] voters = new User[4];
+        for (int i = 0; i < voters.length; i++) {
+            voters[i] = user("v" + i + "@example.com");
+            name(voters[i], tx(voters[i], ACME + i, "P2M ACME STORE " + i), i < 2 ? "Acme Store" : "Acme Shop", true);
+        }
+        User f = user("f@example.com");
+        UUID mine = tx(f, ACME + "6", "P2M ACME STORE 6");
+
+        assertThat(suggestedFor(f, mine)).isNull();
+    }
+
+    @Test
+    void votesFromAccountsYoungerThanSevenDaysDoNotCount() throws Exception {
+        User a = user("a@example.com");
+        User young = user("young@example.com", Duration.ofDays(6));
+        User c = user("c@example.com");
+        twoVoters(a, young);
+        UUID mine = tx(c, ACME + "z", "P2M ACME STORE Z");
+
+        assertThat(suggestedFor(c, mine)).isNull();
+    }
+
+    @Test
+    void eachUserSeesTheirOwnSpelling() throws Exception {
+        User a = user("a@example.com");
+        User b = user("b@example.com");
+        UUID aTx = tx(a, ACME + "x", "P2M ACME STORE X");
+        UUID bTx = tx(b, ACME + "y", "P2M ACME STORE Y");
+        name(a, aTx, "Acme Store", false);
+
+        mockMvc.perform(put("/api/transactions/" + bTx + "/merchant").header("Authorization", bearer(b))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"acme STORE\"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.merchantName").value("acme STORE"));
+
+        assertThat(rowFor(b, bTx).get("merchantName").asText()).isEqualTo("acme STORE");
+        assertThat(rowFor(a, aTx).get("merchantName").asText()).isEqualTo("Acme Store");
+        assertThat(merchantRepository.findAll()).hasSize(1);
+    }
+
+    @Test
+    void markingThePayeeAsAPersonDropsTheAliasAndVote() throws Exception {
+        User a = user("a@example.com");
+        UUID aTx = tx(a, ACME + "x", "P2M ACME STORE X");
+        name(a, aTx, "Acme Store", true);
+        assertThat(voteRepository.findAll()).hasSize(1);
+
+        mockMvc.perform(put("/api/transactions/" + aTx + "/counterparty").header("Authorization", bearer(a))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"type\":\"PERSON\",\"name\":\"Rahul\"}"))
+                .andExpect(status().isOk());
+
+        assertThat(voteRepository.findAll()).isEmpty();
+        assertThat(aliasRepository.findByUserId(a.getId())).isEmpty();
     }
 }
