@@ -174,14 +174,14 @@ class TransactionControllerTest {
                 .andExpect(jsonPath("$.merchantName").value("Swiggy"));
         mockMvc.perform(get("/api/transactions").param("q", "coffee").header("Authorization", bearer(ALICE)))
                 .andExpect(jsonPath("$.items[0].merchantName").doesNotExist())
-                .andExpect(jsonPath("$.items[0].category").doesNotExist());
+                .andExpect(jsonPath("$.items[0].category").value("Uncategorized"));
     }
 
     @Test
     void filtersByCategoryWithUncategorizedFallbackAndOwnerScope() throws Exception {
-        UUID food = merchantRepository.save(new Merchant("Swiggy", "Food")).getId();
+        UUID food = merchantRepository.save(new Merchant("Swiggy", "Food & Dining")).getId();
         UUID noHint = merchantRepository.save(new Merchant("Mystery", null)).getId();
-        UUID travel = merchantRepository.save(new Merchant("Uber", "Travel")).getId();
+        UUID travel = merchantRepository.save(new Merchant("Uber", "Utilities")).getId();
         save(alice, "Pizza", "10.00", "2026-01-10", "DEBIT", null, food);
         save(alice, "Ride", "10.00", "2026-01-11", "DEBIT", null, travel);
         save(alice, "Unknown shop", "10.00", "2026-02-10", "DEBIT", null, noHint);
@@ -189,13 +189,15 @@ class TransactionControllerTest {
         save(bob, "Bob unknown", "10.00", "2026-01-10", "DEBIT", null, noHint);
         String token = bearer(ALICE);
 
-        mockMvc.perform(get("/api/transactions").param("category", "Food").header("Authorization", token))
+        mockMvc.perform(get("/api/transactions").param("category", "Food & Dining").header("Authorization", token))
                 .andExpect(jsonPath("$.items[*].description", containsInAnyOrder("Pizza")));
-        mockMvc.perform(get("/api/transactions").param("category", "food").header("Authorization", token))
+        mockMvc.perform(get("/api/transactions").param("category", "food & dining").header("Authorization", token))
+                .andExpect(jsonPath("$.items[*].description", containsInAnyOrder("Pizza")));
+        mockMvc.perform(get("/api/transactions").param("category", "Food").header("Authorization", token))
                 .andExpect(jsonPath("$.totalItems").value(0));
         mockMvc.perform(get("/api/transactions").param("category", "Uncategorized").header("Authorization", token))
                 .andExpect(jsonPath("$.items[*].description",
-                        containsInAnyOrder("Coffee", "Salary", "Rent", "Unknown shop")));
+                        containsInAnyOrder("Coffee", "Swiggy order", "Salary", "Rent", "Unknown shop")));
         mockMvc.perform(get("/api/transactions").param("category", "Uncategorized")
                         .param("from", "2026-02-01").header("Authorization", token))
                 .andExpect(jsonPath("$.items[*].description", containsInAnyOrder("Rent", "Unknown shop")));
