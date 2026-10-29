@@ -173,17 +173,6 @@ public class Transaction {
     }
 
     /**
-     * Format amount as currency string.
-     */
-    public String formatAmount() {
-        BigDecimal amount = getAmount();
-        if (amount == null) {
-            return null;
-        }
-        return String.format("$%.2f", amount.doubleValue());
-    }
-
-    /**
      * Check if this is a debit transaction (money leaving account).
      */
     public boolean isDebit() {

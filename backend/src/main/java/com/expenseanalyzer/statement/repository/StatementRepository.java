@@ -23,32 +23,6 @@ public interface StatementRepository extends JpaRepository<Statement, UUID> {
      */
     List<Statement> findByUserId(UUID userId);
 
-    /**
-     * Find a user's statement by account number (masked). Scoped by user: account numbers are not unique across users.
-     *
-     * @param userId the owner's UUID
-     * @param accountNumber the masked account number
-     * @return statement if found, null otherwise
-     */
-    Statement findByUserIdAndAccountNumber(UUID userId, String accountNumber);
-
-    /**
-     * Count statements for a user.
-     *
-     * @param userId the user's UUID
-     * @return count of statements
-     */
-    long countByUserId(UUID userId);
-
-    /**
-     * Find all statements (for pagination).
-     *
-     * @param page page number
-     * @param size page size
-     * @return paginated list of statements
-     */
-    List<Statement> findAll();
-
     /** Ownership-scoped lookup: another user's statement is indistinguishable from a missing one. */
     Optional<Statement> findByIdAndUserId(UUID id, UUID userId);
 
