@@ -7,6 +7,7 @@ import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -97,6 +98,16 @@ public class User {
 
     @Column(name = "categories_seeded", nullable = false)
     private boolean categoriesSeeded = false;
+
+    /** Account-level opt-in to share the user's merchant names as suggestions for other users. */
+    @ColumnDefault("false")
+    @Column(name = "share_merchant_names", nullable = false)
+    private boolean shareMerchantNames = false;
+
+    /** Set when names this user shared were hidden after reports; sharing cannot be turned back on. */
+    @ColumnDefault("false")
+    @Column(name = "sharing_revoked", nullable = false)
+    private boolean sharingRevoked = false;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
