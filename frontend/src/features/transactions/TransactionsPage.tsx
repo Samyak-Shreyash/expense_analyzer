@@ -10,6 +10,7 @@ import {
   type Page,
   type Transaction,
 } from '../../services/finance'
+import { CategoryCell } from './CategoryCell'
 import { TransactionActions } from './TransactionActions'
 import styles from './TransactionsPage.module.css'
 
@@ -242,17 +243,29 @@ export function TransactionsPage() {
                         )}
                       </td>
                       <td>
-                        <button
-                          type="button"
-                          className={shared.quiet}
-                          onClick={() =>
-                            update({ category: t.category ?? 'Uncategorized' })
+                        <CategoryCell
+                          t={t}
+                          categories={categories}
+                          onCreated={(c) =>
+                            setCategories((cs) =>
+                              [...cs, c].sort((a, b) =>
+                                a.name.localeCompare(b.name),
+                              ),
+                            )
                           }
-                        >
-                          {t.category ?? (
-                            <span className={shared.muted}>Uncategorised</span>
-                          )}
-                        </button>
+                          onSaved={(saved) =>
+                            setResult(
+                              (r) =>
+                                r && {
+                                  ...r,
+                                  items: r.items.map((x) =>
+                                    x.id === saved.id ? saved : x,
+                                  ),
+                                },
+                            )
+                          }
+                          onFilter={(category) => update({ category })}
+                        />
                       </td>
                       <td
                         className={`${shared.num} ${t.direction === 'DEBIT' ? shared.debit : shared.credit}`}

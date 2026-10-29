@@ -123,3 +123,26 @@
   font-size: 0.75rem;
   color: var(--ink-muted);
 }
+
+.categoryEditor {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 14rem;
+  padding: 0.75rem;
+  border: 1px solid var(--ink-muted);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.inline {
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+  font-size: 0.875rem;
+}
+
+.editorActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
