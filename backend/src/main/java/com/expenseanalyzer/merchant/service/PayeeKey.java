@@ -1,6 +1,7 @@
 package com.expenseanalyzer.merchant.service;
 
 import java.util.Locale;
+import java.util.Optional;
 import java.util.regex.Pattern;
 
 /**
@@ -18,10 +19,18 @@ public final class PayeeKey {
 
     /** Upper-cased key, or null when the transaction has neither a P2M payee nor a normalized description. */
     public static String of(String rawDescription, String normalizedDescription) {
-        String key = PersonNameParser.segmentAfterReference(rawDescription, s -> MERCHANT_TOKEN.matcher(s.trim()).matches())
+        return ofP2m(rawDescription).orElseGet(() -> clean(normalizedDescription == null ? "" : normalizedDescription));
+    }
+
+    /** The key when it comes from a UPI P2M payee segment (a merchant); empty for any other description. */
+    public static Optional<String> ofP2m(String rawDescription) {
+        return PersonNameParser.segmentAfterReference(rawDescription, s -> MERCHANT_TOKEN.matcher(s.trim()).matches())
                 .filter(s -> s.chars().anyMatch(Character::isLetter))
-                .orElse(normalizedDescription == null ? "" : normalizedDescription)
-                .trim().replaceAll("\\s+", " ").toUpperCase(Locale.ROOT);
+                .map(PayeeKey::clean);
+    }
+
+    private static String clean(String s) {
+        String key = s.trim().replaceAll("\\s+", " ").toUpperCase(Locale.ROOT);
         return key.isEmpty() ? null : key.length() > MAX_LENGTH ? key.substring(0, MAX_LENGTH) : key;
     }
 }
