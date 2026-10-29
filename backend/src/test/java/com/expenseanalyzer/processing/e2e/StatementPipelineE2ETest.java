@@ -36,6 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -123,5 +124,22 @@ class StatementPipelineE2ETest {
                 .containsExactlyInAnyOrder("UPI-SWIGGY-ORDER", "SALARY JAN");
         mvc.perform(get("/api/statements/" + id + "/status").header("Authorization", bearer))
                 .andExpect(status().isOk());
+
+        // Aggregations run on Postgres (H2 tests can't prove the SQL dialect).
+        mvc.perform(get("/api/analytics/summary").param("from", "2026-01-01").param("to", "2026-01-31")
+                        .header("Authorization", bearer))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.outflow").value(450.00))
+                .andExpect(jsonPath("$.inflow").value(85000.00));
+        mvc.perform(get("/api/analytics/cash-flow").param("from", "2026-01-01").param("to", "2026-02-28")
+                        .header("Authorization", bearer))
+                .andExpect(jsonPath("$.months[0].net").value(84550.00))
+                .andExpect(jsonPath("$.months[1].net").value(0));
+        mvc.perform(get("/api/analytics/merchants").param("from", "2026-01-01").param("to", "2026-01-31")
+                        .header("Authorization", bearer))
+                .andExpect(jsonPath("$.items[0].name").value("Swiggy"));
+        mvc.perform(get("/api/transactions").param("from", "2026-01-02").param("to", "2026-01-02")
+                        .header("Authorization", bearer))
+                .andExpect(jsonPath("$.items[0].normalizedDescription").value("SWIGGY ORDER"));
     }
 }

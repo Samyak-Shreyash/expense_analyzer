@@ -122,20 +122,24 @@ Update user-editable transaction metadata such as category/merchant where suppor
 
 ## 6. Analytics
 
+All implemented under `/api/analytics`. `from` and `to` are required, inclusive ISO dates (UTC days); `400` if `from` is after `to` or the range exceeds 5 years. Amounts are rupees with 2 decimals; percentages have 2 decimals and are `null` when the comparison base is zero.
+
+**Semantics:** inflow = all credits (refunds included), outflow = all debits, net = inflow - outflow. "Spend" per merchant/category = debits minus credits for a matched merchant (refunds net out); unmatched transactions contribute debits only. Groups with non-positive spend are omitted. Transfers between own accounts are not detected yet (no accounts module), so they count as inflow/outflow.
+
 ### GET `/analytics/summary`
-Period spending/income/cash-flow summary.
+`{ from, to, currency, inflow, outflow, net, transactionCount, previous: {from, to, inflow, outflow, net, transactionCount}, inflowChangePercent, outflowChangePercent }`. `previous` is the period of the same length ending the day before `from`.
 
 ### GET `/analytics/categories`
-Category totals for a period.
+`{ from, to, currency, totalSpend, items: [{ category, spend, sharePercent, transactionCount }] }`, largest first. Category is the matched merchant's category hint, else `Uncategorized` (no categorisation engine yet).
 
 ### GET `/analytics/merchants`
-Merchant totals for a period.
+`?limit=` (default 10, max 50). `{ from, to, currency, totalSpend, items: [{ merchantId, name, spend, sharePercent, transactionCount }] }`, largest first; transactions without a merchant appear as `merchantId: null, name: "Unmatched"`.
 
 ### GET `/analytics/trends`
-Monthly/period trends.
+`{ months: [{ month: "2026-01", outflow, changePercent }] }`; `changePercent` vs the previous month in the range (null for the first month or a zero base).
 
 ### GET `/analytics/cash-flow`
-Income, expense, and net cash-flow summary.
+`{ months: [{ month, inflow, outflow, net }] }`, one entry per calendar month touching the range (zero-filled; first/last months clipped to the range).
 
 ### GET `/analytics/recurring`
 Detected recurring expenses.

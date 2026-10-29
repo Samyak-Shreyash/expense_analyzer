@@ -9,6 +9,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
@@ -150,4 +151,22 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
 
     /** Ownership-scoped lookup: another user's transaction is indistinguishable from a missing one. */
     Optional<Transaction> findByIdAndUserId(UUID id, UUID userId);
+
+    // ---- Aggregations for analytics. Range is [from, to). Rows are Object[]; see each method. ----
+
+    /** Rows: [type (String), sum of amountCents (BigDecimal), count (Long)]. */
+    @Query("SELECT t.type, SUM(t.amountCents), COUNT(t) FROM Transaction t "
+            + "WHERE t.userId = :userId AND t.date >= :from AND t.date < :to GROUP BY t.type")
+    List<Object[]> sumByDirection(UUID userId, Instant from, Instant to);
+
+    /** Rows: [merchantId (UUID or null), type, sum of amountCents, count]. */
+    @Query("SELECT t.merchantId, t.type, SUM(t.amountCents), COUNT(t) FROM Transaction t "
+            + "WHERE t.userId = :userId AND t.date >= :from AND t.date < :to GROUP BY t.merchantId, t.type")
+    List<Object[]> sumByMerchantAndDirection(UUID userId, Instant from, Instant to);
+
+    /** Rows: [year (Integer), month (Integer), type, sum of amountCents]. Dates are UTC days. */
+    @Query("SELECT YEAR(t.date), MONTH(t.date), t.type, SUM(t.amountCents) FROM Transaction t "
+            + "WHERE t.userId = :userId AND t.date >= :from AND t.date < :to "
+            + "GROUP BY YEAR(t.date), MONTH(t.date), t.type")
+    List<Object[]> sumByMonthAndDirection(UUID userId, Instant from, Instant to);
 }
