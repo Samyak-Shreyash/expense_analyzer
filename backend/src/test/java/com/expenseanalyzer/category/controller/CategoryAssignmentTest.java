@@ -69,6 +69,7 @@ class CategoryAssignmentTest {
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
+        when(userRepository.claimCategorySeeding(org.mockito.ArgumentMatchers.any())).thenReturn(1); // mocked repo: always claim
         alice = user(ALICE);
         bob = user(BOB);
         swiggy = merchantRepository.save(new Merchant("Swiggy", "Food & Dining")).getId();
@@ -224,5 +225,30 @@ class CategoryAssignmentTest {
         UUID tx = transaction(alice, "after", swiggy);
         mockMvc.perform(get("/api/transactions/" + tx).header("Authorization", bearer(ALICE)))
                 .andExpect(jsonPath("$.category").value("Food & Dining"));
+    }
+
+    @Test
+    void otherUsersMerchantMappingDoesNotAffectCaller() throws Exception {
+        UUID tx = transaction(alice, "mine", swiggy);
+        String bobsPets = createCategory(BOB, "Pets");
+        assignMerchant(BOB, swiggy, bobsPets);
+        String token = bearer(ALICE);
+
+        mockMvc.perform(get("/api/transactions/" + tx).header("Authorization", token))
+                .andExpect(jsonPath("$.category").value("Food & Dining"));
+        mockMvc.perform(get("/api/transactions").param("category", "Pets").header("Authorization", token))
+                .andExpect(jsonPath("$.items").isEmpty());
+        mockMvc.perform(get("/api/transactions").param("category", "Food & Dining").header("Authorization", token))
+                .andExpect(jsonPath("$.items[*].description", containsInAnyOrder("mine")));
+    }
+
+    @Test
+    void uncategorizedFilterExcludesMerchantWithUserMapping() throws Exception {
+        transaction(alice, "mapped", swiggy);
+        transaction(alice, "none", null);
+        assignMerchant(ALICE, swiggy, createCategory(ALICE, "Pets"));
+
+        mockMvc.perform(get("/api/transactions").param("category", "Uncategorized").header("Authorization", bearer(ALICE)))
+                .andExpect(jsonPath("$.items[*].description", containsInAnyOrder("none")));
     }
 }
