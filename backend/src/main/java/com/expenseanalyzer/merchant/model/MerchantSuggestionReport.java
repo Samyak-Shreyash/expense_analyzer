@@ -40,10 +40,15 @@ public class MerchantSuggestionReport {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    public MerchantSuggestionReport(UUID userId, String payeeKey, UUID merchantId) {
+    /** Whether the reporter's account was old enough to count when this report was filed; fixed at filing time. */
+    @Column(name = "reporter_aged", nullable = false, updatable = false)
+    private boolean reporterAged;
+
+    public MerchantSuggestionReport(UUID userId, String payeeKey, UUID merchantId, boolean reporterAged) {
         this.userId = userId;
         this.payeeKey = payeeKey;
         this.merchantId = merchantId;
+        this.reporterAged = reporterAged;
         this.createdAt = Instant.now();
     }
 }

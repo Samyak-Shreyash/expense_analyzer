@@ -123,8 +123,8 @@ public class MerchantNameService {
 
     /**
      * Records the user's report of a suggestion they were shown (it is hidden for them at once). Reports are serialised
-     * per merchant. The pair is hidden for everyone once its distinct reporters older than
-     * {@link MerchantService#VOTER_MIN_AGE} reach max({@link #THRESHOLD}, its aged distinct voters). Then each voter
+     * per merchant. The pair is hidden for everyone once its distinct reporters whose account was older than
+     * {@link MerchantService#VOTER_MIN_AGE} when they filed reach max({@link #THRESHOLD}, its aged distinct voters). Then each voter
      * whose vote predates the pair's first report gets a strike, and voters with {@link #THRESHOLD} strikes from the
      * last {@link #STRIKE_TTL} lose sharing (flag set, sharing off, all votes deleted). The account is never touched.
      * More than {@link #REPORTS_PER_DAY} reports by one user in 24 hours: 429.
@@ -132,18 +132,20 @@ public class MerchantNameService {
     @Transactional
     public void report(UUID userId, String payeeKey, UUID merchantId) {
         Instant now = Instant.now();
+        Instant joinedBefore = now.minus(MerchantService.VOTER_MIN_AGE);
+        voteRepository.lockVoter(userId); // serialises this user's reports so the rate-limit count below is atomic
         if (reportRepository.countByUserIdAndCreatedAtAfter(userId, now.minus(Duration.ofHours(24))) >= REPORTS_PER_DAY) {
             throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Too many reports; try again later");
         }
         reportRepository.lockMerchant(merchantId);
         if (!reportRepository.existsById(new MerchantSuggestionReport.Key(userId, payeeKey, merchantId))) {
-            reportRepository.saveAndFlush(new MerchantSuggestionReport(userId, payeeKey, merchantId));
+            boolean aged = Boolean.TRUE.equals(reportRepository.accountOlderThan(userId, joinedBefore));
+            reportRepository.saveAndFlush(new MerchantSuggestionReport(userId, payeeKey, merchantId, aged));
         }
         if (hiddenRepository.existsById(new HiddenMerchantSuggestion.Key(payeeKey, merchantId))) {
             return;
         }
-        Instant joinedBefore = now.minus(MerchantService.VOTER_MIN_AGE);
-        long reporters = reportRepository.agedReporters(payeeKey, merchantId, joinedBefore);
+        long reporters = reportRepository.agedReporters(payeeKey, merchantId);
         if (reporters < Math.max(THRESHOLD, voteRepository.agedVoters(payeeKey, merchantId, joinedBefore))) {
             return;
         }

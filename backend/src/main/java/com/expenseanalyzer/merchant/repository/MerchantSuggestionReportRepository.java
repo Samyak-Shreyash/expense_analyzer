@@ -13,10 +13,14 @@ import org.springframework.stereotype.Repository;
 public interface MerchantSuggestionReportRepository
         extends JpaRepository<MerchantSuggestionReport, MerchantSuggestionReport.Key> {
 
-    /** Distinct reporters of the pair whose account was created at or before {@code joinedBefore}. */
-    @Query("SELECT COUNT(DISTINCT r.userId) FROM MerchantSuggestionReport r, User u WHERE u.id = r.userId "
-            + "AND r.payeeKey = :payeeKey AND r.merchantId = :merchantId AND u.createdAt <= :joinedBefore")
-    long agedReporters(String payeeKey, UUID merchantId, Instant joinedBefore);
+    /** Distinct reporters of the pair whose account was old enough when they filed (judged at filing time). */
+    @Query("SELECT COUNT(DISTINCT r.userId) FROM MerchantSuggestionReport r "
+            + "WHERE r.payeeKey = :payeeKey AND r.merchantId = :merchantId AND r.reporterAged = true")
+    long agedReporters(String payeeKey, UUID merchantId);
+
+    /** Whether the user's account was created at or before {@code joinedBefore} (null if there is no such user). */
+    @Query("SELECT u.createdAt <= :joinedBefore FROM User u WHERE u.id = :userId")
+    Boolean accountOlderThan(UUID userId, Instant joinedBefore);
 
     /** When the pair was first reported (by anyone), or null. */
     @Query("SELECT MIN(r.createdAt) FROM MerchantSuggestionReport r "
