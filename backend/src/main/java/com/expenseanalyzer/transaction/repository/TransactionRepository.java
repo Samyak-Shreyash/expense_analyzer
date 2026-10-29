@@ -87,4 +87,16 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
             + "WHERE t.userId = :userId AND t.date >= :from AND t.date < :to "
             + "GROUP BY YEAR(t.date), MONTH(t.date), t.type")
     List<Object[]> sumByMonthAndDirection(UUID userId, Instant from, Instant to);
+
+    /** Rows: [categoryId, personId, merchantId (each UUID or null), type, sum of amountCents, count]. */
+    @Query("SELECT t.categoryId, t.personId, t.merchantId, t.type, SUM(t.amountCents), COUNT(t) FROM Transaction t "
+            + "WHERE t.userId = :userId AND t.date >= :from AND t.date < :to "
+            + "GROUP BY t.categoryId, t.personId, t.merchantId, t.type")
+    List<Object[]> sumByCategoryGroup(UUID userId, Instant from, Instant to);
+
+    /** Rows: [year, month, categoryId, personId, merchantId, type, sum of amountCents]. Dates are UTC days. */
+    @Query("SELECT YEAR(t.date), MONTH(t.date), t.categoryId, t.personId, t.merchantId, t.type, SUM(t.amountCents) "
+            + "FROM Transaction t WHERE t.userId = :userId AND t.date >= :from AND t.date < :to "
+            + "GROUP BY YEAR(t.date), MONTH(t.date), t.categoryId, t.personId, t.merchantId, t.type")
+    List<Object[]> sumByMonthAndCategoryGroup(UUID userId, Instant from, Instant to);
 }

@@ -3,6 +3,7 @@ package com.expenseanalyzer.analytics.controller;
 import com.expenseanalyzer.analytics.dto.AnalyticsDtos.CashFlow;
 import com.expenseanalyzer.analytics.dto.AnalyticsDtos.CategoryBreakdown;
 import com.expenseanalyzer.analytics.dto.AnalyticsDtos.MerchantBreakdown;
+import com.expenseanalyzer.analytics.dto.AnalyticsDtos.NonSpendingBreakdown;
 import com.expenseanalyzer.analytics.dto.AnalyticsDtos.SpendingSummary;
 import com.expenseanalyzer.analytics.dto.AnalyticsDtos.Trends;
 import com.expenseanalyzer.analytics.service.SpendingAnalyticsService;
@@ -63,5 +64,12 @@ public class AnalyticsController {
                          @RequestParam @DateTimeFormat(iso = ISO.DATE) LocalDate from,
                          @RequestParam @DateTimeFormat(iso = ISO.DATE) LocalDate to) {
         return analytics.trends(jwt.getSubject(), from, to);
+    }
+
+    @GetMapping("/non-spending")
+    public NonSpendingBreakdown nonSpending(@AuthenticationPrincipal Jwt jwt,
+                                            @RequestParam @DateTimeFormat(iso = ISO.DATE) LocalDate from,
+                                            @RequestParam @DateTimeFormat(iso = ISO.DATE) LocalDate to) {
+        return analytics.nonSpending(jwt.getSubject(), from, to);
     }
 }
