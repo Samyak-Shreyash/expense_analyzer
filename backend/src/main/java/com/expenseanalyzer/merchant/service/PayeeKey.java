@@ -24,7 +24,7 @@ public final class PayeeKey {
 
     /** The key when it comes from a UPI P2M payee segment (a merchant); empty for any other description. */
     public static Optional<String> ofP2m(String rawDescription) {
-        return PersonNameParser.segmentAfterReference(rawDescription, s -> MERCHANT_TOKEN.matcher(s.trim()).matches())
+        return PersonNameParser.segmentAfterReference(rawDescription, s -> MERCHANT_TOKEN.matcher(s.trim()).matches(), false)
                 .filter(s -> s.chars().anyMatch(Character::isLetter))
                 .map(PayeeKey::clean);
     }

@@ -169,7 +169,6 @@ export function CategoriesPage() {
     }, setCategoryError).catch(() => {})
     if (!deleted) {
       // The failed row is back to its Delete button once the confirmation closed; put focus there.
-      flushSync(() => {})
       document.getElementById(`delete-${c.id}`)?.focus()
     }
   }
