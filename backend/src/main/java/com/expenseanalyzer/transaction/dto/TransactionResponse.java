@@ -23,15 +23,16 @@ public record TransactionResponse(UUID id, LocalDate date, String description, S
 
     /**
      * @param merchant  the transaction's merchant, or null when it has none
+     * @param ownName   the caller's own spelling of the merchant (from their alias), or null to use the canonical name
      * @param person    the transaction's person, or null when it has none
      * @param effective the transaction's effective category, or null for Uncategorized
      * @param suggested merchant name other users suggest for this unmatched payee, or null
      */
-    public static TransactionResponse from(Transaction t, Merchant merchant, Person person, Category effective,
+    public static TransactionResponse from(Transaction t, Merchant merchant, String ownName, Person person, Category effective,
                                            String suggested) {
         return new TransactionResponse(t.getId(), LocalDate.ofInstant(t.getDate(), ZoneOffset.UTC),
                 t.getRawDescription(), t.getNormalizedDescription(), t.getAmount(), t.getCurrency(), t.getType(),
-                t.getMerchantId(), merchant == null ? null : merchant.getCanonicalName(),
+                t.getMerchantId(), ownName != null ? ownName : merchant == null ? null : merchant.getCanonicalName(),
                 effective == null ? null : effective.getId(),
                 effective == null ? SpendingAnalyticsService.UNCATEGORIZED : effective.getName(),
                 t.getCategoryId() != null, t.getStatementId(), t.getPersonId(),

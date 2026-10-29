@@ -2,6 +2,7 @@ package com.expenseanalyzer.merchant.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
@@ -32,5 +33,13 @@ class PayeeKeyTest {
     @CsvSource(value = {"NULL,NULL", "'  ',NULL"}, nullValues = "NULL")
     void nullWhenNothingToKeyOn(String raw, String normalized) {
         assertThat(PayeeKey.of(raw, normalized)).isNull();
+    }
+
+    @Test
+    void ofP2mOnlyForMerchantPayeeSegments() {
+        assertThat(PayeeKey.ofP2m("UPI/P2M/412345678902/ACME STORE/HDFC/pay")).contains("ACME STORE");
+        assertThat(PayeeKey.ofP2m("UPI/P2A/412345678901/RAHUL SHARMA/HDFC")).isEmpty();
+        assertThat(PayeeKey.ofP2m("NEFT/N123456789012/RAHUL SHARMA/HDFC")).isEmpty();
+        assertThat(PayeeKey.ofP2m(null)).isEmpty();
     }
 }

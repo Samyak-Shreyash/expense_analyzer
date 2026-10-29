@@ -37,14 +37,19 @@ public class UserMerchantAlias {
     @Column(name = "merchant_id", nullable = false)
     private UUID merchantId;
 
+    /** Exactly what the user typed; shown to them instead of the shared merchant's canonical spelling. */
+    @Column(name = "display_name", nullable = false, length = 100)
+    private String displayName;
+
     @JdbcTypeCode(SqlTypes.TIMESTAMP)
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
-    public UserMerchantAlias(UUID userId, String payeeKey, UUID merchantId) {
+    public UserMerchantAlias(UUID userId, String payeeKey, UUID merchantId, String displayName) {
         this.userId = userId;
         this.payeeKey = payeeKey;
         this.merchantId = merchantId;
+        this.displayName = displayName;
         this.createdAt = Instant.now();
     }
 }

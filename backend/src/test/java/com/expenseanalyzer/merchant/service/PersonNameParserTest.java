@@ -40,4 +40,20 @@ class PersonNameParserTest {
     void notAPerson(String description) {
         assertThat(PersonNameParser.parse(description)).isEqualTo(Optional.empty());
     }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "UPI/P2A/412345678901/9876543210/AXIS BANK",
+            "UPI/P2A/412345678901/rahul@okaxis/AXIS BANK",
+            "UPI-p2p-412345678901-RAHUL",
+            "UPI/P2M/412345678901/ACME STORE/P2A/x"})
+    void isTransferOnAnyP2aOrP2pToken(String description) {
+        assertThat(PersonNameParser.isTransfer(description)).isTrue();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"UPI/P2M/412345678901/SWIGGY/YES BANK/order", "NEFT/N1234/XP2AB/HDFC", ""})
+    void notATransferWithoutTheToken(String description) {
+        assertThat(PersonNameParser.isTransfer(description)).isFalse();
+    }
 }
