@@ -1,6 +1,5 @@
 package com.expenseanalyzer.statement.model;
 
-import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -9,10 +8,13 @@ import org.hibernate.type.SqlTypes;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.time.Instant;
 import java.util.UUID;
 
@@ -20,7 +22,8 @@ import java.util.UUID;
  * Statement entity representing a bank statement/account.
  */
 @Entity
-@Table(name = "statements")
+@Table(name = "statements",
+        uniqueConstraints = @UniqueConstraint(name = "uq_statements_user_file_hash", columnNames = {"user_id", "file_hash"}))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -38,8 +41,7 @@ public class Statement {
      * Bank account number (masked for security).
      * Used as the primary identifier for the statement.
      */
-    @NotBlank
-    @Column(name = "account_number", nullable = false, length = 50)
+    @Column(name = "account_number", length = 50)
     private String accountNumber;
 
     /**
@@ -51,14 +53,14 @@ public class Statement {
     /**
      * Account type (CHECKING, SAVINGS, CREDIT_CARD).
      */
-    @Column(name = "account_type", nullable = false, length = 50)
+    @Column(name = "account_type", length = 50)
     private String accountType;
 
     /**
      * Currency code (ISO 4217).
      * Example: USD, INR, EUR.
      */
-    @Column(name = "currency_code", nullable = false, length = 3)
+    @Column(name = "currency_code", length = 3)
     private String currencyCode;
 
     /**
@@ -100,6 +102,42 @@ public class Statement {
     @JdbcTypeCode(SqlTypes.TIMESTAMP)
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    /**
+     * Original upload file name, shown back to the owner. Never logged.
+     */
+    @Column(name = "file_name", length = 255)
+    private String fileName;
+
+    /**
+     * Object-storage key of the original file.
+     */
+    @Column(name = "storage_key", length = 512)
+    private String storageKey;
+
+    /**
+     * SHA-256 (hex) of the uploaded file; unique per user.
+     */
+    @Column(name = "file_hash", length = 64)
+    private String fileHash;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "format", length = 10)
+    private StatementFormat format;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false, length = 20)
+    private StatementStatus status = StatementStatus.UPLOADED;
+
+    /**
+     * Safe, user-facing error code when processing failed. Never contains file contents.
+     */
+    @Column(name = "processing_error", length = 100)
+    private String processingError;
+
+    @JdbcTypeCode(SqlTypes.TIMESTAMP)
+    @Column(name = "completed_at")
+    private Instant completedAt;
 
     // ---- Lifecycle hooks ----
 

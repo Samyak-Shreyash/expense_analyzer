@@ -65,28 +65,40 @@ Delete/archive an account according to retention rules.
 ## 4. Statements
 
 ### POST `/statements`
-Multipart upload plus account selection.
+Implemented as `POST /api/statements`, `multipart/form-data` with one part named `file`.
 
-Response:
+- **Formats:** `.csv` (UTF-8 text) and `.xlsx`. Extension, MIME type and leading bytes must agree. PDF is rejected until a PDF parser exists.
+- **Limits:** `app.statement.upload.max-size-bytes` (default 20 MB).
+- **Idempotency:** files are de-duplicated by SHA-256 per user. Re-uploading an identical file returns `409` with the existing `statementId`, so retries are safe.
+- **Account selection:** not yet supported (no accounts module).
+
+Response `201`:
 ```json
-{
-  "id": "stmt_123",
-  "status": "QUEUED",
-  "fileName": "statement.csv"
-}
+{ "id": "uuid", "fileName": "statement.csv", "format": "CSV", "status": "QUEUED",
+  "processingError": null, "createdAt": "...", "completedAt": null }
 ```
 
+Errors (RFC 7807 `ProblemDetail`):
+
+| Status | When | Extra fields |
+|---|---|---|
+| 400 | empty, wrong extension/MIME/signature, unsupported format | `reason` |
+| 401 | missing/invalid bearer token | |
+| 409 | identical file already uploaded by this user | `statementId` |
+| 413 | file too large | `reason=FILE_TOO_LARGE` |
+| 503 | object storage unavailable (nothing is persisted) | |
+
 ### GET `/statements`
-List owned statements.
+List owned statements, newest first, in the pagination envelope (`page`, `size` up to 100).
 
 ### GET `/statements/{statementId}`
-Get metadata/status.
+Get metadata/status. Another user's statement returns `404`.
 
 ### GET `/statements/{statementId}/status`
-Get processing status and safe error details.
+`{ "id", "status", "processingError" }`. `processingError` is a safe code, never file content.
 
 ### DELETE `/statements/{statementId}`
-Delete a statement subject to data-retention rules.
+Deletes the statement, its transactions and the stored file. `204`, or `404` if not owned.
 
 ## 5. Transactions
 

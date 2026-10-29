@@ -4,6 +4,7 @@ import com.expenseanalyzer.transaction.model.Transaction;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 import java.math.BigDecimal;
@@ -133,4 +134,9 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
      * @return count of all transactions
      */
     long countByUserId(UUID userId);
+
+    /** Removes a statement's transactions before the statement itself is deleted. */
+    @Modifying
+    @Query("DELETE FROM Transaction t WHERE t.statementId = :statementId")
+    void deleteByStatementId(UUID statementId);
 }
