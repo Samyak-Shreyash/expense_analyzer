@@ -32,6 +32,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -610,24 +615,53 @@ class MerchantNameSharingTest {
     void concurrentFirstTimeAliasSavesForTheSamePayeeDoNotFail() throws Exception {
         User a = user("a@example.com", false);
         UUID acme = merchantRepository.save(new Merchant("Acme Store", null)).getId();
-        int threads = 4;
-        java.util.concurrent.CountDownLatch start = new java.util.concurrent.CountDownLatch(1);
-        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(threads);
-        List<java.util.concurrent.Future<?>> results = new ArrayList<>();
-        for (int i = 0; i < threads; i++) {
-            results.add(pool.submit(() -> {
-                start.await();
-                merchantService.saveAlias(a.getId(), "ACME STORE", acme, "Acme Store");
-                return null;
-            }));
-        }
-        start.countDown();
-        for (java.util.concurrent.Future<?> f : results) {
-            f.get(30, java.util.concurrent.TimeUnit.SECONDS); // rethrows any failure
-        }
-        pool.shutdown();
+        runConcurrently(4, i -> merchantService.saveAlias(a.getId(), "ACME STORE", acme, "Acme Store"));
 
         assertThat(aliasRepository.findByUserId(a.getId())).hasSize(1);
+    }
+
+    @Test
+    void concurrentReportsVotesAndSavesByTwoUsersOnOneMerchantDoNotDeadlock() throws Exception {
+        User a = user("a@example.com", true);
+        User b = user("b@example.com", true);
+        Merchant acme = merchantRepository.save(new Merchant("Acme Store", null));
+        runConcurrently(6, i -> {
+            User u = i % 2 == 0 ? a : b;
+            switch (i % 3) {
+                case 0 -> merchantNameService.report(u.getId(), "ACME STORE", acme.getId());
+                case 1 -> merchantService.vote(u.getId(), "ACME STORE", acme);
+                default -> merchantService.saveAlias(u.getId(), "ACME STORE", acme.getId(), "Acme Store");
+            }
+        });
+
+        assertThat(reportRepository.findAll()).hasSize(2);
+    }
+
+    private interface Task {
+        void run(int i) throws Exception;
+    }
+
+    /** Runs the task on {@code threads} threads released together; rethrows any failure (or a deadlock timeout). */
+    private static void runConcurrently(int threads, Task task) throws Exception {
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        try {
+            List<Future<?>> results = new ArrayList<>();
+            for (int i = 0; i < threads; i++) {
+                int n = i;
+                results.add(pool.submit(() -> {
+                    start.await();
+                    task.run(n);
+                    return null;
+                }));
+            }
+            start.countDown();
+            for (Future<?> f : results) {
+                f.get(30, TimeUnit.SECONDS);
+            }
+        } finally {
+            pool.shutdownNow();
+        }
     }
 
     @Test

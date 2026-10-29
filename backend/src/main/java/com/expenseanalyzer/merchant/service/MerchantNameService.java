@@ -133,11 +133,12 @@ public class MerchantNameService {
     public void report(UUID userId, String payeeKey, UUID merchantId) {
         Instant now = Instant.now();
         Instant joinedBefore = now.minus(MerchantService.VOTER_MIN_AGE);
+        // Global lock order: merchant row first, then the user row (MerchantService.vote/saveAlias do the same).
+        reportRepository.lockMerchant(merchantId);
         voteRepository.lockVoter(userId); // serialises this user's reports so the rate-limit count below is atomic
         if (reportRepository.countByUserIdAndCreatedAtAfter(userId, now.minus(Duration.ofHours(24))) >= REPORTS_PER_DAY) {
             throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Too many reports; try again later");
         }
-        reportRepository.lockMerchant(merchantId);
         if (!reportRepository.existsById(new MerchantSuggestionReport.Key(userId, payeeKey, merchantId))) {
             boolean aged = Boolean.TRUE.equals(reportRepository.accountOlderThan(userId, joinedBefore));
             reportRepository.saveAndFlush(new MerchantSuggestionReport(userId, payeeKey, merchantId, aged));

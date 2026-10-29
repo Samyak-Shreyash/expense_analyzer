@@ -15,7 +15,10 @@ class PayeeKeyTest {
             "UPI/P2M/412345678902/ acme   store /HDFC/different remark~ACME STORE",
             "UPI-P2M-412345678903-Acme Store-acme@okhdfcbank-HDFC0001234~ACME STORE",
             "UPI/412345678905/P2M/Acme Store/ICIC0000123/UPI~ACME STORE",
-            "TRANSFER TO UPI/DR/412345678904/P2M/ACME STORE/SBIN/x~ACME STORE"})
+            "TRANSFER TO UPI/DR/412345678904/P2M/ACME STORE/SBIN/x~ACME STORE",
+            // a dash in a merchant segment still ends the key (only person names keep their dashes)
+            "UPI/P2M/412345678901/SWIGGY-FOOD/YES BANK/x~SWIGGY",
+            "UPI-P2M-412345678901-SWIGGY-FOOD-YES BANK-x~SWIGGY"})
     void p2mUsesPayeeSegment(String description, String expected) {
         assertThat(PayeeKey.of(description, "IGNORED")).isEqualTo(expected);
     }
