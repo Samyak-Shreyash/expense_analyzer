@@ -4,7 +4,6 @@ import com.expenseanalyzer.merchant.model.Merchant;
 import com.expenseanalyzer.merchant.repository.MerchantRepository;
 import com.expenseanalyzer.merchant.model.MerchantSuggestionVote;
 import com.expenseanalyzer.merchant.model.UserMerchantAlias;
-import com.expenseanalyzer.merchant.repository.MerchantSuggestionReportRepository;
 import com.expenseanalyzer.merchant.repository.MerchantSuggestionVoteRepository;
 import com.expenseanalyzer.merchant.repository.UserMerchantAliasRepository;
 import java.io.IOException;
@@ -37,7 +36,6 @@ public class MerchantService {
     private final MerchantRepository merchantRepository;
     private final UserMerchantAliasRepository aliasRepository;
     private final MerchantSuggestionVoteRepository voteRepository;
-    private final MerchantSuggestionReportRepository reportRepository;
 
     /** Only accounts at least this old count as suggestion voters. */
     static final Duration VOTER_MIN_AGE = Duration.ofDays(7);
@@ -72,8 +70,7 @@ public class MerchantService {
     /** Creates or repoints the user's alias for a payee key, keeping the user's own spelling. */
     @Transactional
     public void saveAlias(UUID userId, String payeeKey, UUID merchantId, String displayName) {
-        // Lock order everywhere: merchant row, then user row (see MerchantNameService.report).
-        reportRepository.lockMerchant(merchantId);
+        // Lock design (see MerchantNameService.report): this path locks only the user row, never a merchant row.
         voteRepository.lockVoter(userId); // serialises this user's saves: no insert race on (user, payee)
         UserMerchantAlias alias = aliasRepository.findById(new UserMerchantAlias.Key(userId, payeeKey))
                 .orElseGet(() -> new UserMerchantAlias(userId, payeeKey, merchantId, displayName));
@@ -149,8 +146,7 @@ public class MerchantService {
             withdrawVote(userId, payeeKey);
             return;
         }
-        // Lock order everywhere: merchant row, then user row (see MerchantNameService.report).
-        reportRepository.lockMerchant(merchant.getId());
+        // Lock design (see MerchantNameService.report): this path locks only the user row, never a merchant row.
         voteRepository.lockVoter(userId); // serialises this user's votes: no insert race on (user, payee)
         if (voteRepository.repoint(userId, payeeKey, merchant.getId(), Instant.now()) == 0) {
             voteRepository.save(new MerchantSuggestionVote(userId, payeeKey, merchant.getId()));

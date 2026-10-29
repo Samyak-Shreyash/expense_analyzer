@@ -133,12 +133,14 @@ public class MerchantNameService {
     public void report(UUID userId, String payeeKey, UUID merchantId) {
         Instant now = Instant.now();
         Instant joinedBefore = now.minus(MerchantService.VOTER_MIN_AGE);
-        // Global lock order: merchant row first, then the user row (MerchantService.vote/saveAlias do the same).
-        reportRepository.lockMerchant(merchantId);
-        voteRepository.lockVoter(userId); // serialises this user's reports so the rate-limit count below is atomic
+        // ponytail: rate limit not atomic - concurrent reports from one user may exceed 10 slightly; harmless
         if (reportRepository.countByUserIdAndCreatedAtAfter(userId, now.minus(Duration.ofHours(24))) >= REPORTS_PER_DAY) {
             throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Too many reports; try again later");
         }
+        // Lock design: no path ever holds a users-row lock while waiting for a merchants-row lock. vote/saveAlias/sync/
+        // setSharing lock only users; report locks only this merchant (its revoke UPDATEs of other users run while
+        // holding it, which is safe because nothing holding a user lock ever waits on a merchant lock).
+        reportRepository.lockMerchant(merchantId);
         if (!reportRepository.existsById(new MerchantSuggestionReport.Key(userId, payeeKey, merchantId))) {
             boolean aged = Boolean.TRUE.equals(reportRepository.accountOlderThan(userId, joinedBefore));
             reportRepository.saveAndFlush(new MerchantSuggestionReport(userId, payeeKey, merchantId, aged));
