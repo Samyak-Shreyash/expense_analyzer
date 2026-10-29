@@ -9,6 +9,8 @@ spring:
       properties:
         enable.idempotence: true
         max.block.ms: 10000
+    consumer:
+      auto-offset-reset: earliest
   servlet:
     multipart:
       # Slightly above app.statement.upload.max-size-bytes so the validator reports the size error.
@@ -100,6 +102,12 @@ app:
   statement:
     upload:
       max-size-bytes: ${STATEMENT_UPLOAD_MAX_BYTES:20971520}
+  parser:
+    max-rows: ${PARSER_MAX_ROWS:50000}
+    max-columns: ${PARSER_MAX_COLUMNS:50}
+    timeout: ${PARSER_TIMEOUT:30s}
+  worker:
+    concurrency: ${WORKER_CONCURRENCY:2}
   # S3-compatible statement storage (RustFS locally). Credentials have no defaults.
   storage:
     endpoint: ${STORAGE_ENDPOINT:http://localhost:${RUSTFS_API_PORT:9000}}

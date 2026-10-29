@@ -9,7 +9,9 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -139,4 +141,8 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
     @Modifying
     @Query("DELETE FROM Transaction t WHERE t.statementId = :statementId")
     void deleteByStatementId(UUID statementId);
+
+    /** Which of these fingerprints the user already has. */
+    @Query("SELECT t.transactionFingerprint FROM Transaction t WHERE t.userId = :userId AND t.transactionFingerprint IN :fingerprints")
+    Set<String> findExistingFingerprints(UUID userId, Collection<String> fingerprints);
 }

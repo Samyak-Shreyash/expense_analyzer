@@ -15,6 +15,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
@@ -27,7 +28,9 @@ import java.util.UUID;
  * - Spring Data JPA repository with methods for querying by user and statement
  */
 @Entity
-@Table(name = "transactions")
+@Table(name = "transactions",
+        uniqueConstraints = @UniqueConstraint(name = "uq_transactions_user_fingerprint",
+                columnNames = {"user_id", "transaction_fingerprint"}))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -120,6 +123,18 @@ public class Transaction {
     @JdbcTypeCode(SqlTypes.TIMESTAMP)
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
+
+    /**
+     * ISO 4217 currency code. INR is the initially supported currency (LLD 4.3).
+     */
+    @Column(name = "currency", nullable = false, length = 3)
+    private String currency = "INR";
+
+    /**
+     * Anti-duplication fingerprint for imported rows (see TransactionFingerprint); null for other sources.
+     */
+    @Column(name = "transaction_fingerprint", length = 64)
+    private String transactionFingerprint;
 
     // ---- Lifecycle hooks ----
 

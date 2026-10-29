@@ -564,6 +564,16 @@ OCR is not part of the initial mandatory implementation.
 
 Only the first sheet of a workbook is read. Limit breaches fail the whole file rather than importing a prefix, because a partial import would understate spending.
 
+## 8.5 CSV / XLSX Mapping (implemented)
+
+- **Header row:** first non-empty row. Column names are matched case-insensitively: `Date`, `Description`, and either `Debit`/`Credit` or a signed `Amount`. Other columns are ignored.
+- **Dates:** `yyyy-MM-dd`, `dd/MM/yyyy`, `dd-MM-yyyy` (strict; day-first, as in Indian bank exports). XLSX date cells are read as dates.
+- **Amounts:** plain decimals with optional thousands separators (`1,23,456.78` is not accepted; `123,456.78` is), at most 2 decimals. Stored as positive `amount_cents` (amount x 100) plus a direction.
+- **Direction:** Debit column -> `DEBIT`, Credit column -> `CREDIT`; a zero in the unused column is treated as blank; both or neither filled is `AMBIGUOUS_DIRECTION`. With a signed `Amount`, negative = `DEBIT`.
+- **Descriptions:** stored exactly as exported in `raw_description` (trimmed only), max 2,048 chars.
+- **Currency:** `INR` for now (no currency column is read).
+- **Invalid rows** are skipped and counted: the statement completes with `processing_error = SKIPPED_ROWS:<n>`. A file with no valid rows fails with `NO_VALID_ROWS`; file-level problems fail with the parser code (`MISSING_HEADER`, `UNREADABLE_FILE`, limit codes). Amounts too large for `amount_cents` count as skipped rows.
+
 # 9. Transaction Validation
 
 Validation occurs before persistence.
@@ -608,6 +618,21 @@ The exact algorithm must be documented and tested against:
 A fingerprint is an anti-duplication mechanism, not a universal transaction identity.
 
 ---
+
+## 10.1 Implemented Algorithm
+
+`SHA-256(userId | date | amount_cents | direction | normalised description | occurrence)`, where the description is lower-cased with whitespace collapsed and `occurrence` is the index of the row among identical rows *in the same statement*. Unique on `(user_id, transaction_fingerprint)`.
+
+| Case | Result |
+|---|---|
+| Same statement processed twice | same fingerprints, nothing inserted the second time |
+| Identical file uploaded again | rejected at upload (`409`, file hash) |
+| Same transaction in two overlapping statements | inserted once |
+| Two genuine identical purchases on one day | kept (occurrence 0 and 1) |
+| Refund of the same amount | kept (different direction) |
+| Same data for two users | kept for both (user is part of the hash) |
+
+Known limitation: if two overlapping statements contain a *different* number of identical same-day rows, the extra ones are inserted.
 
 # 11. Merchant Normalization
 
@@ -1073,6 +1098,17 @@ Rules:
 - Keys are scoped to user/operation as appropriate.
 
 ---
+
+## 25.1 Event Idempotency Contract (implemented)
+
+- **Event identity:** `eventId` (the outbox row id). Producers never reuse it.
+- **Dedup scope:** per consumer: `processed_events(event_id, consumer)` primary key. A new consumer group re-processes history on its own.
+- **Processing unit:** one DB transaction per event: statement status, inserted transactions and the `processed_events` row commit together or not at all. The Kafka offset is committed only after the transaction commits (`StatementUploadedListener`).
+- **Duplicate delivery:** `processed_events` hit -> skipped. **Replay with a new eventId** for a `COMPLETED` statement -> acknowledged without re-import. **Re-queued statement** -> reprocessed; fingerprints make it converge to the same data.
+- **Concurrency:** events are keyed by statement id, so one statement's events go to one partition and one consumer. If two attempts still race, the unique constraints (`processed_events` PK, transaction fingerprint) make the loser roll back; it is redelivered and then skipped.
+- **Retries:** transient failures (storage/DB unavailable) roll back and are retried by `DefaultErrorHandler` with exponential backoff for up to 5 minutes; afterwards the statement stays `QUEUED`. Deterministic failures (unreadable file, limits, missing object) set `FAILED` with a safe code and are acknowledged.
+- **Rejected without processing:** malformed JSON, unknown `eventType`, unsupported `eventVersion`, and events whose `userId` does not own the statement.
+- **State machine as implemented:** `UPLOADED -> QUEUED` at upload; `QUEUED -> COMPLETED | FAILED` in one worker transaction (`PROCESSING` is not persisted separately because the attempt is a single transaction).
 
 # 26. Security Design
 
