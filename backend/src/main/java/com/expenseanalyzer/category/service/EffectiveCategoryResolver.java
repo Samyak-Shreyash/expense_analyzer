@@ -58,18 +58,23 @@ public class EffectiveCategoryResolver {
 
         /** @return the effective category, or null for Uncategorized. {@code merchant} may be null. */
         public Category resolve(Transaction t, Merchant merchant) {
-            if (t.getCategoryId() != null && byId.containsKey(t.getCategoryId())) {
-                return byId.get(t.getCategoryId());
+            return resolve(t.getCategoryId(), t.getPersonId(), t.getMerchantId(), merchant);
+        }
+
+        /** Same rule from the fields it uses, so aggregated groups can be resolved without loading transactions. */
+        public Category resolve(UUID categoryId, UUID personId, UUID merchantId, Merchant merchant) {
+            if (categoryId != null && byId.containsKey(categoryId)) {
+                return byId.get(categoryId);
             }
             // Keep in sync with TransactionService.categoryIs, which reimplements this rule in SQL.
-            Person person = person(t);
+            Person person = personId == null ? null : people.get(personId);
             if (person != null && person.getCategoryId() != null && byId.containsKey(person.getCategoryId())) {
                 return byId.get(person.getCategoryId());
             }
-            if (t.getMerchantId() == null) {
+            if (merchantId == null) {
                 return null;
             }
-            UUID mapped = merchantCategory.get(t.getMerchantId());
+            UUID mapped = merchantCategory.get(merchantId);
             if (mapped != null && byId.containsKey(mapped)) {
                 return byId.get(mapped);
             }
