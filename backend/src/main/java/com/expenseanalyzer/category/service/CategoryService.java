@@ -19,6 +19,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -71,7 +72,11 @@ public class CategoryService {
         UUID userId = userId(email);
         String name = validName(request);
         ensureUnique(userId, name, null);
-        return categoryRepository.save(new Category(userId, name, spends(request)));
+        try {
+            return categoryRepository.saveAndFlush(new Category(userId, name, spends(request)));
+        } catch (DataIntegrityViolationException e) { // lost a race with the same name; the unique index decides
+            throw duplicate();
+        }
     }
 
     @Transactional
@@ -83,7 +88,11 @@ public class CategoryService {
         category.setName(name);
         category.setCountsAsSpending(spends(request));
         category.setUpdatedAt(Instant.now());
-        return category;
+        try {
+            return categoryRepository.saveAndFlush(category);
+        } catch (DataIntegrityViolationException e) {
+            throw duplicate();
+        }
     }
 
     /** Clears every reference to the category, then deletes it. */
@@ -127,8 +136,12 @@ public class CategoryService {
         boolean taken = categoryRepository.findByUserIdOrderByNameAsc(userId).stream()
                 .anyMatch(c -> !c.getId().equals(selfId) && key(c.getName()).equals(key(name)));
         if (taken) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Category name already exists");
+            throw duplicate();
         }
+    }
+
+    private static ResponseStatusException duplicate() {
+        return new ResponseStatusException(HttpStatus.CONFLICT, "Category name already exists");
     }
 
     private static String validName(CategoryRequest request) {

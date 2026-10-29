@@ -2,6 +2,7 @@ package com.expenseanalyzer.transaction.service;
 
 import com.expenseanalyzer.analytics.service.SpendingAnalyticsService;
 import com.expenseanalyzer.category.model.Category;
+import com.expenseanalyzer.category.model.UserMerchantCategory;
 import com.expenseanalyzer.category.service.CategoryService;
 import com.expenseanalyzer.category.service.EffectiveCategoryResolver;
 import com.expenseanalyzer.category.service.EffectiveCategoryResolver.Resolution;
@@ -10,12 +11,11 @@ import com.expenseanalyzer.merchant.model.Person;
 import com.expenseanalyzer.merchant.model.UserMerchantAlias;
 import com.expenseanalyzer.merchant.repository.MerchantRepository;
 import com.expenseanalyzer.merchant.service.MerchantMatch;
-import com.expenseanalyzer.merchant.service.MerchantNormalizer;
 import com.expenseanalyzer.merchant.service.MerchantNameService;
+import com.expenseanalyzer.merchant.service.MerchantNormalizer;
 import com.expenseanalyzer.merchant.service.MerchantService;
 import com.expenseanalyzer.merchant.service.PayeeKey;
 import com.expenseanalyzer.merchant.service.PersonService;
-import com.expenseanalyzer.category.model.UserMerchantCategory;
 import com.expenseanalyzer.transaction.dto.CounterpartyRequest;
 import com.expenseanalyzer.transaction.dto.TransactionFilter;
 import com.expenseanalyzer.transaction.dto.TransactionResponse;
@@ -87,7 +87,7 @@ public class TransactionService {
             spec = spec.and((root, q, cb) -> cb.equal(root.get("merchantId"), f.merchantId()));
         }
         if (f.category() != null && !f.category().isBlank()) {
-            spec = spec.and(categoryIs(f.category(), resolution, userId));
+            spec = spec.and(categoryIs(f.category().trim(), resolution, userId));
         }
         if (f.direction() != null) {
             spec = spec.and((root, q, cb) -> cb.equal(root.get("type"), f.direction().name()));

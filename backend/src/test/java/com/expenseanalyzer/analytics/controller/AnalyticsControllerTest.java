@@ -13,6 +13,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -50,21 +51,26 @@ class AnalyticsControllerTest {
     private TransactionRepository transactionRepository;
     @Autowired
     private MerchantRepository merchantRepository;
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @MockitoBean
     private UserRepository userRepository;
 
     private MockMvc mockMvc;
     private UUID alice;
+    private UUID bob;
+    private final List<UUID> merchantIds = new ArrayList<>();
 
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
         when(userRepository.claimCategorySeeding(org.mockito.ArgumentMatchers.any())).thenReturn(1); // mocked repo: always claim
         alice = user(ALICE);
-        UUID bob = user(BOB);
+        bob = user(BOB);
         UUID swiggy = merchantRepository.save(new Merchant("Swiggy", "Food & Dining")).getId();
         UUID amazon = merchantRepository.save(new Merchant("Amazon", "Shopping")).getId();
+        merchantIds.addAll(List.of(swiggy, amazon));
 
         save(alice, "2025-12-10", "1000.00", "DEBIT", swiggy);   // previous period
         save(alice, "2026-01-01", "500.00", "DEBIT", swiggy);    // first day: included
@@ -78,8 +84,11 @@ class AnalyticsControllerTest {
 
     @AfterEach
     void cleanUp() {
-        transactionRepository.deleteAll();
-        merchantRepository.deleteAll();
+        for (UUID id : List.of(alice, bob)) { // only this test's users
+            jdbcTemplate.update("DELETE FROM transactions WHERE user_id = ?", id);
+        }
+        merchantRepository.deleteAllById(merchantIds);
+        merchantIds.clear();
     }
 
     private UUID user(String email) {
