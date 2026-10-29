@@ -257,6 +257,30 @@ describe('TransactionsPage', () => {
     )
   })
 
+  it('still reloads, without an error, when clearing the own category fails after a merchant-wide save', async () => {
+    vi.mocked(finance.setMerchantCategory).mockResolvedValue(null)
+    vi.mocked(finance.setTransactionCategory).mockRejectedValue(
+      new finance.ApiError(500, 'boom'),
+    )
+    renderPage()
+    await openCategoryEditor()
+    const calls = vi.mocked(finance.listTransactions).mock.calls.length
+    fireEvent.change(screen.getByLabelText('Category for this transaction'), {
+      target: { value: 'Repayment' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save for all Swiggy' }))
+
+    await waitFor(() =>
+      expect(finance.setTransactionCategory).toHaveBeenCalledWith('t1', null),
+    )
+    await waitFor(() =>
+      expect(vi.mocked(finance.listTransactions).mock.calls.length).toBe(
+        calls + 1,
+      ),
+    )
+    expect(screen.queryByRole('alert')).toBeNull()
+  })
+
   it('creates a new category for the whole merchant', async () => {
     vi.mocked(finance.createCategory).mockResolvedValue({
       id: 'c9',
@@ -394,6 +418,65 @@ describe('TransactionsPage', () => {
       )
     })
 
+    it('moves focus to the named merchant after the refetch', async () => {
+      vi.mocked(finance.setTransactionMerchant).mockResolvedValue(unmatched)
+      renderPage()
+      fireEvent.click(await screen.findByRole('button', { name: addMerchant }))
+      vi.mocked(finance.listTransactions).mockResolvedValue({
+        items: [{ ...unmatched, merchantId: 'm9', merchantName: 'Acme Store' }],
+        page: 0,
+        size: 50,
+        totalItems: 1,
+        totalPages: 1,
+      })
+      fireEvent.change(screen.getByLabelText('Merchant name'), {
+        target: { value: 'Acme Store' },
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+      await waitFor(() =>
+        expect(document.activeElement?.id).toBe('merchant-t1'),
+      )
+    })
+
+    it('does not steal focus later when the refetch fails', async () => {
+      vi.mocked(finance.setTransactionMerchant).mockResolvedValue(unmatched)
+      renderPage()
+      fireEvent.click(await screen.findByRole('button', { name: addMerchant }))
+      vi.mocked(finance.listTransactions).mockRejectedValueOnce(new Error('x'))
+      fireEvent.change(screen.getByLabelText('Merchant name'), {
+        target: { value: 'Acme Store' },
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+      await screen.findByText(/could not/i)
+      const search = screen.getByLabelText('Search descriptions')
+      search.focus()
+
+      vi.mocked(finance.listTransactions).mockResolvedValue({
+        items: [{ ...unmatched, merchantId: 'm9', merchantName: 'Acme Store' }],
+        page: 0,
+        size: 50,
+        totalItems: 1,
+        totalPages: 1,
+      })
+      fireEvent.change(search, { target: { value: 'acme' } })
+      fireEvent.submit(screen.getByRole('search'))
+      await screen.findByRole('button', { name: 'Acme Store' })
+      expect(document.activeElement).toBe(search)
+    })
+
+    it('links the sharing hint to the checkbox', async () => {
+      renderPage()
+      fireEvent.click(await screen.findByRole('button', { name: addMerchant }))
+      const box = screen.getByRole('checkbox', {
+        name: 'Suggest this name to other users',
+      })
+      const hint = document.getElementById(
+        box.getAttribute('aria-describedby')!,
+      )
+      expect(hint?.textContent).toMatch(/never your transactions/)
+    })
+
     it('shares the name only when the box is ticked', async () => {
       vi.mocked(finance.setTransactionMerchant).mockResolvedValue(unmatched)
       renderPage()
@@ -426,6 +509,7 @@ describe('TransactionsPage', () => {
       renderPage()
       expect(await screen.findByText(/Suggested: Acme Store/)).toBeTruthy()
       expect(screen.getByRole('button', { name: addMerchant })).toBeTruthy()
+      expect(screen.getByText('Use Acme Store')).toBeTruthy()
       const calls = vi.mocked(finance.listTransactions).mock.calls.length
       fireEvent.click(
         screen.getByRole('button', {
