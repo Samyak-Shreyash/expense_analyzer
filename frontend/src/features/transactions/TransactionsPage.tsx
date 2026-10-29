@@ -26,6 +26,7 @@ export function TransactionsPage() {
   const [error, setError] = useState(false)
   const [open, setOpen] = useState<string | null>(null)
   const [categories, setCategories] = useState<Category[]>([])
+  const [categoriesError, setCategoriesError] = useState(false)
   const [sharing, setSharing] = useState(false)
   // Bumped to refetch after a change that can touch other rows.
   const [version, setVersion] = useState(0)
@@ -42,7 +43,7 @@ export function TransactionsPage() {
   useEffect(() => {
     listCategories()
       .then(setCategories)
-      .catch(() => {})
+      .catch(() => setCategoriesError(true))
     getMerchantNameSettings()
       .then((m) => setSharing(m.shareMerchantNames && !m.sharingRevoked))
       .catch(() => {})
@@ -193,6 +194,13 @@ export function TransactionsPage() {
               </button>
             </span>
           )}
+        </p>
+      )}
+
+      {categoriesError && (
+        <p className={shared.error} role="alert">
+          Could not load your categories, so the category pickers may be
+          incomplete. Reload the page to try again.
         </p>
       )}
 
