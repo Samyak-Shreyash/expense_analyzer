@@ -1,5 +1,6 @@
 package com.expenseanalyzer.transaction.controller;
 
+import com.expenseanalyzer.category.dto.CategoryAssignment;
 import com.expenseanalyzer.common.dto.PageResponse;
 import com.expenseanalyzer.transaction.dto.TransactionFilter;
 import com.expenseanalyzer.transaction.dto.TransactionResponse;
@@ -18,6 +19,8 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -57,5 +60,11 @@ public class TransactionController {
     @GetMapping("/{id}")
     public ResponseEntity<TransactionResponse> get(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
         return ResponseEntity.of(transactionService.find(jwt.getSubject(), id));
+    }
+
+    @PutMapping("/{id}/category")
+    public TransactionResponse setCategory(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
+                                           @RequestBody CategoryAssignment body) {
+        return transactionService.setCategory(jwt.getSubject(), id, body.categoryId());
     }
 }
