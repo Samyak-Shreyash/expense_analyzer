@@ -55,7 +55,11 @@ export function TransactionsPage() {
         setResult(r)
         setError(false)
       })
-      .catch(() => live && setError(true))
+      .catch(() => {
+        if (!live) return
+        focusRow.current = null // a later load must not steal focus
+        setError(true)
+      })
     return () => {
       live = false
     }

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import shared from '../../components/shared.module.css'
 import {
@@ -22,6 +22,7 @@ export function MerchantCell({ t, reload }: Props) {
   const [suggest, setSuggest] = useState(false)
   const [saving, setSaving] = useState(false)
   const trigger = useRef<HTMLButtonElement>(null)
+  const hintId = useId()
 
   function open() {
     setName('')
@@ -62,7 +63,7 @@ export function MerchantCell({ t, reload }: Props) {
               aria-label={`Use ${t.suggestedMerchantName} for ${t.description}`}
               onClick={() => submit(t.suggestedMerchantName!, false, false)}
             >
-              Use this
+              Use {t.suggestedMerchantName}
             </button>
           </span>
         )}
@@ -113,14 +114,14 @@ export function MerchantCell({ t, reload }: Props) {
         <input
           type="checkbox"
           checked={suggest}
+          aria-describedby={hintId}
           onChange={(e) => setSuggest(e.target.checked)}
         />{' '}
         Suggest this name to other users
-        <span className={shared.muted}>
-          {' '}
-          Only the merchant name is shared, never your transactions.
-        </span>
       </label>
+      <span id={hintId} className={shared.muted}>
+        Only the merchant name is shared, never your transactions.
+      </span>
       <div className={styles.editorActions}>
         <button
           type="submit"
