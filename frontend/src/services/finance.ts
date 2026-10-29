@@ -41,6 +41,8 @@ export type Transaction = {
   personId: string | null
   personName: string | null
   statementId: string | null
+  /** Name other users suggest for this unmatched payee, or null. */
+  suggestedMerchantName: string | null
 }
 
 type Totals = {
@@ -300,11 +302,15 @@ export const setTransactionCategory = (id: string, categoryId: string | null) =>
   write<Transaction>('PUT', `/transactions/${id}/category`, { categoryId }, {})
 export const setMerchantCategory = (id: string, categoryId: string | null) =>
   write<null>('PUT', `/merchants/${id}/category`, { categoryId }, {})
-export const setTransactionMerchant = (id: string, name: string) =>
+export const setTransactionMerchant = (
+  id: string,
+  name: string,
+  suggest = false,
+) =>
   write<Transaction>(
     'PUT',
     `/transactions/${id}/merchant`,
-    { name },
+    { name, suggest },
     {
       400: 'Use a merchant name of 1 to 100 characters.',
       404: 'That transaction no longer exists. Reload the page.',
