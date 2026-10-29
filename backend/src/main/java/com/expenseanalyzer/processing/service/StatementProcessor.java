@@ -3,6 +3,8 @@ package com.expenseanalyzer.processing.service;
 import com.expenseanalyzer.merchant.service.MerchantMatch;
 import com.expenseanalyzer.merchant.service.MerchantNormalizer;
 import com.expenseanalyzer.merchant.service.MerchantService;
+import com.expenseanalyzer.merchant.service.PersonNameParser;
+import com.expenseanalyzer.merchant.service.PersonService;
 import com.expenseanalyzer.messaging.service.OutboxService;
 import com.expenseanalyzer.processing.model.ProcessedEvent;
 import com.expenseanalyzer.processing.parser.common.ParsedStatement;
@@ -31,6 +33,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -72,6 +75,7 @@ public class StatementProcessor {
     private final JsonMapper jsonMapper;
     private final MerchantNormalizer merchantNormalizer;
     private final MerchantService merchantService;
+    private final PersonService personService;
     private final ParserLimits limits;
 
     public StatementProcessor(StatementRepository statementRepository, TransactionRepository transactionRepository,
@@ -79,6 +83,7 @@ public class StatementProcessor {
                               CsvStatementParser csvParser, ExcelStatementParser excelParser,
                               PdfStatementParser pdfParser, JsonMapper jsonMapper,
                               MerchantNormalizer merchantNormalizer, MerchantService merchantService,
+                              PersonService personService,
                               @Value("${app.parser.max-rows:50000}") int maxRows,
                               @Value("${app.parser.max-columns:50}") int maxColumns,
                               @Value("${app.parser.timeout:30s}") Duration timeout) {
@@ -92,6 +97,7 @@ public class StatementProcessor {
         this.jsonMapper = jsonMapper;
         this.merchantNormalizer = merchantNormalizer;
         this.merchantService = merchantService;
+        this.personService = personService;
         this.limits = new ParserLimits(maxRows, maxColumns, timeout);
     }
 
@@ -148,6 +154,7 @@ public class StatementProcessor {
         Map<String, Integer> occurrences = new HashMap<>();
         Map<String, Transaction> byFingerprint = new HashMap<>();
         Map<String, UUID> merchantIds = new HashMap<>();
+        Map<String, UUID> personIds = new HashMap<>();
         for (ParsedTransaction p : parsed.transactions()) {
             BigDecimal cents = p.amount().movePointRight(2);
             if (cents.precision() - cents.scale() > MAX_CENT_DIGITS) {
@@ -158,7 +165,7 @@ public class StatementProcessor {
             int occurrence = occurrences.merge(base, 1, Integer::sum) - 1;
             String fp = TransactionFingerprint.of(s.getUserId(), p.date(), cents, p.type(), p.rawDescription(), occurrence);
             Transaction t = toTransaction(s, p, cents, fp);
-            enrich(t, merchantIds);
+            enrich(t, s.getUserId(), merchantIds, personIds);
             byFingerprint.put(fp, t);
         }
 
@@ -189,10 +196,19 @@ public class StatementProcessor {
         return t;
     }
 
-    /** Merchant normalisation (LLD 11); the raw description is never modified. */
-    private void enrich(Transaction t, Map<String, UUID> merchantIds) {
+    /**
+     * Merchant normalisation (LLD 11) or, for a UPI P2A/P2P transfer, the person paid (such a row gets no merchant);
+     * the raw description is never modified.
+     */
+    private void enrich(Transaction t, UUID userId, Map<String, UUID> merchantIds, Map<String, UUID> personIds) {
         MerchantMatch m = merchantNormalizer.normalize(t.getRawDescription());
         t.setNormalizedDescription(m.normalizedDescription());
+        Optional<String> person = PersonNameParser.parse(t.getRawDescription());
+        if (person.isPresent()) {
+            t.setPersonId(personIds.computeIfAbsent(person.get().toLowerCase(Locale.ROOT),
+                    k -> personService.findOrCreate(userId, person.get()).getId()));
+            return;
+        }
         if (m.canonicalName() != null) {
             t.setMerchantId(merchantIds.computeIfAbsent(m.canonicalName(), n -> merchantService.resolve(m).getId()));
             t.setMerchantConfidence(m.confidence());

@@ -2,6 +2,7 @@ package com.expenseanalyzer.transaction.controller;
 
 import com.expenseanalyzer.category.dto.CategoryAssignment;
 import com.expenseanalyzer.common.dto.PageResponse;
+import com.expenseanalyzer.transaction.dto.CounterpartyRequest;
 import com.expenseanalyzer.transaction.dto.TransactionFilter;
 import com.expenseanalyzer.transaction.dto.TransactionResponse;
 import com.expenseanalyzer.transaction.model.TransactionDirection;
@@ -66,5 +67,11 @@ public class TransactionController {
     public TransactionResponse setCategory(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
                                            @RequestBody CategoryAssignment body) {
         return transactionService.setCategory(jwt.getSubject(), id, body.categoryId());
+    }
+
+    @PutMapping("/{id}/counterparty")
+    public TransactionResponse setCounterparty(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
+                                               @RequestBody CounterpartyRequest body) {
+        return transactionService.setCounterparty(jwt.getSubject(), id, body);
     }
 }
