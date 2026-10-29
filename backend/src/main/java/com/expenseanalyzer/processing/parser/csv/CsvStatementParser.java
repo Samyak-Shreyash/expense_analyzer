@@ -36,15 +36,17 @@ public class CsvStatementParser {
             Reader reader = new InputStreamReader(in, StandardCharsets.UTF_8);
             CSVParser csv = FORMAT.parse(reader); // not closed: would close caller's stream
             Iterator<CSVRecord> it = csv.iterator();
-            if (!it.hasNext()) {
-                return ParsedStatement.failed(new RowError(1, RowErrorCode.MISSING_HEADER, null));
+            // Bank exports (e.g. Axis) put account details above the header; skip rows until it appears.
+            StatementRowMapper mapper = null;
+            while (it.hasNext() && mapper == null) {
+                List<String> header = new ArrayList<>(it.next().toList());
+                if (!header.isEmpty() && header.get(0).startsWith("\uFEFF")) {
+                    header.set(0, header.get(0).substring(1));
+                }
+                StatementRowMapper candidate = new StatementRowMapper(header);
+                mapper = candidate.hasValidHeaders() ? candidate : null;
             }
-            List<String> header = new ArrayList<>(it.next().toList());
-            if (!header.isEmpty() && header.get(0).startsWith("\uFEFF")) {
-                header.set(0, header.get(0).substring(1));
-            }
-            StatementRowMapper mapper = new StatementRowMapper(header);
-            if (!mapper.hasValidHeaders()) {
+            if (mapper == null) {
                 return ParsedStatement.failed(new RowError(1, RowErrorCode.MISSING_HEADER, null));
             }
             List<ParsedTransaction> txns = new ArrayList<>();

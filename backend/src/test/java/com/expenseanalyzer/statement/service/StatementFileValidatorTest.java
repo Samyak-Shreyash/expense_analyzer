@@ -35,6 +35,8 @@ class StatementFileValidatorTest {
         assertThatCode(() -> {
             v.validate("a.pdf", "application/pdf", 100, b("%PDF-1.7"));
             v.validate("a.xlsx", XLSX, 100, new byte[] {0x50, 0x4B, 3, 4});
+            v.validate("a.xls", "application/vnd.ms-excel", 100,
+                    new byte[] {(byte) 0xD0, (byte) 0xCF, 0x11, (byte) 0xE0, (byte) 0xA1, (byte) 0xB1, 0x1A, (byte) 0xE1});
             v.validate("a.csv", "text/csv; charset=utf-8", 10, b("date,amount\n"));
             v.validate("A.PDF", "application/pdf", 100, b("%PDF-1.7"));
             v.validate("a.pdf", "application/pdf", 1024, b("%PDF-1.7"));

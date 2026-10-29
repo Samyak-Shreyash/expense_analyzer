@@ -24,6 +24,7 @@ public class StatementFileValidator {
 
     private static final Map<String, Set<String>> ALLOWED_MIME = Map.of(
             "pdf", Set.of("application/pdf"),
+            "xls", Set.of("application/vnd.ms-excel"),
             "xlsx", Set.of("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
             "csv", Set.of("text/csv", "application/csv", "application/vnd.ms-excel", "text/plain"));
 
@@ -52,6 +53,7 @@ public class StatementFileValidator {
         }
         boolean ok = switch (ext) {
             case "pdf" -> startsWith(head, '%', 'P', 'D', 'F', '-');
+            case "xls" -> startsWith(head, 0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1); // OLE2
             case "xlsx" -> startsWith(head, 0x50, 0x4B, 0x03, 0x04);
             default -> isUtf8Text(head);
         };

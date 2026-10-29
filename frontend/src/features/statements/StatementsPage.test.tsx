@@ -56,7 +56,7 @@ describe('StatementsPage', () => {
 
     expect(await screen.findByRole('alert')).toHaveProperty(
       'textContent',
-      'Choose a CSV or Excel (.xlsx) file. PDF statements are not supported yet.',
+      'Choose a CSV or Excel (.xls or .xlsx) file. PDF statements are not supported yet.',
     )
     expect(finance.uploadStatement).not.toHaveBeenCalled()
   })
@@ -102,7 +102,9 @@ describe('StatementsPage', () => {
     renderPage()
 
     expect(
-      await screen.findByText(/needs Date, Description and Amount/),
+      await screen.findByText(
+        /No header row with Date, Description and Amount/,
+      ),
     ).toBeTruthy()
   })
 })

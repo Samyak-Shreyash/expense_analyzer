@@ -15,10 +15,11 @@ import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.DateUtil;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.WorkbookFactory;
 import org.springframework.stereotype.Component;
 
-/** Parses the first sheet of an XLSX bank statement. Caller owns the stream. Never logs cell values. */
+/** Parses the first sheet of an XLS or XLSX bank statement. Caller owns the stream. Never logs cell values. */
 @Component
 public class ExcelStatementParser {
 
@@ -27,7 +28,7 @@ public class ExcelStatementParser {
     }
 
     public ParsedStatement parse(InputStream in, ParserLimits limits) {
-        try (XSSFWorkbook wb = new XSSFWorkbook(in)) {
+        try (Workbook wb = WorkbookFactory.create(in)) {
             Sheet sheet = wb.getSheetAt(0);
             StatementRowMapper mapper = null;
             List<ParsedTransaction> txns = new ArrayList<>();
@@ -42,10 +43,9 @@ public class ExcelStatementParser {
                     continue;
                 }
                 if (mapper == null) {
-                    mapper = new StatementRowMapper(cells);
-                    if (!mapper.hasValidHeaders()) {
-                        return ParsedStatement.failed(new RowError(row.getRowNum() + 1, RowErrorCode.MISSING_HEADER, null));
-                    }
+                    // Bank exports put account details above the header; skip rows until it appears.
+                    StatementRowMapper candidate = new StatementRowMapper(cells);
+                    mapper = candidate.hasValidHeaders() ? candidate : null;
                     continue;
                 }
                 Object r = mapper.map(row.getRowNum() + 1, cells);
@@ -61,7 +61,7 @@ public class ExcelStatementParser {
             return new ParsedStatement(txns, errors);
         } catch (ParserLimits.LimitExceeded e) {
             return ParsedStatement.failed(new RowError(0, e.code(), null));
-        } catch (Exception e) { // corrupt/non-xlsx input: POI throws assorted runtime exceptions
+        } catch (Exception e) { // corrupt/non-Excel input: POI throws assorted runtime exceptions
             return ParsedStatement.failed(new RowError(0, RowErrorCode.UNREADABLE_FILE, null));
         }
     }

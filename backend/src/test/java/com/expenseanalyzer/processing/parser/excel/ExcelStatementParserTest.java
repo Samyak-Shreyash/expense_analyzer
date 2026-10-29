@@ -17,6 +17,7 @@ import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
 
@@ -72,6 +73,22 @@ class ExcelStatementParserTest {
         assertThat(r.transactions().get(0).type()).isEqualTo("DEBIT");
         assertThat(r.transactions().get(1).type()).isEqualTo("CREDIT");
         assertThat(r.transactions().get(0).date()).isEqualTo(LocalDate.of(2025, 1, 5));
+    }
+
+    @Test
+    void parsesLegacyXlsWithPreamble() throws IOException {
+        byte[] xls;
+        try (HSSFWorkbook wb = new HSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            fill(wb.createSheet("S0"), new Object[][] {
+                {"Statement of Account"},
+                {"Tran Date", "PARTICULARS", "DR", "CR"},
+                {"05/01/2025", "Coffee", 4.5, ""}}, wb.createCellStyle());
+            wb.write(out);
+            xls = out.toByteArray();
+        }
+        ParsedStatement r = parse(xls);
+        assertThat(r.errors()).isEmpty();
+        assertThat(r.transactions()).extracting(t -> t.type()).containsExactly("DEBIT");
     }
 
     @Test

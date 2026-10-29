@@ -16,7 +16,7 @@ const IN_PROGRESS = new Set(['UPLOADED', 'QUEUED', 'PROCESSING'])
 /** Backend processing codes (statements.processing_error) in plain language. */
 const PROCESSING_ERRORS: Record<string, string> = {
   MISSING_HEADER:
-    'The first row needs Date, Description and Amount (or Debit and Credit) columns.',
+    'No header row with Date, Description and Amount (or Debit and Credit) columns was found.',
   NO_VALID_ROWS: 'No row could be read. Check the date and amount columns.',
   UNREADABLE_FILE:
     'The file could not be read. Export it again from your bank.',
@@ -131,7 +131,7 @@ export function StatementsPage() {
           <input
             ref={input}
             type="file"
-            accept=".csv,.xlsx"
+            accept=".csv,.xls,.xlsx"
             className={shared.visuallyHidden}
             disabled={progress !== null}
             onChange={(e) => {
@@ -140,7 +140,7 @@ export function StatementsPage() {
             }}
           />
         </label>
-        <p className={styles.hint}>CSV or .xlsx, up to 20 MB</p>
+        <p className={styles.hint}>CSV, .xls or .xlsx, up to 20 MB</p>
         {progress !== null && (
           <div className={styles.progress}>
             <progress value={progress} max={1} aria-label="Upload progress" />

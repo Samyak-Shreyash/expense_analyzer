@@ -146,6 +146,9 @@ public class StatementService {
         if (name.endsWith(".csv")) {
             return StatementFormat.CSV;
         }
+        if (name.endsWith(".xls")) {
+            return StatementFormat.XLS;
+        }
         if (name.endsWith(".xlsx")) {
             return StatementFormat.XLSX;
         }
