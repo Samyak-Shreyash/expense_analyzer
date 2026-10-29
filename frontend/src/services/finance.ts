@@ -367,6 +367,8 @@ const SHARING_ERRORS = {
 }
 
 export const listMerchantNames = () => getJson<MerchantNames>('/merchant-names')
+export const getMerchantNameSettings = () =>
+  getJson<Omit<MerchantNames, 'items'>>('/merchant-names/settings')
 export const setMerchantNameSharing = (enabled: boolean) =>
   write<MerchantNames>(
     'PUT',

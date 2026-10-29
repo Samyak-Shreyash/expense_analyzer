@@ -15,7 +15,7 @@ vi.mock('../../services/finance', async (orig) => ({
   setMerchantCategory: vi.fn(),
   updatePerson: vi.fn(),
   setTransactionMerchant: vi.fn(),
-  listMerchantNames: vi.fn(),
+  getMerchantNameSettings: vi.fn(),
   reportSuggestion: vi.fn(),
 }))
 
@@ -59,10 +59,9 @@ function renderPage(url = '/transactions') {
 describe('TransactionsPage', () => {
   beforeEach(() => {
     vi.mocked(finance.listCategories).mockResolvedValue(categories)
-    vi.mocked(finance.listMerchantNames).mockResolvedValue({
+    vi.mocked(finance.getMerchantNameSettings).mockResolvedValue({
       shareMerchantNames: false,
       sharingRevoked: false,
-      items: [],
     })
     vi.mocked(finance.listTransactions).mockResolvedValue({
       items: [swiggy],
@@ -483,15 +482,16 @@ describe('TransactionsPage', () => {
     })
 
     it('shows the share checkbox, checked, with the warning while sharing is on', async () => {
-      vi.mocked(finance.listMerchantNames).mockResolvedValue({
+      vi.mocked(finance.getMerchantNameSettings).mockResolvedValue({
         shareMerchantNames: true,
         sharingRevoked: false,
-        items: [],
       })
       vi.mocked(finance.setTransactionMerchant).mockResolvedValue(unmatched)
       renderPage()
       const trigger = await screen.findByRole('button', { name: addMerchant })
-      await waitFor(() => expect(finance.listMerchantNames).toHaveBeenCalled())
+      await waitFor(() =>
+        expect(finance.getMerchantNameSettings).toHaveBeenCalled(),
+      )
       fireEvent.click(trigger)
       const box = (await screen.findByRole('checkbox', {
         name: 'Share this name with other users',
