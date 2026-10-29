@@ -4,6 +4,7 @@ import com.expenseanalyzer.transaction.model.Transaction;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
@@ -11,6 +12,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -21,7 +23,7 @@ import java.util.UUID;
  * - Repository with methods for querying by user and statement
  */
 @Repository
-public interface TransactionRepository extends JpaRepository<Transaction, UUID> {
+public interface TransactionRepository extends JpaRepository<Transaction, UUID>, JpaSpecificationExecutor<Transaction> {
 
     /**
      * Find all transactions for a specific user.
@@ -145,4 +147,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
     /** Which of these fingerprints the user already has. */
     @Query("SELECT t.transactionFingerprint FROM Transaction t WHERE t.userId = :userId AND t.transactionFingerprint IN :fingerprints")
     Set<String> findExistingFingerprints(UUID userId, Collection<String> fingerprints);
+
+    /** Ownership-scoped lookup: another user's transaction is indistinguishable from a missing one. */
+    Optional<Transaction> findByIdAndUserId(UUID id, UUID userId);
 }

@@ -103,11 +103,19 @@ Deletes the statement, its transactions and the stored file. `204`, or `404` if 
 ## 5. Transactions
 
 ### GET `/transactions`
-Query parameters:
-`accountId, statementId, from, to, categoryId, merchantId, direction, minAmount, maxAmount, page, size, sort`
+Implemented as `GET /api/transactions`. Query parameters (all optional):
+`statementId, from, to` (ISO dates, inclusive), `merchantId, direction` (`DEBIT`|`CREDIT`), `minAmount, maxAmount` (currency units, inclusive), `page, size` (size up to 200).
+Not yet supported: `accountId`, `categoryId` (no accounts or categories module), custom `sort` (always newest first).
+
+Item:
+```json
+{ "id": "uuid", "date": "2026-01-02", "description": "UPI-SWIGGY-ORDER", "normalizedDescription": "SWIGGY ORDER",
+  "amount": 450.00, "currency": "INR", "direction": "DEBIT", "merchantId": "uuid|null", "statementId": "uuid|null" }
+```
+`amount` is always positive; `direction` gives the sign. `400` if `from` is after `to` or a parameter is malformed.
 
 ### GET `/transactions/{transactionId}`
-Get one transaction after ownership validation.
+Get one transaction after ownership validation. Another user's transaction returns `404`.
 
 ### PATCH `/transactions/{transactionId}`
 Update user-editable transaction metadata such as category/merchant where supported.
