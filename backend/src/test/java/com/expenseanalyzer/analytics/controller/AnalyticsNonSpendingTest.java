@@ -71,6 +71,7 @@ class AnalyticsNonSpendingTest {
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
+        when(userRepository.claimCategorySeeding(org.mockito.ArgumentMatchers.any())).thenReturn(1); // mocked repo: always claim
         User u = new User();
         u.setId(UUID.randomUUID());
         u.setEmail(ALICE);
@@ -93,6 +94,9 @@ class AnalyticsNonSpendingTest {
         save("700.00", "DEBIT", amazon, null, null);     // user category Savings (countsAsSpending=false)
         save("1000.00", "DEBIT", null, raviId, null);    // transfer to a person: Repayment
         save("200.00", "CREDIT", null, raviId, null);    // received back: cash flow only
+        // previous period (December 2025): 400 food spending + 100 to Ravi (Repayment)
+        saveOn("2025-12-10", "400.00", "DEBIT", swiggy, null, null);
+        saveOn("2025-12-12", "100.00", "DEBIT", null, raviId, null);
     }
 
     @AfterEach
@@ -110,8 +114,12 @@ class AnalyticsNonSpendingTest {
     }
 
     private void save(String rupees, String type, UUID merchant, UUID person, UUID category) {
+        saveOn("2026-01-10", rupees, type, merchant, person, category);
+    }
+
+    private void saveOn(String date, String rupees, String type, UUID merchant, UUID person, UUID category) {
         Transaction t = new Transaction(alice, "tx", new BigDecimal(rupees).movePointRight(2),
-                LocalDate.parse("2026-01-10").atStartOfDay(ZoneOffset.UTC).toInstant(), type);
+                LocalDate.parse(date).atStartOfDay(ZoneOffset.UTC).toInstant(), type);
         t.setMerchantId(merchant);
         t.setPersonId(person);
         t.setCategoryId(category);
@@ -132,9 +140,9 @@ class AnalyticsNonSpendingTest {
                 .andExpect(jsonPath("$.nonSpendingOutflow").value(2000.00))
                 .andExpect(jsonPath("$.net").value(-2300.00))
                 .andExpect(jsonPath("$.transactionCount").value(5))
-                .andExpect(jsonPath("$.previous.outflow").value(0.00))
-                .andExpect(jsonPath("$.previous.nonSpendingOutflow").value(0.00))
-                .andExpect(jsonPath("$.previous.net").value(0.00));
+                .andExpect(jsonPath("$.previous.outflow").value(400.00))
+                .andExpect(jsonPath("$.previous.nonSpendingOutflow").value(100.00))
+                .andExpect(jsonPath("$.previous.net").value(-500.00));
         call("cash-flow").andExpect(jsonPath("$.months[0].outflow").value(2500.00))
                 .andExpect(jsonPath("$.months[0].inflow").value(200.00));
         call("trends").andExpect(jsonPath("$.months[0].outflow").value(500.00));

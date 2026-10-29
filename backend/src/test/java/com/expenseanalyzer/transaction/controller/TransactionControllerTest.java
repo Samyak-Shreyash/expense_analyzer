@@ -59,6 +59,7 @@ class TransactionControllerTest {
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
+        when(userRepository.claimCategorySeeding(org.mockito.ArgumentMatchers.any())).thenReturn(1); // mocked repo: always claim
         alice = user(ALICE);
         bob = user(BOB);
         save(alice, "Coffee", "4.50", "2026-01-02", "DEBIT", statement, null);
