@@ -66,6 +66,12 @@ public class Transaction {
     private UUID merchantId;
 
     /**
+     * Confidence (0..1) in merchantId from normalisation; null when no merchant was matched.
+     */
+    @Column(name = "merchant_confidence", precision = 3, scale = 2)
+    private BigDecimal merchantConfidence;
+
+    /**
      * Category identifier (from expense analyzer categories).
      * Used for transaction categorization and reporting.
      */

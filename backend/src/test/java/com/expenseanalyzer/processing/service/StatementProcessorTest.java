@@ -1,5 +1,6 @@
 package com.expenseanalyzer.processing.service;
 
+import com.expenseanalyzer.merchant.repository.MerchantRepository;
 import com.expenseanalyzer.processing.repository.ProcessedEventRepository;
 import com.expenseanalyzer.statement.model.Statement;
 import com.expenseanalyzer.statement.model.StatementFormat;
@@ -53,6 +54,8 @@ class StatementProcessorTest {
     private TransactionRepository transactionRepository;
     @Autowired
     private ProcessedEventRepository processedEventRepository;
+    @Autowired
+    private MerchantRepository merchantRepository;
 
     @MockitoBean
     private StatementStorage storage;
@@ -62,6 +65,7 @@ class StatementProcessorTest {
         transactionRepository.deleteAll();
         statementRepository.deleteAll();
         processedEventRepository.deleteAll();
+        merchantRepository.deleteAll();
     }
 
     private Statement queued(UUID userId) {
@@ -120,6 +124,39 @@ class StatementProcessorTest {
         assertThat(done.getStatus()).isEqualTo(StatementStatus.COMPLETED);
         assertThat(done.getCompletedAt()).isNotNull();
         assertThat(done.getProcessingError()).isNull();
+    }
+
+    @Test
+    void importedTransactionsAreNormalizedAndLinkedToCanonicalMerchants() {
+        UUID user = UUID.randomUUID();
+        Statement first = queued(user);
+        fileContains(first, """
+                Date,Description,Amount
+                2026-01-02,UPI-SWIGGY-ORDER-12345678,-450.00
+                2026-01-03,UPI/9876543210@ybl/RAMESH KUMAR,-200.00
+                """);
+        Statement second = queued(user);
+        fileContains(second, "Date,Description,Amount\n2026-02-02,POS 4521XXXX1234 SWIGGY BANGALORE,-300.00\n");
+
+        processor.process(event(first));
+        processor.process(event(second));
+
+        List<Transaction> txns = transactionRepository.findByUserId(user);
+        Transaction swiggy = txns.stream().filter(t -> t.getRawDescription().startsWith("UPI-SWIGGY")).findFirst().orElseThrow();
+        Transaction person = txns.stream().filter(t -> t.getRawDescription().contains("RAMESH")).findFirst().orElseThrow();
+        Transaction swiggyPos = txns.stream().filter(t -> t.getRawDescription().startsWith("POS")).findFirst().orElseThrow();
+
+        assertThat(swiggy.getRawDescription()).isEqualTo("UPI-SWIGGY-ORDER-12345678"); // raw preserved
+        assertThat(swiggy.getNormalizedDescription()).isEqualTo("SWIGGY ORDER");
+        assertThat(swiggy.getMerchantId()).isNotNull();
+        assertThat(swiggy.getMerchantConfidence()).isEqualByComparingTo("0.95");
+        assertThat(swiggyPos.getMerchantId()).isEqualTo(swiggy.getMerchantId());
+        assertThat(merchantRepository.findById(swiggy.getMerchantId()).orElseThrow().getCanonicalName()).isEqualTo("Swiggy");
+        assertThat(merchantRepository.count()).isEqualTo(1);
+
+        assertThat(person.getMerchantId()).isNull();
+        assertThat(person.getMerchantConfidence()).isNull();
+        assertThat(person.getNormalizedDescription()).isEqualTo("RAMESH KUMAR");
     }
 
     @Test

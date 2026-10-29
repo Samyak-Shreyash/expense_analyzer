@@ -672,6 +672,18 @@ Do not fabricate a canonical merchant when evidence is insufficient.
 
 ---
 
+## 11.3 Implemented Rules (version 1)
+
+- **Where:** `MerchantNormalizer` (rules, `RULES_VERSION`), applied by the statement worker before transactions are saved. `raw_description` is never changed.
+- **Normalised description:** upper-case; UPI handles (`name@bank`) removed; punctuation split into tokens; payment-rail and bank noise dropped (`UPI`, `POS`, `NEFT`, `IMPS`, `ACH`, `REF`, `PAYTM`, UPI app handles...), IFSC codes, pure numbers and reference-like tokens (6+ chars containing a digit) dropped. If nothing is left, the collapsed raw text is used.
+- **Canonical naming:** brand names as customers know them (`Amazon`, `Swiggy`, `Domino's`, `IRCTC`). One `merchants` row per canonical name, shared across users (holds no user data).
+- **Aliases:** whole-token matches, checked in order, multi-token first (`UBER EATS` before `UBER`). `AMZN` and `AMAZON` -> `Amazon`; `AMAZONIA` does not match. Version 1 covers 20 common Indian merchants across shopping, food, groceries, transport, travel, entertainment, subscriptions and telecom.
+- **Confidence:** a rule match sets `merchant_confidence = 0.95`. There is no fuzzy matching, so lower confidences are not produced yet.
+- **Fallback:** no rule match -> `merchant_id` and `merchant_confidence` stay NULL (person-to-person UPI transfers, salaries, unknown shops). A merchant is never guessed from free text.
+- **Category hint:** each rule carries a coarse hint (`Food & Dining`, `Shopping`...) stored on the merchant for the future categorisation step.
+- **Corrections (planned):** a user correction of a transaction's merchant will be stored as user-sourced and must win over rules; reprocessing never overwrites existing transactions (fingerprints prevent re-insert), so corrections survive rule changes.
+- **Changing rules:** bump `RULES_VERSION`, add test cases. Existing transactions are not re-normalised automatically.
+
 # 12. Categorization
 
 Initial categorization should be deterministic.

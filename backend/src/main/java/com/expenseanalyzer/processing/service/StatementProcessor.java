@@ -1,5 +1,8 @@
 package com.expenseanalyzer.processing.service;
 
+import com.expenseanalyzer.merchant.service.MerchantMatch;
+import com.expenseanalyzer.merchant.service.MerchantNormalizer;
+import com.expenseanalyzer.merchant.service.MerchantService;
 import com.expenseanalyzer.messaging.service.OutboxService;
 import com.expenseanalyzer.processing.model.ProcessedEvent;
 import com.expenseanalyzer.processing.parser.common.ParsedStatement;
@@ -65,11 +68,14 @@ public class StatementProcessor {
     private final CsvStatementParser csvParser;
     private final ExcelStatementParser excelParser;
     private final JsonMapper jsonMapper;
+    private final MerchantNormalizer merchantNormalizer;
+    private final MerchantService merchantService;
     private final ParserLimits limits;
 
     public StatementProcessor(StatementRepository statementRepository, TransactionRepository transactionRepository,
                               ProcessedEventRepository processedEventRepository, StatementStorage storage,
                               CsvStatementParser csvParser, ExcelStatementParser excelParser, JsonMapper jsonMapper,
+                              MerchantNormalizer merchantNormalizer, MerchantService merchantService,
                               @Value("${app.parser.max-rows:50000}") int maxRows,
                               @Value("${app.parser.max-columns:50}") int maxColumns,
                               @Value("${app.parser.timeout:30s}") Duration timeout) {
@@ -80,6 +86,8 @@ public class StatementProcessor {
         this.csvParser = csvParser;
         this.excelParser = excelParser;
         this.jsonMapper = jsonMapper;
+        this.merchantNormalizer = merchantNormalizer;
+        this.merchantService = merchantService;
         this.limits = new ParserLimits(maxRows, maxColumns, timeout);
     }
 
@@ -134,6 +142,7 @@ public class StatementProcessor {
         int skipped = parsed.errors().size();
         Map<String, Integer> occurrences = new HashMap<>();
         Map<String, Transaction> byFingerprint = new HashMap<>();
+        Map<String, UUID> merchantIds = new HashMap<>();
         for (ParsedTransaction p : parsed.transactions()) {
             BigDecimal cents = p.amount().movePointRight(2);
             if (cents.precision() - cents.scale() > MAX_CENT_DIGITS) {
@@ -143,7 +152,9 @@ public class StatementProcessor {
             String base = TransactionFingerprint.baseKey(p.date(), cents, p.type(), p.rawDescription());
             int occurrence = occurrences.merge(base, 1, Integer::sum) - 1;
             String fp = TransactionFingerprint.of(s.getUserId(), p.date(), cents, p.type(), p.rawDescription(), occurrence);
-            byFingerprint.put(fp, toTransaction(s, p, cents, fp));
+            Transaction t = toTransaction(s, p, cents, fp);
+            enrich(t, merchantIds);
+            byFingerprint.put(fp, t);
         }
 
         Set<String> existing = byFingerprint.isEmpty() ? Set.of()
@@ -171,6 +182,16 @@ public class StatementProcessor {
         t.setStatementId(s.getId());
         t.setTransactionFingerprint(fingerprint);
         return t;
+    }
+
+    /** Merchant normalisation (LLD 11); the raw description is never modified. */
+    private void enrich(Transaction t, Map<String, UUID> merchantIds) {
+        MerchantMatch m = merchantNormalizer.normalize(t.getRawDescription());
+        t.setNormalizedDescription(m.normalizedDescription());
+        if (m.canonicalName() != null) {
+            t.setMerchantId(merchantIds.computeIfAbsent(m.canonicalName(), n -> merchantService.resolve(m).getId()));
+            t.setMerchantConfidence(m.confidence());
+        }
     }
 
     /** Whole-file failures are reported with row 0 (limits, unreadable) or as a missing header. */
