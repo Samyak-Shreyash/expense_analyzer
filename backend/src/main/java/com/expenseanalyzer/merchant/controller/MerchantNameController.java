@@ -4,7 +4,9 @@ import com.expenseanalyzer.merchant.dto.AccountSharingRequest;
 import com.expenseanalyzer.merchant.dto.AliasSharingRequest;
 import com.expenseanalyzer.merchant.dto.MerchantNameItem;
 import com.expenseanalyzer.merchant.dto.MerchantNamesResponse;
+import com.expenseanalyzer.merchant.dto.SharingSettingsResponse;
 import com.expenseanalyzer.merchant.service.MerchantNameService;
+import jakarta.validation.Valid;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -31,14 +33,19 @@ public class MerchantNameController {
         return merchantNameService.list(jwt.getSubject());
     }
 
+    @GetMapping("/settings")
+    public SharingSettingsResponse settings(@AuthenticationPrincipal Jwt jwt) {
+        return merchantNameService.settings(jwt.getSubject());
+    }
+
     @PutMapping("/sharing")
-    public MerchantNamesResponse setSharing(@AuthenticationPrincipal Jwt jwt, @RequestBody AccountSharingRequest body) {
+    public MerchantNamesResponse setSharing(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody AccountSharingRequest body) {
         return merchantNameService.setSharing(jwt.getSubject(), body.enabled());
     }
 
     @PutMapping("/{id}/sharing")
     public MerchantNameItem setAliasSharing(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
-                                            @RequestBody AliasSharingRequest body) {
+                                            @Valid @RequestBody AliasSharingRequest body) {
         return merchantNameService.setAliasSharing(jwt.getSubject(), id, body.shared());
     }
 }

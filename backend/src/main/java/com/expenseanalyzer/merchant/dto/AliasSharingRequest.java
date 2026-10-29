@@ -1,4 +1,6 @@
 package com.expenseanalyzer.merchant.dto;
 
-public record AliasSharingRequest(boolean shared) {
+import jakarta.validation.constraints.NotNull;
+
+public record AliasSharingRequest(@NotNull Boolean shared) {
 }

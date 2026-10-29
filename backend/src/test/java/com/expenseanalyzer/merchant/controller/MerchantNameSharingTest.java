@@ -15,7 +15,9 @@ import com.expenseanalyzer.merchant.repository.MerchantSuggestionReportRepositor
 import com.expenseanalyzer.merchant.repository.MerchantSuggestionVoteRepository;
 import com.expenseanalyzer.merchant.repository.SharingStrikeRepository;
 import com.expenseanalyzer.merchant.repository.UserMerchantAliasRepository;
+import com.expenseanalyzer.merchant.service.MerchantNameService;
 import com.expenseanalyzer.merchant.service.MerchantService;
+import com.expenseanalyzer.merchant.service.NotShareableReason;
 import com.expenseanalyzer.transaction.model.Transaction;
 import com.expenseanalyzer.transaction.repository.TransactionRepository;
 import com.expenseanalyzer.user.model.User;
@@ -76,6 +78,8 @@ class MerchantNameSharingTest {
     private ObjectMapper objectMapper;
     @Autowired
     private JdbcTemplate jdbcTemplate;
+    @Autowired
+    private MerchantNameService merchantNameService;
 
     @MockitoBean
     private UserRepository userRepository;
@@ -104,12 +108,17 @@ class MerchantNameSharingTest {
 
     /** A 30-day-old user (old enough for votes to count), with account-level sharing as given. */
     private User user(String email, boolean sharing) {
+        return user(email, sharing, 30);
+    }
+
+    /** A user whose account is {@code ageDays} old. */
+    private User user(String email, boolean sharing, int ageDays) {
         User u = new User();
         u.setId(UUID.randomUUID());
         u.setEmail(email);
         u.setRole(UserRole.USER);
         when(userRepository.findByEmail(email)).thenReturn(Optional.of(u));
-        Timestamp created = Timestamp.from(Instant.now().minus(Duration.ofDays(30)));
+        Timestamp created = Timestamp.from(Instant.now().minus(Duration.ofDays(ageDays)));
         jdbcTemplate.update("INSERT INTO users (id, email, password_hash, role, is_active, categories_seeded, created_at, "
                 + "updated_at, share_merchant_names, sharing_revoked) VALUES (?, ?, 'x', 'USER', TRUE, FALSE, ?, ?, ?, FALSE)",
                 u.getId(), email, created, created, sharing);
@@ -434,5 +443,203 @@ class MerchantNameSharingTest {
                 "reporters", "voters");
         assertThat(acme.properties().stream().map(p -> p.getKey()).toList()).containsExactlyInAnyOrder("id", "name",
                 "payee", "transactionCount", "shared", "optedOut", "shareable", "notShareableReason", "reported");
+    }
+
+    private UUID merchantNamed(String name) {
+        return merchantRepository.findAll().stream().filter(m -> m.getCanonicalName().equals(name))
+                .findFirst().orElseThrow().getId();
+    }
+
+    private void strike(User u, String payeeKey, UUID merchantId, Duration age) {
+        jdbcTemplate.update("INSERT INTO sharing_strikes (user_id, payee_key, merchant_id, created_at) VALUES (?, ?, ?, ?)",
+                u.getId(), payeeKey, merchantId, Timestamp.from(Instant.now().minus(age)));
+    }
+
+    private void reportRow(User u, String payeeKey, UUID merchantId, Duration age) {
+        jdbcTemplate.update("INSERT INTO merchant_suggestion_reports (user_id, payee_key, merchant_id, created_at) "
+                + "VALUES (?, ?, ?, ?)", u.getId(), payeeKey, merchantId, Timestamp.from(Instant.now().minus(age)));
+    }
+
+    @Test
+    void youngReportersHideItOnlyForThemselvesAndDoNotCount() throws Exception {
+        User a = user("a@example.com", true);
+        User b = user("b@example.com", true);
+        User c = user("c@example.com", false, 2);
+        User d = user("d@example.com", false, 2);
+        User e = user("e@example.com", false);
+        UUID cRow = shownSuggestion(a, b, c);
+        UUID dRow = tx(d, ACME + "d");
+        UUID eRow = tx(e, ACME + "e");
+
+        report(c, cRow).andExpect(status().isNoContent());
+        report(d, dRow).andExpect(status().isNoContent());
+
+        assertThat(suggestedFor(c, cRow)).isNull();
+        assertThat(suggestedFor(d, dRow)).isNull();
+        assertThat(suggestedFor(e, eRow)).isEqualTo("Acme Store");
+        assertThat(hiddenRepository.findAll()).isEmpty();
+        assertThat(strikeRepository.findAll()).isEmpty();
+    }
+
+    @Test
+    void hidingNeedsAsManyAgedReportersAsAgedVoters() throws Exception {
+        User a = user("a@example.com", true);
+        User b = user("b@example.com", true);
+        User x = user("x@example.com", true);
+        User c = user("c@example.com", false);
+        User d = user("d@example.com", false);
+        User e = user("e@example.com", false);
+        UUID cRow = shownSuggestion(a, b, c);
+        name(x, tx(x, ACME + "x"), "Acme Store", null);
+        UUID dRow = tx(d, ACME + "d");
+        UUID eRow = tx(e, ACME + "e");
+
+        report(c, cRow).andExpect(status().isNoContent());
+        report(d, dRow).andExpect(status().isNoContent());
+        assertThat(hiddenRepository.findAll()).isEmpty(); // 2 reporters < 3 voters
+        report(e, eRow).andExpect(status().isNoContent());
+
+        assertThat(hiddenRepository.findAll()).hasSize(1);
+        assertThat(strikeRepository.findAll()).extracting(s -> s.getUserId())
+                .containsExactlyInAnyOrder(a.getId(), b.getId(), x.getId());
+    }
+
+    @Test
+    void onlyVotesCastBeforeTheFirstReportAreStruck() throws Exception {
+        User a = user("a@example.com", true);
+        User b = user("b@example.com", true);
+        User late = user("late@example.com", true);
+        User c = user("c@example.com", false);
+        User d = user("d@example.com", false);
+        User e = user("e@example.com", false);
+        UUID cRow = shownSuggestion(a, b, c);
+        UUID dRow = tx(d, ACME + "d");
+        UUID eRow = tx(e, ACME + "e");
+
+        report(c, cRow).andExpect(status().isNoContent());
+        Thread.sleep(5);
+        name(late, tx(late, ACME + "l"), "Acme Store", null);
+        report(d, dRow).andExpect(status().isNoContent());
+        report(e, eRow).andExpect(status().isNoContent());
+
+        assertThat(hiddenRepository.findAll()).hasSize(1);
+        assertThat(strikeRepository.findAll()).extracting(s -> s.getUserId())
+                .containsExactlyInAnyOrder(a.getId(), b.getId());
+    }
+
+    @Test
+    void revocationLapsesWhenStrikesExpireAndSharingStaysOff() throws Exception {
+        User a = user("a@example.com", false);
+        name(a, tx(a, ACME + "a"), "Acme Store", null);
+        name(a, tx(a, BETA + "a"), "Beta Mart", null);
+        strike(a, "ACME STORE", merchantNamed("Acme Store"), Duration.ofDays(200));
+        strike(a, "BETA MART", merchantNamed("Beta Mart"), Duration.ZERO);
+        jdbcTemplate.update("UPDATE users SET sharing_revoked = TRUE WHERE id = ?", a.getId());
+
+        JsonNode body = names(a);
+        assertThat(body.get("sharingRevoked").asBoolean()).isFalse();
+        assertThat(body.get("shareMerchantNames").asBoolean()).isFalse();
+        assertThat(jdbcTemplate.queryForObject("SELECT sharing_revoked FROM users WHERE id = ?", Boolean.class,
+                a.getId())).isFalse();
+        assertThat(voteRepository.findAll()).isEmpty();
+        setSharing(a, true).andExpect(status().isOk());
+        assertThat(voteRepository.findAll()).hasSize(2);
+    }
+
+    @Test
+    void twoUnexpiredStrikesKeepTheRevocation() throws Exception {
+        User a = user("a@example.com", false);
+        name(a, tx(a, ACME + "a"), "Acme Store", null);
+        UUID acme = merchantNamed("Acme Store");
+        strike(a, "ACME STORE", acme, Duration.ZERO);
+        strike(a, "OTHER", acme, Duration.ofDays(100));
+        jdbcTemplate.update("UPDATE users SET sharing_revoked = TRUE WHERE id = ?", a.getId());
+
+        assertThat(objectMapper.readTree(mockMvc.perform(get("/api/merchant-names/settings")
+                        .header("Authorization", bearer(a))).andReturn().getResponse().getContentAsString())
+                .get("sharingRevoked").asBoolean()).isTrue();
+        setSharing(a, true).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void moreThanTenReportsInADayAre429() throws Exception {
+        User a = user("a@example.com", true);
+        User b = user("b@example.com", true);
+        User c = user("c@example.com", false);
+        UUID cRow = shownSuggestion(a, b, c);
+        UUID acme = merchantNamed("Acme Store");
+        reportRow(c, "OLD", acme, Duration.ofHours(25)); // outside the window
+        for (int i = 0; i < 9; i++) {
+            reportRow(c, "K" + i, acme, Duration.ZERO);
+        }
+        report(c, cRow).andExpect(status().isNoContent()); // the 10th in 24 hours
+
+        jdbcTemplate.update("DELETE FROM merchant_suggestion_reports WHERE user_id = ? AND payee_key = 'ACME STORE'",
+                c.getId());
+        reportRow(c, "K9", acme, Duration.ZERO);
+        String body = report(c, cRow).andExpect(status().isTooManyRequests()).andReturn().getResponse()
+                .getErrorMessage();
+        assertThat(body).isEqualTo("Too many reports; try again later");
+        assertThat(reportRepository.findAll()).hasSize(11);
+    }
+
+    @Test
+    void aRepeatedReportOfTheSamePairIsNotAnError() throws Exception {
+        User a = user("a@example.com", true);
+        name(a, tx(a, ACME + "a"), "Acme Store", null);
+        UUID acme = merchantNamed("Acme Store");
+
+        merchantNameService.report(a.getId(), "ACME STORE", acme);
+        merchantNameService.report(a.getId(), "ACME STORE", acme);
+
+        assertThat(reportRepository.findAll()).hasSize(1);
+    }
+
+    @Test
+    void reportedIsShownOnlyToUsersWhoVotedForThePair() throws Exception {
+        User a = user("a@example.com", true);
+        User b = user("b@example.com", true);
+        User c = user("c@example.com", false);
+        User f = user("f@example.com", false);
+        UUID cRow = shownSuggestion(a, b, c);
+        name(f, tx(f, ACME + "f"), "Acme Store", null); // same pair, but f shares nothing
+        report(c, cRow).andExpect(status().isNoContent());
+
+        assertThat(item(a, "Acme Store").get("reported").asBoolean()).isTrue();
+        assertThat(item(f, "Acme Store").get("reported").asBoolean()).isFalse();
+    }
+
+    @Test
+    void missingSharingFlagsAre400() throws Exception {
+        User a = user("a@example.com", true);
+        name(a, tx(a, ACME + "a"), "Acme Store", null);
+        String id = item(a, "Acme Store").get("id").asText();
+
+        mockMvc.perform(put("/api/merchant-names/sharing").header("Authorization", bearer(a))
+                .contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isBadRequest());
+        mockMvc.perform(put("/api/merchant-names/" + id + "/sharing").header("Authorization", bearer(a))
+                .contentType(MediaType.APPLICATION_JSON).content("{}")).andExpect(status().isBadRequest());
+        assertThat(names(a).get("shareMerchantNames").asBoolean()).isTrue();
+        assertThat(voteRepository.findAll()).hasSize(1);
+    }
+
+    @Test
+    void settingsReturnOnlyTheAccountFlags() throws Exception {
+        User a = user("a@example.com", true);
+        name(a, tx(a, ACME + "a"), "Acme Store", null);
+        JsonNode body = objectMapper.readTree(mockMvc.perform(get("/api/merchant-names/settings")
+                        .header("Authorization", bearer(a))).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString());
+        assertThat(body.properties().stream().map(p -> p.getKey()).toList())
+                .containsExactlyInAnyOrder("shareMerchantNames", "sharingRevoked");
+        assertThat(body.get("shareMerchantNames").asBoolean()).isTrue();
+        assertThat(body.get("sharingRevoked").asBoolean()).isFalse();
+    }
+
+    @Test
+    void realBusinessNamesWithAmbiguousWordsAreShareableButProfanityIsNot() {
+        assertThat(MerchantService.nameReason("Dick's Sporting Goods")).isNull();
+        assertThat(MerchantService.nameReason("Kutti Store")).isNull();
+        assertThat(MerchantService.nameReason("Motherfucker Mart")).isEqualTo(NotShareableReason.NAME_OFFENSIVE);
     }
 }
