@@ -4,12 +4,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.groups.Tuple.tuple;
 
 import com.expenseanalyzer.processing.parser.common.ParsedStatement;
+import com.expenseanalyzer.processing.parser.common.ParserLimits;
 import com.expenseanalyzer.processing.parser.common.RowError;
 import com.expenseanalyzer.processing.parser.common.RowErrorCode;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.time.Duration;
 import java.time.LocalDate;
+import java.util.Arrays;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.Row;
@@ -141,5 +144,56 @@ class ExcelStatementParserTest {
             new Object[][] {{"Date", "Description", "Amount"}, {"06/01/2025", "Two", "-2.00"}}));
         assertThat(r.transactions()).hasSize(1);
         assertThat(r.transactions().get(0).rawDescription()).isEqualTo("One");
+    }
+
+    // ---- resource limits (SEC-016) ----
+
+    private static Object[][] rows(int n) {
+        Object[][] rows = new Object[n + 1][];
+        rows[0] = new Object[] {"Date", "Description", "Amount"};
+        for (int i = 1; i <= n; i++) {
+            rows[i] = new Object[] {"05/01/2025", "A", "-1"};
+        }
+        return rows;
+    }
+
+    @Test
+    void tooManyRowsFailsTheWholeWorkbook() throws IOException {
+        ParsedStatement r = parser.parse(new ByteArrayInputStream(workbook(rows(4))),
+                new ParserLimits(3, 50, Duration.ofSeconds(30)));
+        assertThat(r.transactions()).isEmpty();
+        assertThat(r.errors()).extracting(RowError::code).containsExactly(RowErrorCode.TOO_MANY_ROWS);
+    }
+
+    @Test
+    void rowCountAtTheLimitIsAcceptedExcludingHeader() throws IOException {
+        ParsedStatement r = parser.parse(new ByteArrayInputStream(workbook(rows(3))),
+                new ParserLimits(3, 50, Duration.ofSeconds(30)));
+        assertThat(r.errors()).isEmpty();
+        assertThat(r.transactions()).hasSize(3);
+    }
+
+    @Test
+    void tooManyColumnsFailsTheWholeWorkbook() throws IOException {
+        Object[][] wide = {{"Date", "Description", "Amount", "a", "b", "c", "d"}, {"05/01/2025", "A", "-1", "", "", "", "x"}};
+        ParsedStatement r = parser.parse(new ByteArrayInputStream(workbook(wide)),
+                new ParserLimits(100, 5, Duration.ofSeconds(30)));
+        assertThat(r.errors()).extracting(RowError::code).containsExactly(RowErrorCode.TOO_MANY_COLUMNS);
+    }
+
+    @Test
+    void exceedingTheTimeBudgetFailsTheWholeWorkbook() throws IOException {
+        ParsedStatement r = parser.parse(new ByteArrayInputStream(workbook(rows(10))),
+                new ParserLimits(100, 50, Duration.ZERO));
+        assertThat(r.transactions()).isEmpty();
+        assertThat(r.errors()).extracting(RowError::code).containsExactly(RowErrorCode.PARSE_TIMEOUT);
+    }
+
+    @Test
+    void truncatedWorkbookIsUnreadable() throws IOException {
+        byte[] full = workbook(rows(5));
+        byte[] cut = Arrays.copyOf(full, full.length / 2);
+        ParsedStatement r = parse(cut);
+        assertThat(r.errors()).extracting(RowError::code).containsExactly(RowErrorCode.UNREADABLE_FILE);
     }
 }

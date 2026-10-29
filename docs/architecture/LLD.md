@@ -550,6 +550,20 @@ OCR is not part of the initial mandatory implementation.
 
 ---
 
+## 8.4 Parser Resource Limits (implemented)
+
+| Limit | Default | Where | On breach |
+|---|---|---|---|
+| File size | 20 MB (`app.statement.upload.max-size-bytes`) | upload validator + multipart limit | `413`, nothing stored |
+| Data rows | 50,000 (`app.parser.max-rows`) | `ParserLimits.Budget` | whole file fails `TOO_MANY_ROWS` |
+| Cells per row | 50 (`app.parser.max-columns`) | `ParserLimits.Budget` (Excel: checked before cells are materialised) | whole file fails `TOO_MANY_COLUMNS` |
+| Description length | 2,048 chars | `StatementRowMapper` | row error `DESCRIPTION_TOO_LONG` |
+| Wall-clock time | 30 s (`app.parser.timeout`) | checked per row | whole file fails `PARSE_TIMEOUT` |
+| XLSX decompression | POI `ZipSecureFile` defaults (min inflate ratio 0.01) | POI | `UNREADABLE_FILE` |
+| Concurrency | Kafka listener concurrency (`app.worker.concurrency`, default 2) | worker | queued, not rejected |
+
+Only the first sheet of a workbook is read. Limit breaches fail the whole file rather than importing a prefix, because a partial import would understate spending.
+
 # 9. Transaction Validation
 
 Validation occurs before persistence.
