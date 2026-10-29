@@ -54,6 +54,9 @@ export function StatementsPage() {
   const [progress, setProgress] = useState<number | null>(null)
   const [dragging, setDragging] = useState(false)
   const [confirming, setConfirming] = useState<string | null>(null)
+  // A password-protected PDF waiting for its password.
+  const [locked, setLocked] = useState<File | null>(null)
+  const [password, setPassword] = useState('')
   const input = useRef<HTMLInputElement>(null)
   // Bumped to refetch: after an upload or delete, and while polling.
   const [version, setVersion] = useState(0)
@@ -81,14 +84,20 @@ export function StatementsPage() {
     return () => clearTimeout(id)
   }, [pending, statements])
 
-  async function upload(file: File) {
+  async function upload(file: File, pdfPassword?: string) {
     const invalid = validateStatementFile(file)
     setUploadError(invalid)
     if (invalid) return
     setProgress(0)
-    const outcome = await uploadStatement(file, setProgress)
+    const outcome = await uploadStatement(file, setProgress, pdfPassword)
     setProgress(null)
+    setPassword('')
     if (input.current) input.current.value = ''
+    const needsPassword =
+      !outcome.ok &&
+      (outcome.reason === 'PASSWORD_REQUIRED' ||
+        outcome.reason === 'WRONG_PASSWORD')
+    setLocked(needsPassword ? file : null)
     if (outcome.ok) {
       reload()
     } else {
@@ -106,8 +115,8 @@ export function StatementsPage() {
     <>
       <h1 className={shared.title}>Statements</h1>
       <p className={shared.lead}>
-        Upload a CSV or Excel export from your bank. Each transaction is read
-        once, even if your statements overlap.
+        Upload a CSV, Excel or PDF statement from your bank. Each transaction is
+        read once, even if your statements overlap.
       </p>
 
       <div
@@ -131,7 +140,7 @@ export function StatementsPage() {
           <input
             ref={input}
             type="file"
-            accept=".csv,.xls,.xlsx"
+            accept=".csv,.xls,.xlsx,.pdf"
             className={shared.visuallyHidden}
             disabled={progress !== null}
             onChange={(e) => {
@@ -140,7 +149,7 @@ export function StatementsPage() {
             }}
           />
         </label>
-        <p className={styles.hint}>CSV, .xls or .xlsx, up to 20 MB</p>
+        <p className={styles.hint}>CSV, .xls, .xlsx or PDF, up to 20 MB</p>
         {progress !== null && (
           <div className={styles.progress}>
             <progress value={progress} max={1} aria-label="Upload progress" />
@@ -153,6 +162,33 @@ export function StatementsPage() {
         <p className={shared.error} role="alert">
           {uploadError}
         </p>
+      )}
+
+      {locked && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            upload(locked, password)
+          }}
+        >
+          <label>
+            Password for {locked.name}{' '}
+            <input
+              type="password"
+              autoComplete="off"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </label>{' '}
+          <button
+            type="submit"
+            className={shared.button}
+            disabled={progress !== null}
+          >
+            Unlock and upload
+          </button>
+        </form>
       )}
 
       <section className={shared.section} aria-labelledby="uploaded">

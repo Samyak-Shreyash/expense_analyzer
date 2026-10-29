@@ -11,12 +11,19 @@ import com.expenseanalyzer.user.model.User;
 import com.expenseanalyzer.user.model.UserRole;
 import com.expenseanalyzer.user.repository.UserRepository;
 import com.jayway.jsonpath.JsonPath;
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.encryption.AccessPermission;
+import org.apache.pdfbox.pdmodel.encryption.StandardProtectionPolicy;
 import org.junit.jupiter.api.AfterEach;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.mock.web.MockPart;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -25,6 +32,8 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 import software.amazon.awssdk.core.exception.SdkClientException;
 
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Optional;
 import java.util.UUID;
@@ -186,13 +195,50 @@ class StatementControllerTest {
     }
 
     @Test
-    void pdfIsRejectedUntilAParserExists() throws Exception {
+    void unreadablePdfIsRejected() throws Exception {
         MockMultipartFile pdf = new MockMultipartFile("file", "s.pdf", "application/pdf",
                 "%PDF-1.7\n".getBytes(StandardCharsets.US_ASCII));
         mockMvc.perform(multipart("/api/statements").file(pdf).header("Authorization", bearer(ALICE)))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.reason").value("UNSUPPORTED_EXTENSION"));
+                .andExpect(jsonPath("$.reason").value("SIGNATURE_MISMATCH"));
         assertThat(statementRepository.count()).isZero();
+    }
+
+    private static MockMultipartFile encryptedPdf(String password) throws Exception {
+        try (PDDocument doc = new PDDocument(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            doc.addPage(new PDPage());
+            StandardProtectionPolicy policy = new StandardProtectionPolicy("owner", password, new AccessPermission());
+            policy.setEncryptionKeyLength(128);
+            doc.protect(policy);
+            doc.save(out);
+            return new MockMultipartFile("file", "s.pdf", "application/pdf", out.toByteArray());
+        }
+    }
+
+    @Test
+    void passwordProtectedPdfNeedsTheRightPassword() throws Exception {
+        MockMultipartFile pdf = encryptedPdf("1234");
+        mockMvc.perform(multipart("/api/statements").file(pdf).header("Authorization", bearer(ALICE)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.reason").value("PASSWORD_REQUIRED"));
+        mockMvc.perform(multipart("/api/statements").file(pdf).part(new MockPart("password", "wrong".getBytes(StandardCharsets.UTF_8)))
+                        .header("Authorization", bearer(ALICE)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.reason").value("WRONG_PASSWORD"));
+        assertThat(statementRepository.count()).isZero();
+    }
+
+    @Test
+    void passwordProtectedPdfIsStoredUnlocked() throws Exception {
+        mockMvc.perform(multipart("/api/statements").file(encryptedPdf("1234")).part(new MockPart("password", "1234".getBytes(StandardCharsets.UTF_8)))
+                        .header("Authorization", bearer(ALICE)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.format").value("PDF"));
+        ArgumentCaptor<InputStream> stored = ArgumentCaptor.forClass(InputStream.class);
+        verify(storage).store(anyString(), stored.capture(), anyLong(), anyString());
+        try (PDDocument doc = Loader.loadPDF(stored.getValue().readAllBytes())) {
+            assertThat(doc.isEncrypted()).isFalse();
+        }
     }
 
     @Test

@@ -12,6 +12,7 @@ import com.expenseanalyzer.processing.parser.common.RowError;
 import com.expenseanalyzer.processing.parser.common.RowErrorCode;
 import com.expenseanalyzer.processing.parser.csv.CsvStatementParser;
 import com.expenseanalyzer.processing.parser.excel.ExcelStatementParser;
+import com.expenseanalyzer.processing.parser.pdf.PdfStatementParser;
 import com.expenseanalyzer.processing.repository.ProcessedEventRepository;
 import com.expenseanalyzer.statement.model.Statement;
 import com.expenseanalyzer.statement.model.StatementStatus;
@@ -67,6 +68,7 @@ public class StatementProcessor {
     private final StatementStorage storage;
     private final CsvStatementParser csvParser;
     private final ExcelStatementParser excelParser;
+    private final PdfStatementParser pdfParser;
     private final JsonMapper jsonMapper;
     private final MerchantNormalizer merchantNormalizer;
     private final MerchantService merchantService;
@@ -74,7 +76,8 @@ public class StatementProcessor {
 
     public StatementProcessor(StatementRepository statementRepository, TransactionRepository transactionRepository,
                               ProcessedEventRepository processedEventRepository, StatementStorage storage,
-                              CsvStatementParser csvParser, ExcelStatementParser excelParser, JsonMapper jsonMapper,
+                              CsvStatementParser csvParser, ExcelStatementParser excelParser,
+                              PdfStatementParser pdfParser, JsonMapper jsonMapper,
                               MerchantNormalizer merchantNormalizer, MerchantService merchantService,
                               @Value("${app.parser.max-rows:50000}") int maxRows,
                               @Value("${app.parser.max-columns:50}") int maxColumns,
@@ -85,6 +88,7 @@ public class StatementProcessor {
         this.storage = storage;
         this.csvParser = csvParser;
         this.excelParser = excelParser;
+        this.pdfParser = pdfParser;
         this.jsonMapper = jsonMapper;
         this.merchantNormalizer = merchantNormalizer;
         this.merchantService = merchantService;
@@ -126,6 +130,7 @@ public class StatementProcessor {
             parsed = switch (s.getFormat()) {
                 case CSV -> csvParser.parse(in, limits);
                 case XLS, XLSX -> excelParser.parse(in, limits);
+                case PDF -> pdfParser.parse(in, limits);
             };
         } catch (StatementObjectNotFoundException ex) {
             fail(s, "FILE_MISSING");

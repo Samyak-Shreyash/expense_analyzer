@@ -16,7 +16,7 @@ export type StatementStatus =
 export type Statement = {
   id: string
   fileName: string
-  format: 'CSV' | 'XLS' | 'XLSX'
+  format: 'CSV' | 'XLS' | 'XLSX' | 'PDF'
   status: StatementStatus
   processingError: string | null
   createdAt: string
@@ -110,23 +110,30 @@ export const listStatements = () =>
 const UPLOAD_REASONS: Record<string, string> = {
   EMPTY_FILE: 'This file is empty.',
   FILE_TOO_LARGE: 'This file is larger than 20 MB.',
-  UNSUPPORTED_EXTENSION:
-    'Choose a CSV or Excel (.xls or .xlsx) file. PDF statements are not supported yet.',
+  UNSUPPORTED_EXTENSION: 'Choose a CSV, Excel (.xls or .xlsx) or PDF file.',
+  PASSWORD_REQUIRED: 'This PDF is password-protected. Enter its password.',
+  WRONG_PASSWORD: 'That password is incorrect. Try again.',
   MIME_TYPE_MISMATCH: "This file's type doesn't match its extension.",
   SIGNATURE_MISMATCH: "This file's contents don't match its extension.",
 }
 
 export type UploadOutcome =
   | { ok: true; statement: Statement }
-  | { ok: false; message: string; existingId?: string }
+  | { ok: false; message: string; existingId?: string; reason?: string }
 
 export async function uploadStatement(
   file: File,
   onProgress: (fraction: number) => void,
+  password?: string,
 ): Promise<UploadOutcome> {
   let res
   try {
-    res = await apiUpload('/statements', file, onProgress)
+    res = await apiUpload(
+      '/statements',
+      file,
+      onProgress,
+      password ? { password } : {},
+    )
   } catch {
     return {
       ok: false,
@@ -151,6 +158,7 @@ export async function uploadStatement(
   }
   return {
     ok: false,
+    reason: body.reason,
     message:
       (body.reason && UPLOAD_REASONS[body.reason]) ||
       'This file was not accepted.',
