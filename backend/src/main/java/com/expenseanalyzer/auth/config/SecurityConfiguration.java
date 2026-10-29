@@ -1,6 +1,5 @@
 package com.expenseanalyzer.auth.config;
 
-import com.expenseanalyzer.auth.dto.JwtTokenProvider;
 import com.expenseanalyzer.user.model.User;
 import com.expenseanalyzer.user.repository.UserRepository;
 
@@ -42,11 +41,9 @@ public class SecurityConfiguration {
 
     private static final Logger logger = LoggerFactory.getLogger(SecurityConfiguration.class);
     private final UserRepository userRepository;
-    private final JwtTokenProvider jwtTokenProvider;
 
-    public SecurityConfiguration(UserRepository userRepository, JwtTokenProvider jwtTokenProvider) {
+    public SecurityConfiguration(UserRepository userRepository) {
         this.userRepository = userRepository;
-        this.jwtTokenProvider = jwtTokenProvider;
         logger.debug("SecurityConfiguration initialized");
     }
 

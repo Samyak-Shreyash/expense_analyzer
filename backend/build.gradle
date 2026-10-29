@@ -9,7 +9,6 @@ ext {
 	logstashEncoderVersion = '7.4'
 	openTelemetryVersion = '1.33.0'
 	awsSdkVersion = '2.57.6'
-	springModulithVersion = "2.1.1"
 	springSecurityVersion = '7.2.0-M2' // Spring Security 7.x
 }
 
@@ -42,13 +41,11 @@ repositories {
 dependencies {
 	// Spring Boot Starters
 	implementation 'org.springframework.boot:spring-boot-starter-web'
-	implementation 'org.springframework.modulith:spring-modulith-starter-core'
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 
 	// Spring Boot Starter for @Value annotation support
-	implementation 'org.springframework.boot:spring-boot-starter'
 
 	// Spring Security 7.x (7.2.0-M2) - Core, OAuth2 JWT, Authorization Server, Web, Config
 	implementation "org.springframework.security:spring-security-core:${springSecurityVersion}"
@@ -86,11 +83,6 @@ dependencies {
 	// Statement processing events (outbox -> Kafka)
 	implementation 'org.springframework.boot:spring-boot-starter-kafka'
 
-	// JWT library for token generation
-	implementation 'io.jsonwebtoken:jjwt-api:0.12.6'
-	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
-	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
-
 	compileOnly 'org.projectlombok:lombok'
 	annotationProcessor 'org.projectlombok:lombok'
 	annotationProcessor 'org.springframework.boot:spring-boot-configuration-processor'
@@ -104,7 +96,6 @@ dependencies {
 	testImplementation 'org.springframework.boot:spring-boot-test-autoconfigure'
 	testImplementation 'org.mockito:mockito-core'
 	testImplementation 'org.mockito:mockito-junit-jupiter'
-	testImplementation 'org.springframework.modulith:spring-modulith-starter-test'
 	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
 	testImplementation 'org.testcontainers:testcontainers-junit-jupiter'
 	testImplementation 'org.testcontainers:testcontainers-postgresql'
@@ -122,7 +113,6 @@ dependencies {
 
 dependencyManagement {
 	imports {
-		mavenBom "org.springframework.modulith:spring-modulith-bom:${springModulithVersion}"
 		mavenBom "software.amazon.awssdk:bom:${awsSdkVersion}"
 	}
 }
