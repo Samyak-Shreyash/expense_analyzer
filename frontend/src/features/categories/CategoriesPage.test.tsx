@@ -190,6 +190,26 @@ describe('CategoriesPage', () => {
     await waitFor(() => expect(screen.queryByText('Food')).toBeNull())
   })
 
+  it('returns focus to the Delete button when a delete fails', async () => {
+    vi.mocked(finance.deleteCategory).mockRejectedValue(
+      new finance.ApiError(404, 'That category no longer exists.'),
+    )
+    renderPage()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Delete category Food' }),
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Food' }))
+
+    expect((await screen.findByRole('alert')).textContent).toMatch(
+      /no longer exists/,
+    )
+    await waitFor(() =>
+      expect(document.activeElement).toBe(
+        screen.getByRole('button', { name: 'Delete category Food' }),
+      ),
+    )
+  })
+
   it('sets a person default category', async () => {
     vi.mocked(finance.updatePerson).mockResolvedValue({
       id: 'p1',

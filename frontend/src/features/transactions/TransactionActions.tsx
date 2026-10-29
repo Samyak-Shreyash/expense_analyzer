@@ -35,7 +35,9 @@ export function TransactionActions({
   )
   const [bulk, setBulk] = useState(PICK)
   const [isPerson, setIsPerson] = useState(t.personId !== null)
-  const [name, setName] = useState(t.personName ?? t.description)
+  const [name, setName] = useState(
+    t.personName ?? t.normalizedDescription ?? t.description,
+  )
 
   const holder = t.personId ? t.personName : t.merchantName
 
@@ -151,27 +153,33 @@ export function TransactionActions({
           className={shared.button}
           disabled={isPerson && !name.trim()}
           onClick={() =>
-            save(async () => {
-              onSaved(
-                await setCounterparty(
-                  t.id,
-                  isPerson ? 'PERSON' : 'MERCHANT',
-                  isPerson ? name.trim() : undefined,
-                ),
-              )
-              reload()
-            }, 'Saved. This applies to every transaction with the same cleaned-up description.')
+            save(
+              async () => {
+                onSaved(
+                  await setCounterparty(
+                    t.id,
+                    isPerson ? 'PERSON' : 'MERCHANT',
+                    isPerson ? name.trim() : undefined,
+                  ),
+                )
+                reload()
+              },
+              t.normalizedDescription === null
+                ? 'Saved for this transaction.'
+                : 'Saved. This applies to every transaction with the same cleaned-up description.',
+            )
           }
         >
           Save
         </button>
       </fieldset>
 
-      {status && (
-        <p
-          className={status.ok ? shared.muted : shared.error}
-          role={status.ok ? 'status' : 'alert'}
-        >
+      {/* Always mounted so screen readers announce the text when it is swapped in. */}
+      <p className={shared.muted} role="status">
+        {status?.ok ? status.text : ''}
+      </p>
+      {status && !status.ok && (
+        <p className={shared.error} role="alert">
           {status.text}
         </p>
       )}

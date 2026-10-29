@@ -264,7 +264,7 @@ const CATEGORY_ERRORS = {
 }
 const PERSON_ERRORS = {
   400: 'Use a name of 1 to 100 characters.',
-  404: 'That person no longer exists. Reload the page.',
+  404: 'That person or category no longer exists. Reload the page.',
   409: 'You already have a person with that name.',
 }
 
@@ -299,9 +299,25 @@ export const updatePerson = (
 
 /** categoryId null clears the assignment. */
 export const setTransactionCategory = (id: string, categoryId: string | null) =>
-  write<Transaction>('PUT', `/transactions/${id}/category`, { categoryId }, {})
+  write<Transaction>(
+    'PUT',
+    `/transactions/${id}/category`,
+    { categoryId },
+    {
+      400: 'Could not use that category. Reload the page.',
+      404: 'That transaction or category no longer exists. Reload the page.',
+    },
+  )
 export const setMerchantCategory = (id: string, categoryId: string | null) =>
-  write<null>('PUT', `/merchants/${id}/category`, { categoryId }, {})
+  write<null>(
+    'PUT',
+    `/merchants/${id}/category`,
+    { categoryId },
+    {
+      400: 'Could not use that category. Reload the page.',
+      404: 'That merchant or category no longer exists. Reload the page.',
+    },
+  )
 /** share applies only while account sharing is on: omitted or true shares the name, false opts it out. */
 export const setTransactionMerchant = (
   id: string,
