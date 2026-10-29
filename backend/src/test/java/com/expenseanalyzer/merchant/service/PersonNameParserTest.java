@@ -22,7 +22,10 @@ class PersonNameParserTest {
             "BY TRANSFER-UPI/CR/412345678904/P2P/SUNITA RAO/SBIN~Sunita Rao",
             // ICICI
             "UPI/412345678905/P2A/VIKRAM SINGH/ICIC0000123/UPI~Vikram Singh",
-            "UPI/P2A/412345678906/ ANNA  D'SOUZA /ICICI Bank~Anna D'souza"})
+            "UPI/P2A/412345678906/ ANNA  D'SOUZA /ICICI Bank~Anna D'Souza",
+            // a dash is part of the name when the description uses / or | delimiters
+            "UPI/P2A/412345678907/MARY-ANNE JOSEPH/HDFC BANK~Mary-Anne Joseph",
+            "UPI|P2A|412345678908|D'SOUTA-RAO|HDFC BANK~D'Souta-Rao"})
     void extractsTitleCasedName(String description, String expected) {
         assertThat(PersonNameParser.parse(description)).contains(expected);
     }

@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.expenseanalyzer.auth.dto.JwtTokenProvider;
+import com.expenseanalyzer.category.model.UserMerchantCategory;
 import com.expenseanalyzer.category.repository.CategoryRepository;
 import com.expenseanalyzer.category.repository.UserMerchantCategoryRepository;
 import com.expenseanalyzer.merchant.model.Merchant;
@@ -217,7 +218,8 @@ class PeopleTest {
         UUID overridden = transaction(alice, "p2", "P2", null, rahul.getId());
         transaction(alice, "plain", "PLAIN", null, null);
         mockMvc.perform(put("/api/transactions/" + overridden + "/category").header("Authorization", bearer(ALICE))
-                .contentType(MediaType.APPLICATION_JSON).content("{\"categoryId\":\"" + gifts + "\"}"));
+                .contentType(MediaType.APPLICATION_JSON).content("{\"categoryId\":\"" + gifts + "\"}"))
+                .andExpect(status().isOk());
         String token = bearer(ALICE);
 
         mockMvc.perform(get("/api/transactions/" + viaPerson).header("Authorization", token))
@@ -267,5 +269,39 @@ class PeopleTest {
                 .andExpect(jsonPath("$.items[*].description", containsInAnyOrder("dangling-person")));
         mockMvc.perform(get("/api/transactions").param("category", "Uncategorized").header("Authorization", token))
                 .andExpect(jsonPath("$.items[*].description", containsInAnyOrder("dangling-none")));
+    }
+
+    @Test
+    void personWithoutCategoryFallsThroughToMerchantMappingAndHintInResolverAndFilter() throws Exception {
+        String pets = createCategory(ALICE, "Pets");
+        createCategory(ALICE, "Dining Out");
+        UUID zomato = merchantRepository.save(new Merchant("Zomato", "Dining Out")).getId();
+        mappingRepository.save(new UserMerchantCategory(alice.getId(), swiggy, UUID.fromString(pets)));
+        Person rahul = person(alice, "Rahul Sharma", null); // no category of its own
+        transaction(alice, "mapped", "M1", swiggy, rahul.getId());
+        transaction(alice, "hinted", "H1", zomato, rahul.getId());
+        String token = bearer(ALICE);
+
+        mockMvc.perform(get("/api/transactions").param("category", "Pets").header("Authorization", token))
+                .andExpect(jsonPath("$.items[*].description", containsInAnyOrder("mapped")))
+                .andExpect(jsonPath("$.items[0].category").value("Pets"));
+        mockMvc.perform(get("/api/transactions").param("category", "Dining Out").header("Authorization", token))
+                .andExpect(jsonPath("$.items[*].description", containsInAnyOrder("hinted")))
+                .andExpect(jsonPath("$.items[0].category").value("Dining Out"));
+        mockMvc.perform(get("/api/transactions").param("category", "Uncategorized").header("Authorization", token))
+                .andExpect(jsonPath("$.items.length()").value(0));
+    }
+
+    @Test
+    void counterpartyOnARowWithoutNormalizedDescriptionAffectsOnlyThatRow() throws Exception {
+        UUID target = transaction(alice, "no-norm-1", null, swiggy, null);
+        UUID sibling = transaction(alice, "no-norm-2", null, swiggy, null);
+
+        counterparty(ALICE, target, "{\"type\":\"PERSON\",\"name\":\"Rahul Sharma\"}", 200);
+
+        assertThat(transactionRepository.findById(target).orElseThrow().getPersonId()).isNotNull();
+        Transaction other = transactionRepository.findById(sibling).orElseThrow();
+        assertThat(other.getPersonId()).isNull();
+        assertThat(other.getMerchantId()).isEqualTo(swiggy);
     }
 }

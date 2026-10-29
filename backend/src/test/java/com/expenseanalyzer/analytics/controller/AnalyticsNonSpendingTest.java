@@ -20,6 +20,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -30,6 +31,8 @@ import org.springframework.web.context.WebApplicationContext;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -61,12 +64,15 @@ class AnalyticsNonSpendingTest {
     private CategoryService categoryService;
     @Autowired
     private UserMerchantCategoryRepository mappingRepository;
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
 
     @MockitoBean
     private UserRepository userRepository;
 
     private MockMvc mockMvc;
     private UUID alice;
+    private final List<UUID> merchantIds = new ArrayList<>();
 
     @BeforeEach
     void setUp() {
@@ -84,6 +90,7 @@ class AnalyticsNonSpendingTest {
         UUID savings = categoryRepository.save(new Category(alice, "Savings", false)).getId();
         UUID swiggy = merchantRepository.save(new Merchant("Swiggy", "Food & Dining")).getId();
         UUID amazon = merchantRepository.save(new Merchant("Amazon", "Shopping")).getId();
+        merchantIds.addAll(List.of(swiggy, amazon));
         mappingRepository.save(new UserMerchantCategory(alice, amazon, savings));
         Person ravi = new Person(alice, "Ravi");
         ravi.setCategoryId(repayment);
@@ -101,11 +108,11 @@ class AnalyticsNonSpendingTest {
 
     @AfterEach
     void cleanUp() {
-        transactionRepository.deleteAll();
-        mappingRepository.deleteAll();
-        personRepository.deleteAll();
-        merchantRepository.deleteAll();
-        categoryRepository.deleteAll();
+        for (String table : List.of("transactions", "user_merchant_categories", "people", "categories")) {
+            jdbcTemplate.update("DELETE FROM " + table + " WHERE user_id = ?", alice); // only this test's user
+        }
+        merchantRepository.deleteAllById(merchantIds);
+        merchantIds.clear();
     }
 
     private UUID defaultCategory(String name) {
@@ -152,6 +159,20 @@ class AnalyticsNonSpendingTest {
         call("merchants").andExpect(jsonPath("$.totalSpend").value(500.00))
                 .andExpect(jsonPath("$.items.length()").value(1))
                 .andExpect(jsonPath("$.items[0].name").value("Swiggy"));
+    }
+
+    @Test
+    void trendsSpanMonthsAndLeaveNonSpendingOutOfBothMonthsAndTheChange() throws Exception {
+        String bearer = "Bearer " + jwtTokenProvider.generateToken(new UsernamePasswordAuthenticationToken(ALICE, null));
+        mockMvc.perform(get("/api/analytics/trends").param("from", "2025-12-01").param("to", "2026-01-31")
+                        .header("Authorization", bearer))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.months.length()").value(2))
+                .andExpect(jsonPath("$.months[0].month").value("2025-12"))
+                .andExpect(jsonPath("$.months[0].outflow").value(400.00)) // the 100 to Ravi is Repayment
+                .andExpect(jsonPath("$.months[1].month").value("2026-01"))
+                .andExpect(jsonPath("$.months[1].outflow").value(500.00))
+                .andExpect(jsonPath("$.months[1].changePercent").value(25.00));
     }
 
     @Test

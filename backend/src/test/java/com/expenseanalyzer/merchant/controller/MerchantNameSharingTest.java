@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.expenseanalyzer.auth.dto.JwtTokenProvider;
+import com.expenseanalyzer.merchant.model.Merchant;
 import com.expenseanalyzer.merchant.repository.HiddenMerchantSuggestionRepository;
 import com.expenseanalyzer.merchant.repository.MerchantRepository;
 import com.expenseanalyzer.merchant.repository.MerchantSuggestionReportRepository;
@@ -80,6 +81,8 @@ class MerchantNameSharingTest {
     private JdbcTemplate jdbcTemplate;
     @Autowired
     private MerchantNameService merchantNameService;
+    @Autowired
+    private MerchantService merchantService;
 
     @MockitoBean
     private UserRepository userRepository;
@@ -456,8 +459,8 @@ class MerchantNameSharingTest {
     }
 
     private void reportRow(User u, String payeeKey, UUID merchantId, Duration age) {
-        jdbcTemplate.update("INSERT INTO merchant_suggestion_reports (user_id, payee_key, merchant_id, created_at) "
-                + "VALUES (?, ?, ?, ?)", u.getId(), payeeKey, merchantId, Timestamp.from(Instant.now().minus(age)));
+        jdbcTemplate.update("INSERT INTO merchant_suggestion_reports (user_id, payee_key, merchant_id, created_at, "
+                + "reporter_aged) VALUES (?, ?, ?, ?, FALSE)", u.getId(), payeeKey, merchantId, Timestamp.from(Instant.now().minus(age)));
     }
 
     @Test
@@ -479,6 +482,26 @@ class MerchantNameSharingTest {
         assertThat(suggestedFor(e, eRow)).isEqualTo("Acme Store");
         assertThat(hiddenRepository.findAll()).isEmpty();
         assertThat(strikeRepository.findAll()).isEmpty();
+    }
+
+    @Test
+    void aReportFiledByAYoungAccountNeverCountsEvenAfterTheAccountAges() throws Exception {
+        User a = user("a@example.com", true);
+        User b = user("b@example.com", true);
+        User c = user("c@example.com", false, 2);
+        User d = user("d@example.com", false);
+        UUID cRow = shownSuggestion(a, b, c);
+        UUID dRow = tx(d, ACME + "d");
+
+        report(c, cRow).andExpect(status().isNoContent()); // filed on day 2: not aged
+        assertThat(reportRepository.findAll()).extracting(r -> r.isReporterAged()).containsExactly(false);
+
+        Timestamp older = Timestamp.from(Instant.now().minus(Duration.ofDays(30)));
+        jdbcTemplate.update("UPDATE users SET created_at = ? WHERE id = ?", older, c.getId()); // c has aged since
+        report(d, dRow).andExpect(status().isNoContent());
+
+        assertThat(reportRepository.findAll()).extracting(r -> r.isReporterAged()).containsExactlyInAnyOrder(false, true);
+        assertThat(hiddenRepository.findAll()).isEmpty(); // 1 counted reporter < 2
     }
 
     @Test
@@ -581,6 +604,30 @@ class MerchantNameSharingTest {
                 .getErrorMessage();
         assertThat(body).isEqualTo("Too many reports; try again later");
         assertThat(reportRepository.findAll()).hasSize(11);
+    }
+
+    @Test
+    void concurrentFirstTimeAliasSavesForTheSamePayeeDoNotFail() throws Exception {
+        User a = user("a@example.com", false);
+        UUID acme = merchantRepository.save(new Merchant("Acme Store", null)).getId();
+        int threads = 4;
+        java.util.concurrent.CountDownLatch start = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(threads);
+        List<java.util.concurrent.Future<?>> results = new ArrayList<>();
+        for (int i = 0; i < threads; i++) {
+            results.add(pool.submit(() -> {
+                start.await();
+                merchantService.saveAlias(a.getId(), "ACME STORE", acme, "Acme Store");
+                return null;
+            }));
+        }
+        start.countDown();
+        for (java.util.concurrent.Future<?> f : results) {
+            f.get(30, java.util.concurrent.TimeUnit.SECONDS); // rethrows any failure
+        }
+        pool.shutdown();
+
+        assertThat(aliasRepository.findByUserId(a.getId())).hasSize(1);
     }
 
     @Test

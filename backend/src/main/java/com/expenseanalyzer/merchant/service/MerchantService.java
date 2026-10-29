@@ -70,6 +70,7 @@ public class MerchantService {
     /** Creates or repoints the user's alias for a payee key, keeping the user's own spelling. */
     @Transactional
     public void saveAlias(UUID userId, String payeeKey, UUID merchantId, String displayName) {
+        voteRepository.lockVoter(userId); // serialises this user's saves: no insert race on (user, payee)
         UserMerchantAlias alias = aliasRepository.findById(new UserMerchantAlias.Key(userId, payeeKey))
                 .orElseGet(() -> new UserMerchantAlias(userId, payeeKey, merchantId, displayName));
         alias.setMerchantId(merchantId);

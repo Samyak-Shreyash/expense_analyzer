@@ -12,7 +12,8 @@ import java.util.regex.Pattern;
  */
 public final class PersonNameParser {
 
-    private static final Pattern SEGMENT_SPLIT = Pattern.compile("[/|\\-]");
+    private static final Pattern SEGMENT_SPLIT = Pattern.compile("[/|]");
+    private static final Pattern DASH_SPLIT = Pattern.compile("-");
     private static final Pattern REFERENCE = Pattern.compile("\\d{9,}");
     private static final int MAX_LENGTH = 100;
     private static final Pattern TRANSFER_TOKEN = Pattern.compile("(?<![A-Z0-9])P2[AP](?![A-Z0-9])", Pattern.CASE_INSENSITIVE);
@@ -42,7 +43,9 @@ public final class PersonNameParser {
         if (rawDescription == null) {
             return Optional.empty();
         }
-        String[] parts = SEGMENT_SPLIT.split(rawDescription.trim());
+        String trimmed = rawDescription.trim();
+        // HDFC uses dashes as delimiters; with / or | present a dash belongs to the name (Mary-Anne).
+        String[] parts = (trimmed.contains("/") || trimmed.contains("|") ? SEGMENT_SPLIT : DASH_SPLIT).split(trimmed);
         boolean marked = false;
         int reference = -1;
         for (int i = 0; i < parts.length; i++) {
@@ -73,7 +76,7 @@ public final class PersonNameParser {
         boolean start = true;
         for (char c : s.toLowerCase(Locale.ROOT).toCharArray()) {
             out.append(start ? Character.toUpperCase(c) : c);
-            start = c == ' ' || c == '.';
+            start = c == ' ' || c == '.' || c == '-' || c == '\'';
         }
         return out.toString();
     }
