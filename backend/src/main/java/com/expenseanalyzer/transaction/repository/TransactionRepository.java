@@ -51,6 +51,11 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
     Page<Transaction> findAll(Pageable pageable);
 
     /** Removes a statement's transactions before the statement itself is deleted. */
+    /** Detaches the category from every transaction (the FK also does this on Postgres; H2 tests have no FK). */
+    @Modifying
+    @Query("UPDATE Transaction t SET t.categoryId = NULL WHERE t.categoryId = :categoryId")
+    void clearCategory(UUID categoryId);
+
     @Modifying
     @Query("DELETE FROM Transaction t WHERE t.statementId = :statementId")
     void deleteByStatementId(UUID statementId);
