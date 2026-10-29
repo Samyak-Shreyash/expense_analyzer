@@ -10,9 +10,9 @@ import {
 } from '../../services/finance'
 import styles from './TransactionsPage.module.css'
 
-// Filters edited in the form; merchantId and statementId are set by links elsewhere.
+// Filters edited in the form; merchantId, statementId and category are set by links elsewhere.
 const FORM_KEYS = ['q', 'from', 'to', 'direction'] as const
-const LINK_KEYS = ['merchantId', 'statementId'] as const
+const LINK_KEYS = ['merchantId', 'statementId', 'category'] as const
 
 export function TransactionsPage() {
   const [params, setParams] = useSearchParams()
@@ -119,7 +119,9 @@ export function TransactionsPage() {
         </button>
       </form>
 
-      {(params.get('merchantId') || params.get('statementId')) && (
+      {(params.get('merchantId') ||
+        params.get('statementId') ||
+        params.get('category')) && (
         <p className={styles.chips}>
           {params.get('merchantId') && (
             <span>
@@ -142,6 +144,18 @@ export function TransactionsPage() {
                 onClick={() => update({ statementId: '' })}
               >
                 Show all statements
+              </button>
+            </span>
+          )}
+          {params.get('category') && (
+            <span>
+              Category: {params.get('category')}.{' '}
+              <button
+                type="button"
+                className={shared.quiet}
+                onClick={() => update({ category: '' })}
+              >
+                Show all categories
               </button>
             </span>
           )}
@@ -211,9 +225,17 @@ export function TransactionsPage() {
                         )}
                       </td>
                       <td>
-                        {t.category ?? (
-                          <span className={shared.muted}>Uncategorised</span>
-                        )}
+                        <button
+                          type="button"
+                          className={shared.quiet}
+                          onClick={() =>
+                            update({ category: t.category ?? 'Uncategorized' })
+                          }
+                        >
+                          {t.category ?? (
+                            <span className={shared.muted}>Uncategorised</span>
+                          )}
+                        </button>
                       </td>
                       <td
                         className={`${shared.num} ${t.direction === 'DEBIT' ? shared.debit : shared.credit}`}

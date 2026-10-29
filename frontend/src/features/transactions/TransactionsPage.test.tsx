@@ -83,6 +83,43 @@ describe('TransactionsPage', () => {
     )
   })
 
+  it('filters by category from the table and clears it with the chip', async () => {
+    renderPage()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Food & Dining' }),
+    )
+    await waitFor(() =>
+      expect(finance.listTransactions).toHaveBeenLastCalledWith(
+        expect.objectContaining({ category: 'Food & Dining' }),
+      ),
+    )
+    expect(screen.getByText(/Category: Food & Dining/)).toBeTruthy()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show all categories' }))
+    await waitFor(() =>
+      expect(screen.getByTestId('location').textContent).toBe(''),
+    )
+  })
+
+  it('filters uncategorised transactions', async () => {
+    vi.mocked(finance.listTransactions).mockResolvedValue({
+      items: [{ ...swiggy, category: null }],
+      page: 0,
+      size: 50,
+      totalItems: 1,
+      totalPages: 1,
+    })
+    renderPage()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Uncategorised' }),
+    )
+    await waitFor(() =>
+      expect(finance.listTransactions).toHaveBeenLastCalledWith(
+        expect.objectContaining({ category: 'Uncategorized' }),
+      ),
+    )
+  })
+
   it('shows raw and normalised descriptions in the row detail', async () => {
     renderPage()
     fireEvent.click(await screen.findByRole('button', { name: /SWIGGY ORDER/ }))
