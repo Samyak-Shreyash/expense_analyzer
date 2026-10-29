@@ -11,9 +11,9 @@ import com.expenseanalyzer.merchant.model.UserMerchantAlias;
 import com.expenseanalyzer.merchant.repository.MerchantRepository;
 import com.expenseanalyzer.merchant.service.MerchantMatch;
 import com.expenseanalyzer.merchant.service.MerchantNormalizer;
+import com.expenseanalyzer.merchant.service.MerchantNameService;
 import com.expenseanalyzer.merchant.service.MerchantService;
 import com.expenseanalyzer.merchant.service.PayeeKey;
-import com.expenseanalyzer.merchant.service.PersonNameParser;
 import com.expenseanalyzer.merchant.service.PersonService;
 import com.expenseanalyzer.category.model.UserMerchantCategory;
 import com.expenseanalyzer.transaction.dto.CounterpartyRequest;
@@ -64,6 +64,7 @@ public class TransactionService {
     private final PersonService personService;
     private final MerchantNormalizer merchantNormalizer;
     private final MerchantService merchantService;
+    private final MerchantNameService merchantNameService;
 
     @Transactional // not readOnly: first access seeds the user's default categories
     public Page<TransactionResponse> list(String email, TransactionFilter f, Pageable pageable) {
@@ -179,11 +180,13 @@ public class TransactionService {
     }
 
     /**
-     * Names the merchant of an unmatched payment: finds or creates the merchant, remembers it for the payee and
-     * optionally shares it as a suggestion, and applies it (dropping any person) to all of the caller's transactions with the same payee key. Raw data is untouched.
+     * Names the merchant of an unmatched payment: finds or creates the merchant, remembers it for the payee, and
+     * applies it (dropping any person) to all of the caller's transactions with the same payee key. Whether the name
+     * is shared follows the account setting and {@code share} (see {@link MerchantNameService#afterNaming}). Raw data
+     * is untouched.
      */
     @Transactional
-    public TransactionResponse setMerchant(String email, UUID id, String name, boolean suggest) {
+    public TransactionResponse setMerchant(String email, UUID id, String name, Boolean share) {
         UUID userId = currentUser(email).getId();
         Transaction t = transactionRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
@@ -195,11 +198,6 @@ public class TransactionService {
         Merchant merchant = merchantService.resolve(new MerchantMatch(clean, clean, null, null));
         UUID merchantId = merchant.getId();
         merchantService.saveAlias(userId, key, merchantId, clean);
-        if (suggest && shareable(t)) {
-            merchantService.vote(userId, key, merchant);
-        } else {
-            merchantService.withdrawVote(userId, key);
-        }
         Instant now = Instant.now();
         List<Transaction> rows = transactionRepository.findByUserId(userId).stream()
                 .filter(r -> key.equals(PayeeKey.of(r.getRawDescription(), r.getNormalizedDescription()))).toList();
@@ -210,7 +208,25 @@ public class TransactionService {
             row.setUpdatedAt(now);
         }
         transactionRepository.saveAll(rows);
+        merchantNameService.afterNaming(userId, key, share);
         return response(t, userId);
+    }
+
+    /**
+     * Reports the suggestion currently shown on one of the caller's own transactions as offensive or wrong. Not
+     * yours, unknown, or showing no suggestion: 404.
+     */
+    @Transactional
+    public void reportSuggestion(String email, UUID id) {
+        UUID userId = currentUser(email).getId();
+        Transaction t = transactionRepository.findByIdAndUserId(id, userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        String key = t.getMerchantId() == null && shareable(t) ? PayeeKey.ofP2m(t.getRawDescription()).orElseThrow() : null;
+        UUID merchantId = key == null ? null : merchantService.suggestions(userId, Set.of(key)).get(key);
+        if (merchantId == null || suggestions(userId, List.of(t)).get(t.getId()) == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        }
+        merchantNameService.report(userId, key, merchantId);
     }
 
     private TransactionResponse response(Transaction t, UUID userId) {
@@ -225,13 +241,9 @@ public class TransactionService {
                 suggested);
     }
 
-    /**
-     * Only a UPI P2M merchant payment that is not a transfer to a person (no P2A/P2P token, no linked person) may be
-     * shared or receive a shared suggestion.
-     */
+    /** Whether the row may receive a shared suggestion; see {@link MerchantService#payeeReason}. */
     private static boolean shareable(Transaction t) {
-        return t.getPersonId() == null && !PersonNameParser.isTransfer(t.getRawDescription())
-                && PayeeKey.ofP2m(t.getRawDescription()).isPresent();
+        return MerchantService.payeeReason(t.getRawDescription(), t.getPersonId()) == null;
     }
 
     /**
@@ -270,7 +282,7 @@ public class TransactionService {
             return Map.of();
         }
         Map<UUID, String> names = merchantRepository.findAllById(winners.values()).stream()
-                .filter(m -> MerchantService.suggestable(m.getCanonicalName()))
+                .filter(m -> MerchantService.nameReason(m.getCanonicalName()) == null)
                 .collect(Collectors.toMap(Merchant::getId, Merchant::getCanonicalName));
         Map<UUID, String> out = new HashMap<>();
         keys.forEach((id, key) -> {

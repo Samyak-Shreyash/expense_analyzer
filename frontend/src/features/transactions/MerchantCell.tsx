@@ -1,8 +1,11 @@
 import { useId, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
+import { Link } from 'react-router'
 import shared from '../../components/shared.module.css'
+import { SHARING_WARNING } from '../categories/MerchantNamesPanel'
 import {
   ApiError,
+  reportSuggestion,
   setTransactionMerchant,
   type Transaction,
 } from '../../services/finance'
@@ -12,21 +15,25 @@ type Props = {
   t: Transaction
   /** Refetch the list: naming a payee changes every row with that payee. */
   reload: () => void
+  /** Account-level merchant-name sharing is on (and not revoked). */
+  sharing: boolean
 }
 
 /** Names the merchant of a payment no rule matched; applies to the same payee everywhere. */
-export function MerchantCell({ t, reload }: Props) {
+export function MerchantCell({ t, reload, sharing }: Props) {
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [suggest, setSuggest] = useState(false)
+  const [share, setShare] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [reporting, setReporting] = useState(false)
+  const [reported, setReported] = useState(false)
   const trigger = useRef<HTMLButtonElement>(null)
   const hintId = useId()
 
   function open() {
     setName('')
-    setSuggest(false)
+    setShare(true)
     setError(null)
     setEditing(true)
   }
@@ -36,11 +43,15 @@ export function MerchantCell({ t, reload }: Props) {
     trigger.current?.focus()
   }
 
-  async function submit(chosen: string, share: boolean, closeEditor: boolean) {
+  async function submit(
+    chosen: string,
+    shareIt: boolean | undefined,
+    closeEditor: boolean,
+  ) {
     setSaving(true)
     setError(null)
     try {
-      await setTransactionMerchant(t.id, chosen, share)
+      await setTransactionMerchant(t.id, chosen, shareIt)
       if (closeEditor) close()
       reload()
     } catch (e) {
@@ -50,21 +61,76 @@ export function MerchantCell({ t, reload }: Props) {
     }
   }
 
+  function cancelReport() {
+    flushSync(() => setReporting(false))
+    document.getElementById(`report-${t.id}`)?.focus()
+  }
+
+  async function confirmReport() {
+    setError(null)
+    try {
+      await reportSuggestion(t.id)
+      flushSync(() => {
+        setReporting(false)
+        setReported(true)
+      })
+      trigger.current?.focus()
+      reload()
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : 'Could not report that.')
+    }
+  }
+
   if (!editing) {
+    const suggested = reported ? null : t.suggestedMerchantName
     return (
       <>
-        {t.suggestedMerchantName && (
+        {suggested && (
           <span>
-            Suggested: {t.suggestedMerchantName}{' '}
+            Suggested: {suggested}{' '}
             <button
               type="button"
               className={shared.quiet}
               disabled={saving}
-              aria-label={`Use ${t.suggestedMerchantName} for ${t.description}`}
-              onClick={() => submit(t.suggestedMerchantName!, false, false)}
+              aria-label={`Use ${suggested} for ${t.description}`}
+              onClick={() => submit(suggested, false, false)}
             >
-              Use {t.suggestedMerchantName}
-            </button>
+              Use {suggested}
+            </button>{' '}
+            {reporting ? (
+              <span
+                role="group"
+                aria-label={`Report ${suggested}`}
+                onKeyDown={(e) => e.key === 'Escape' && cancelReport()}
+              >
+                Report this name as offensive or wrong?{' '}
+                <button
+                  type="button"
+                  className={shared.danger}
+                  onClick={confirmReport}
+                >
+                  Confirm
+                </button>{' '}
+                <button
+                  type="button"
+                  className={shared.quiet}
+                  autoFocus
+                  onClick={cancelReport}
+                >
+                  Cancel
+                </button>
+              </span>
+            ) : (
+              <button
+                type="button"
+                id={`report-${t.id}`}
+                className={shared.quiet}
+                aria-label={`Report suggested name ${suggested}`}
+                onClick={() => setReporting(true)}
+              >
+                Report
+              </button>
+            )}
           </span>
         )}
         <button
@@ -90,7 +156,7 @@ export function MerchantCell({ t, reload }: Props) {
       className={styles.categoryEditor}
       onSubmit={(e) => {
         e.preventDefault()
-        if (name.trim()) submit(name.trim(), suggest, true)
+        if (name.trim()) submit(name.trim(), sharing ? share : undefined, true)
       }}
       onKeyDown={(e) => {
         if (e.key === 'Escape') {
@@ -110,18 +176,26 @@ export function MerchantCell({ t, reload }: Props) {
           onChange={(e) => setName(e.target.value)}
         />
       </label>
-      <label>
-        <input
-          type="checkbox"
-          checked={suggest}
-          aria-describedby={hintId}
-          onChange={(e) => setSuggest(e.target.checked)}
-        />{' '}
-        Suggest this name to other users
-      </label>
-      <span id={hintId} className={shared.muted}>
-        Only the merchant name is shared, never your transactions.
-      </span>
+      {sharing ? (
+        <>
+          <label>
+            <input
+              type="checkbox"
+              checked={share}
+              aria-describedby={hintId}
+              onChange={(e) => setShare(e.target.checked)}
+            />{' '}
+            Share this name with other users
+          </label>
+          <span id={hintId} className={shared.muted}>
+            {SHARING_WARNING}
+          </span>
+        </>
+      ) : (
+        <Link to="/categories?tab=merchant-names" className={shared.muted}>
+          Sharing is off — manage in Merchant names
+        </Link>
+      )}
       <div className={styles.editorActions}>
         <button
           type="submit"
