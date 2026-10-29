@@ -5,7 +5,7 @@ import shared from '../../components/shared.module.css'
 import { dayLabel, rupees } from '../../lib/format'
 import {
   listCategories,
-  listMerchantNames,
+  getMerchantNameSettings,
   listTransactions,
   type Category,
   type Page,
@@ -43,7 +43,7 @@ export function TransactionsPage() {
     listCategories()
       .then(setCategories)
       .catch(() => {})
-    listMerchantNames()
+    getMerchantNameSettings()
       .then((m) => setSharing(m.shareMerchantNames && !m.sharingRevoked))
       .catch(() => {})
   }, [])
