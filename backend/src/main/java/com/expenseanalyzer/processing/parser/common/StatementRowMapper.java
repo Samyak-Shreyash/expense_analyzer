@@ -106,8 +106,9 @@ public class StatementRowMapper {
         return null;
     }
 
+    // Ungrouped, western (1,234,567) or Indian lakh/crore (12,34,567) grouping.
     private static final Pattern PLAIN_AMOUNT =
-            Pattern.compile("-?(\\d{1,3}(,\\d{3})+|\\d+)(\\.\\d+)?");
+            Pattern.compile("-?(\\d{1,3}(,\\d{3})+|\\d{1,2}(,\\d{2})+,\\d{3}|\\d+)(\\.\\d+)?");
 
     private static BigDecimal parseAmount(String s) {
         if (!PLAIN_AMOUNT.matcher(s).matches()) {

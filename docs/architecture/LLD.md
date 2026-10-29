@@ -568,7 +568,7 @@ Only the first sheet of a workbook is read. Limit breaches fail the whole file r
 
 - **Header row:** first non-empty row. Column names are matched case-insensitively: `Date`, `Description`, and either `Debit`/`Credit` or a signed `Amount`. Other columns are ignored.
 - **Dates:** `yyyy-MM-dd`, `dd/MM/yyyy`, `dd-MM-yyyy` (strict; day-first, as in Indian bank exports). XLSX date cells are read as dates.
-- **Amounts:** plain decimals with optional thousands separators (`1,23,456.78` is not accepted; `123,456.78` is), at most 2 decimals. Stored as positive `amount_cents` (amount x 100) plus a direction.
+- **Amounts:** plain decimals, optionally grouped western-style (`123,456.78`) or Indian lakh/crore-style (`1,23,456.78`); malformed grouping is rejected. At most 2 decimals. Stored as positive `amount_cents` (amount x 100) plus a direction.
 - **Direction:** Debit column -> `DEBIT`, Credit column -> `CREDIT`; a zero in the unused column is treated as blank; both or neither filled is `AMBIGUOUS_DIRECTION`. With a signed `Amount`, negative = `DEBIT`.
 - **Descriptions:** stored exactly as exported in `raw_description` (trimmed only), max 2,048 chars.
 - **Currency:** `INR` for now (no currency column is read).

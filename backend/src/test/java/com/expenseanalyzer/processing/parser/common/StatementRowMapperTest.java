@@ -92,6 +92,20 @@ class StatementRowMapperTest {
     }
 
     @Test
+    void indianLakhGroupingIsValid() {
+        assertThat(tx(amt.map(2, List.of("2025-12-31", "x", "1,23,456.78"))).amount()).isEqualByComparingTo("123456.78");
+        assertThat(tx(amt.map(2, List.of("2025-12-31", "x", "-12,34,56,789"))).amount()).isEqualByComparingTo("123456789");
+        assertThat(tx(dc.map(2, List.of("2025-12-31", "x", "85,000.00", ""))).amount()).isEqualByComparingTo("85000.00");
+    }
+
+    @Test
+    void malformedGroupingIsInvalid() {
+        for (String a : List.of("1,2345.00", "12,34", ",123", "123,", "1,23,4567")) {
+            err(amt.map(2, List.of("2025-12-31", "x", a)), RowErrorCode.INVALID_AMOUNT);
+        }
+    }
+
+    @Test
     void descriptionRules() {
         err(dc.map(2, List.of("2025-12-31", "  ", "1", "")), RowErrorCode.MISSING_DESCRIPTION);
         err(dc.map(2, List.of("2025-12-31", "a".repeat(2049), "1", "")), RowErrorCode.DESCRIPTION_TOO_LONG);
