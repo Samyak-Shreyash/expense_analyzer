@@ -50,8 +50,15 @@ public interface MerchantSuggestionVoteRepository
 
     List<MerchantSuggestionVote> findByUserId(UUID userId);
 
-    @Query("SELECT v.userId FROM MerchantSuggestionVote v WHERE v.payeeKey = :payeeKey AND v.merchantId = :merchantId")
-    List<UUID> voters(String payeeKey, UUID merchantId);
+    /** Voters for the pair whose vote was created before {@code before}. */
+    @Query("SELECT v.userId FROM MerchantSuggestionVote v WHERE v.payeeKey = :payeeKey AND v.merchantId = :merchantId "
+            + "AND v.createdAt < :before")
+    List<UUID> votersBefore(String payeeKey, UUID merchantId, Instant before);
+
+    /** Distinct voters for the pair whose account was created at or before {@code joinedBefore}. */
+    @Query("SELECT COUNT(DISTINCT v.userId) FROM MerchantSuggestionVote v, User u WHERE u.id = v.userId "
+            + "AND v.payeeKey = :payeeKey AND v.merchantId = :merchantId AND u.createdAt <= :joinedBefore")
+    long agedVoters(String payeeKey, UUID merchantId, Instant joinedBefore);
 
     @Modifying(flushAutomatically = true)
     @Query("DELETE FROM MerchantSuggestionVote v WHERE v.userId IN :userIds")

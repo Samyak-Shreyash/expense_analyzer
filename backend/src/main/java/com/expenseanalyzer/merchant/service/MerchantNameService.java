@@ -2,6 +2,7 @@ package com.expenseanalyzer.merchant.service;
 
 import com.expenseanalyzer.merchant.dto.MerchantNameItem;
 import com.expenseanalyzer.merchant.dto.MerchantNamesResponse;
+import com.expenseanalyzer.merchant.dto.SharingSettingsResponse;
 import com.expenseanalyzer.merchant.model.HiddenMerchantSuggestion;
 import com.expenseanalyzer.merchant.model.Merchant;
 import com.expenseanalyzer.merchant.model.MerchantSuggestionReport;
@@ -18,6 +19,8 @@ import com.expenseanalyzer.merchant.repository.SharingStrikeRepository;
 import com.expenseanalyzer.merchant.repository.UserMerchantAliasRepository;
 import com.expenseanalyzer.merchant.repository.UserMerchantAliasRepository.PayeeRow;
 import com.expenseanalyzer.user.repository.UserRepository;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -45,6 +48,10 @@ public class MerchantNameService {
 
     /** Distinct reporters that hide a suggestion for everyone; also the strikes that revoke a user's sharing. */
     static final int THRESHOLD = 2;
+    /** Strikes older than this no longer count toward revocation. */
+    static final Duration STRIKE_TTL = Duration.ofDays(180);
+    /** Suggestion reports one user may file per rolling 24 hours. */
+    static final int REPORTS_PER_DAY = 10;
 
     private final UserRepository userRepository;
     private final SharingSettingsRepository settingsRepository;
@@ -60,16 +67,23 @@ public class MerchantNameService {
     private record View(UserMerchantAlias alias, Merchant merchant, long transactionCount, NotShareableReason reason) {
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public MerchantNamesResponse list(String email) {
         return response(userId(email));
+    }
+
+    /** Just the caller's account-level flags; loads no names or transactions. */
+    @Transactional
+    public SharingSettingsResponse settings(String email) {
+        Settings s = effectiveSettings(userId(email));
+        return new SharingSettingsResponse(s.shareMerchantNames(), s.sharingRevoked());
     }
 
     /** Turns account-level sharing on (votes for every eligible, not opted-out name) or off (deletes all votes). */
     @Transactional
     public MerchantNamesResponse setSharing(String email, boolean enabled) {
         UUID userId = userId(email);
-        if (enabled && settingsRepository.settings(userId).sharingRevoked()) {
+        if (enabled && effectiveSettings(userId).sharingRevoked()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Sharing has been turned off for this account");
         }
         settingsRepository.setSharing(userId, enabled);
@@ -83,7 +97,7 @@ public class MerchantNameService {
         UUID userId = userId(email);
         UserMerchantAlias alias = aliasRepository.findByUserIdAndPublicId(userId, aliasId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
-        if (settingsRepository.settings(userId).sharingRevoked()) {
+        if (effectiveSettings(userId).sharingRevoked()) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Sharing has been turned off for this account");
         }
         alias.setShareOptOut(!shared);
@@ -98,7 +112,7 @@ public class MerchantNameService {
      */
     @Transactional
     public void afterNaming(UUID userId, String payeeKey, Boolean share) {
-        if (settingsRepository.settings(userId).sharing()) {
+        if (effectiveSettings(userId).sharing()) {
             aliasRepository.findById(new UserMerchantAlias.Key(userId, payeeKey)).ifPresent(alias -> {
                 alias.setShareOptOut(Boolean.FALSE.equals(share));
                 aliasRepository.save(alias);
@@ -108,23 +122,34 @@ public class MerchantNameService {
     }
 
     /**
-     * Records the user's report of a suggestion they were shown. Once {@link #THRESHOLD} distinct users reported the
-     * same pair it is hidden for everyone, each of its voters gets a strike, and voters with {@link #THRESHOLD}
-     * strikes lose sharing (flag set, sharing off, all votes deleted). The account itself is never touched.
+     * Records the user's report of a suggestion they were shown (it is hidden for them at once). Reports are serialised
+     * per merchant. The pair is hidden for everyone once its distinct reporters older than
+     * {@link MerchantService#VOTER_MIN_AGE} reach max({@link #THRESHOLD}, its aged distinct voters). Then each voter
+     * whose vote predates the pair's first report gets a strike, and voters with {@link #THRESHOLD} strikes from the
+     * last {@link #STRIKE_TTL} lose sharing (flag set, sharing off, all votes deleted). The account is never touched.
+     * More than {@link #REPORTS_PER_DAY} reports by one user in 24 hours: 429.
      */
     @Transactional
     public void report(UUID userId, String payeeKey, UUID merchantId) {
-        if (!reportRepository.existsById(new MerchantSuggestionReport.Key(userId, payeeKey, merchantId))) {
-            reportRepository.save(new MerchantSuggestionReport(userId, payeeKey, merchantId));
+        Instant now = Instant.now();
+        if (reportRepository.countByUserIdAndCreatedAtAfter(userId, now.minus(Duration.ofHours(24))) >= REPORTS_PER_DAY) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Too many reports; try again later");
         }
-        // ponytail: two concurrent reports can each count 1 and leave the pair visible to others; lock the pair if
-        // that ever matters (both reporters stop seeing it either way).
-        if (reportRepository.reporters(payeeKey, merchantId) < THRESHOLD
-                || hiddenRepository.existsById(new HiddenMerchantSuggestion.Key(payeeKey, merchantId))) {
+        reportRepository.lockMerchant(merchantId);
+        if (!reportRepository.existsById(new MerchantSuggestionReport.Key(userId, payeeKey, merchantId))) {
+            reportRepository.saveAndFlush(new MerchantSuggestionReport(userId, payeeKey, merchantId));
+        }
+        if (hiddenRepository.existsById(new HiddenMerchantSuggestion.Key(payeeKey, merchantId))) {
+            return;
+        }
+        Instant joinedBefore = now.minus(MerchantService.VOTER_MIN_AGE);
+        long reporters = reportRepository.agedReporters(payeeKey, merchantId, joinedBefore);
+        if (reporters < Math.max(THRESHOLD, voteRepository.agedVoters(payeeKey, merchantId, joinedBefore))) {
             return;
         }
         hiddenRepository.save(new HiddenMerchantSuggestion(payeeKey, merchantId));
-        List<UUID> voters = voteRepository.voters(payeeKey, merchantId);
+        List<UUID> voters = voteRepository.votersBefore(payeeKey, merchantId,
+                reportRepository.firstReportedAt(payeeKey, merchantId));
         if (voters.isEmpty()) {
             return;
         }
@@ -133,20 +158,40 @@ public class MerchantNameService {
                 strikeRepository.save(new SharingStrike(voter, payeeKey, merchantId));
             }
         }
-        List<UUID> revoked = strikeRepository.withAtLeast(voters, THRESHOLD);
+        strikeRepository.flush();
+        List<UUID> revoked = strikeRepository.withAtLeast(voters, THRESHOLD, now.minus(STRIKE_TTL));
         if (!revoked.isEmpty()) {
             settingsRepository.revoke(revoked);
             voteRepository.withdrawAll(revoked);
         }
     }
 
+    /**
+     * The user's flags, where a revocation holds only while {@link #THRESHOLD} strikes from the last
+     * {@link #STRIKE_TTL} remain; a lapsed one is cleared here (sharing stays off until the user turns it on).
+     */
+    private Settings effectiveSettings(UUID userId) {
+        Settings s = settingsRepository.settings(userId);
+        if (s.sharingRevoked() && strikeRepository.countByUserIdAndCreatedAtAfter(userId,
+                Instant.now().minus(STRIKE_TTL)) < THRESHOLD) {
+            settingsRepository.clearRevoked(userId);
+            return new Settings(s.shareMerchantNames(), false);
+        }
+        return s;
+    }
+
     private MerchantNamesResponse response(UUID userId) {
-        Settings settings = settingsRepository.settings(userId);
+        Settings settings = effectiveSettings(userId);
         List<View> views = views(userId);
         Map<String, UUID> votes = votes(userId);
+        // Only a pair the user votes for (or was struck for) may show as reported; never someone else's pair.
+        Set<String> involved = new HashSet<>();
+        votes.forEach((key, merchantId) -> involved.add(pair(key, merchantId)));
+        strikeRepository.findByUserId(userId).forEach(s -> involved.add(pair(s.getPayeeKey(), s.getMerchantId())));
         Set<String> reported = views.isEmpty() ? Set.of() : reportRepository.findByPayeeKeyIn(
                         views.stream().map(v -> v.alias().getPayeeKey()).toList()).stream()
-                .map(r -> pair(r.getPayeeKey(), r.getMerchantId())).collect(Collectors.toSet());
+                .map(r -> pair(r.getPayeeKey(), r.getMerchantId())).filter(involved::contains)
+                .collect(Collectors.toSet());
         List<MerchantNameItem> items = views.stream().map(v -> {
             UserMerchantAlias a = v.alias();
             NotShareableReason reason = v.reason();
@@ -189,7 +234,7 @@ public class MerchantNameService {
 
     /** Makes the user's votes match the invariant in the class comment. */
     private void sync(UUID userId, List<View> views) {
-        boolean sharing = settingsRepository.settings(userId).sharing();
+        boolean sharing = effectiveSettings(userId).sharing();
         Map<String, UUID> current = votes(userId);
         Set<String> keep = new HashSet<>();
         for (View v : views) {
