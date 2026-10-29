@@ -136,4 +136,19 @@ describe('StatementsPage', () => {
       ),
     ).toBeTruthy()
   })
+
+  it('moves focus into the delete confirmation and back out on Escape', async () => {
+    vi.mocked(finance.listStatements).mockResolvedValue(page([statement()]))
+    renderPage()
+
+    const del = await screen.findByRole('button', { name: 'Delete' })
+    fireEvent.click(del)
+    const keep = screen.getByRole('button', { name: 'Keep' })
+    expect(document.activeElement).toBe(keep)
+
+    fireEvent.keyDown(keep, { key: 'Escape' })
+    const reopened = screen.getByRole('button', { name: 'Delete' })
+    expect(document.activeElement).toBe(reopened)
+    expect(finance.deleteStatement).not.toHaveBeenCalled()
+  })
 })

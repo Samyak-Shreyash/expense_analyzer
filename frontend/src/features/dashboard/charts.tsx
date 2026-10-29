@@ -69,27 +69,30 @@ export function LedgerChart({ data }: { data: CashFlow }) {
         <span className={styles.keyIn}>Money in</span>
         <span className={styles.keyOut}>Money out</span>
       </figcaption>
-      <table className={shared.visuallyHidden}>
-        <caption>Cash flow by month</caption>
-        <thead>
-          <tr>
-            <th>Month</th>
-            <th>Money in</th>
-            <th>Money out</th>
-            <th>Net</th>
-          </tr>
-        </thead>
-        <tbody>
-          {data.months.map((m) => (
-            <tr key={m.month}>
-              <td>{monthLabel(m.month)}</td>
-              <td>{rupees(m.inflow)}</td>
-              <td>{rupees(m.outflow)}</td>
-              <td>{rupees(m.net)}</td>
+      {/* Tables ignore width: 1px, so the wrapper does the hiding. */}
+      <div className={shared.visuallyHidden}>
+        <table>
+          <caption>Cash flow by month</caption>
+          <thead>
+            <tr>
+              <th>Month</th>
+              <th>Money in</th>
+              <th>Money out</th>
+              <th>Net</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {data.months.map((m) => (
+              <tr key={m.month}>
+                <td>{monthLabel(m.month)}</td>
+                <td>{rupees(m.inflow)}</td>
+                <td>{rupees(m.outflow)}</td>
+                <td>{rupees(m.net)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </figure>
   )
 }
