@@ -22,10 +22,14 @@ public record ParserLimits(int maxRows, int maxColumns, Duration timeout) {
         public Budget() {
         }
 
-        public void checkRow(int columns) {
+        public void checkTime() {
             if (System.nanoTime() - deadlineNanos >= 0) {
                 throw new LimitExceeded(RowErrorCode.PARSE_TIMEOUT);
             }
+        }
+
+        public void checkRow(int columns) {
+            checkTime();
             if (columns > maxColumns) {
                 throw new LimitExceeded(RowErrorCode.TOO_MANY_COLUMNS);
             }

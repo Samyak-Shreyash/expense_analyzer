@@ -36,9 +36,10 @@ public class StatementController {
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<StatementResponse> upload(@AuthenticationPrincipal Jwt jwt,
-                                                    @RequestPart("file") MultipartFile file) {
+                                                    @RequestPart("file") MultipartFile file,
+                                                    @RequestPart(value = "password", required = false) String password) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(StatementResponse.from(statementService.upload(jwt.getSubject(), file)));
+                .body(StatementResponse.from(statementService.upload(jwt.getSubject(), file, password)));
     }
 
     @GetMapping

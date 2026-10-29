@@ -40,11 +40,12 @@ describe('validateStatementFile', () => {
     expect(validateStatementFile(file('JAN.XLSX', 10))).toBeNull()
   })
 
-  it('rejects other formats, including PDF', () => {
-    expect(validateStatementFile(file('jan.pdf', 10))).toBe(
-      'Choose a CSV or Excel (.xls or .xlsx) file. PDF statements are not supported yet.',
+  it('accepts XLS and PDF, rejects other formats', () => {
+    expect(validateStatementFile(file('jan.docx', 10))).toBe(
+      'Choose a CSV, Excel (.xls or .xlsx) or PDF file.',
     )
     expect(validateStatementFile(file('jan.xls', 10))).toBeNull()
+    expect(validateStatementFile(file('jan.pdf', 10))).toBeNull()
   })
 
   it('rejects empty and oversized files', () => {

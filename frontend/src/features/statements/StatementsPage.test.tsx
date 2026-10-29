@@ -52,11 +52,11 @@ describe('StatementsPage', () => {
 
   it('rejects an unsupported file before uploading anything', async () => {
     renderPage()
-    choose(new File(['%PDF'], 'jan.pdf'))
+    choose(new File(['x'], 'jan.docx'))
 
     expect(await screen.findByRole('alert')).toHaveProperty(
       'textContent',
-      'Choose a CSV or Excel (.xls or .xlsx) file. PDF statements are not supported yet.',
+      'Choose a CSV, Excel (.xls or .xlsx) or PDF file.',
     )
     expect(finance.uploadStatement).not.toHaveBeenCalled()
   })
@@ -77,6 +77,35 @@ describe('StatementsPage', () => {
     await waitFor(() => expect(finance.uploadStatement).toHaveBeenCalledOnce())
     expect(await screen.findByText('jan.csv')).toBeTruthy()
     expect(screen.getByText('Processing')).toBeTruthy()
+  })
+
+  it('asks for the password of a protected PDF and retries with it', async () => {
+    vi.mocked(finance.uploadStatement)
+      .mockResolvedValueOnce({
+        ok: false,
+        reason: 'PASSWORD_REQUIRED',
+        message: 'This PDF is password-protected. Enter its password.',
+      })
+      .mockResolvedValue({ ok: true, statement: statement() })
+    renderPage()
+    const pdf = new File(['%PDF'], 'jan.pdf')
+    choose(pdf)
+
+    fireEvent.change(await screen.findByLabelText(/password for jan.pdf/i), {
+      target: { value: '1234' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: /unlock and upload/i }))
+
+    await waitFor(() =>
+      expect(finance.uploadStatement).toHaveBeenLastCalledWith(
+        pdf,
+        expect.any(Function),
+        '1234',
+      ),
+    )
+    await waitFor(() =>
+      expect(screen.queryByLabelText(/password for/i)).toBeNull(),
+    )
   })
 
   it('explains why the server rejected a file', async () => {

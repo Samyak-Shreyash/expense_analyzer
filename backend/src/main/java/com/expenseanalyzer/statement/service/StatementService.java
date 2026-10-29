@@ -12,6 +12,8 @@ import com.expenseanalyzer.statement.repository.StatementRepository;
 import com.expenseanalyzer.transaction.repository.TransactionRepository;
 import com.expenseanalyzer.user.model.User;
 import com.expenseanalyzer.user.repository.UserRepository;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -25,6 +27,10 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.apache.pdfbox.Loader;
+import org.apache.pdfbox.io.IOUtils;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.encryption.InvalidPasswordException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -60,7 +66,7 @@ public class StatementService {
      * A storage failure rolls the metadata back. Queues processing via the outbox.
      */
     @Transactional
-    public Statement upload(String email, MultipartFile file) {
+    public Statement upload(String email, MultipartFile file, String password) {
         User user = currentUser(email);
         validator.validate(file.getOriginalFilename(), file.getContentType(), file.getSize(), head(file));
         StatementFormat format = format(file.getOriginalFilename());
@@ -70,6 +76,7 @@ public class StatementService {
         if (existing.isPresent()) {
             throw new DuplicateStatementException(existing.get().getId());
         }
+        byte[] pdf = format == StatementFormat.PDF ? unlockedPdf(file, password) : null;
 
         Statement s = new Statement();
         s.setUserId(user.getId());
@@ -83,8 +90,8 @@ public class StatementService {
 
         String key = StatementStorage.keyFor(user.getId(), s.getId());
         s.setStorageKey(key);
-        try (InputStream in = file.getInputStream()) {
-            storage.store(key, in, file.getSize(), file.getContentType());
+        try (InputStream in = pdf != null ? new ByteArrayInputStream(pdf) : file.getInputStream()) {
+            storage.store(key, in, pdf != null ? pdf.length : file.getSize(), file.getContentType());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -152,8 +159,39 @@ public class StatementService {
         if (name.endsWith(".xlsx")) {
             return StatementFormat.XLSX;
         }
-        // The validator accepts PDF, but no PDF parser exists yet (LLD 8.3).
+        if (name.endsWith(".pdf")) {
+            return StatementFormat.PDF;
+        }
         throw new InvalidFileException(Reason.UNSUPPORTED_EXTENSION, "This file format is not supported yet");
+    }
+
+    /**
+     * Returns the PDF without encryption, so background processing never needs the password.
+     * The password is used here only, in memory: never stored, queued or logged.
+     */
+    private static byte[] unlockedPdf(MultipartFile file, String password) {
+        byte[] original;
+        try {
+            original = file.getBytes();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        try (PDDocument doc = Loader.loadPDF(original, password == null ? "" : password, null, null,
+                IOUtils.createTempFileOnlyStreamCache())) {
+            if (!doc.isEncrypted()) {
+                return original;
+            }
+            doc.setAllSecurityToBeRemoved(true);
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            doc.save(out);
+            return out.toByteArray();
+        } catch (InvalidPasswordException e) {
+            boolean missing = password == null || password.isEmpty();
+            throw new InvalidFileException(missing ? Reason.PASSWORD_REQUIRED : Reason.WRONG_PASSWORD,
+                    missing ? "This PDF is password-protected" : "The PDF password is incorrect");
+        } catch (IOException e) {
+            throw new InvalidFileException(Reason.SIGNATURE_MISMATCH, "File content does not match its extension");
+        }
     }
 
     private static byte[] head(MultipartFile file) {

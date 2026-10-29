@@ -96,6 +96,7 @@ export async function apiUpload(
   path: string,
   file: File,
   onProgress: (fraction: number) => void,
+  fields: Record<string, string> = {},
 ): Promise<UploadResult> {
   const send = () =>
     new Promise<UploadResult>((resolve, reject) => {
@@ -118,6 +119,7 @@ export async function apiUpload(
       xhr.onerror = () => reject(new Error('network'))
       const form = new FormData()
       form.append('file', file)
+      for (const [k, v] of Object.entries(fields)) form.append(k, v)
       xhr.send(form)
     })
 
