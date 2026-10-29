@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
-import type { FormEvent } from 'react'
+import type { FormEvent, KeyboardEvent } from 'react'
 import { flushSync } from 'react-dom'
+import { useSearchParams } from 'react-router'
 import shared from '../../components/shared.module.css'
 import {
   createCategory,
@@ -13,6 +14,14 @@ import {
   type Person,
 } from '../../services/finance'
 import styles from './CategoriesPage.module.css'
+import { MerchantNamesPanel } from './MerchantNamesPanel'
+
+const TABS = [
+  { id: 'categories', label: 'Categories' },
+  { id: 'people', label: 'People' },
+  { id: 'merchant-names', label: 'Merchant names' },
+] as const
+type Tab = (typeof TABS)[number]['id']
 
 const message = (e: unknown) =>
   e instanceof Error ? e.message : 'Could not save that.'
@@ -88,6 +97,9 @@ function EditableName({
 }
 
 export function CategoriesPage() {
+  const [params, setParams] = useSearchParams()
+  const tab: Tab =
+    TABS.find((t) => t.id === params.get('tab'))?.id ?? 'categories'
   const [categories, setCategories] = useState<Category[] | null>(null)
   const [people, setPeople] = useState<Person[] | null>(null)
   const [loadError, setLoadError] = useState(false)
@@ -155,6 +167,32 @@ export function CategoriesPage() {
     }, setCategoryError).catch(() => {})
   }
 
+  function select(id: Tab) {
+    setParams(id === 'categories' ? {} : { tab: id }, { replace: true })
+  }
+
+  /** Arrow keys, Home and End move between tabs (automatic activation). */
+  function onTabKey(e: KeyboardEvent<HTMLButtonElement>) {
+    const i = TABS.findIndex((t) => t.id === tab)
+    const next = {
+      ArrowRight: (i + 1) % TABS.length,
+      ArrowLeft: (i - 1 + TABS.length) % TABS.length,
+      Home: 0,
+      End: TABS.length - 1,
+    }[e.key]
+    if (next === undefined) return
+    e.preventDefault()
+    flushSync(() => select(TABS[next].id))
+    document.getElementById(`tab-${TABS[next].id}`)?.focus()
+  }
+
+  const panel = (id: Tab) => ({
+    role: 'tabpanel',
+    id: `panel-${id}`,
+    'aria-labelledby': `tab-${id}`,
+    hidden: tab !== id,
+  })
+
   function keep(id: string) {
     flushSync(() => setConfirming(null))
     document.getElementById(`delete-${id}`)?.focus()
@@ -174,7 +212,26 @@ export function CategoriesPage() {
         </p>
       )}
 
-      <section className={shared.section} aria-labelledby="category-list">
+      <div role="tablist" aria-label="Sections" className={styles.tabs}>
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            id={`tab-${t.id}`}
+            aria-selected={tab === t.id}
+            aria-controls={`panel-${t.id}`}
+            tabIndex={tab === t.id ? 0 : -1}
+            className={tab === t.id ? styles.tabActive : styles.tab}
+            onClick={() => select(t.id)}
+            onKeyDown={onTabKey}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <section className={shared.section} {...panel('categories')}>
         <h2 id="category-list" tabIndex={-1}>
           Your categories
         </h2>
@@ -316,7 +373,7 @@ export function CategoriesPage() {
         )}
       </section>
 
-      <section className={shared.section} aria-labelledby="people">
+      <section className={shared.section} {...panel('people')}>
         <h2 id="people">People</h2>
         <p className={shared.muted}>
           Found from UPI transfers. A person's default category applies to their
@@ -389,6 +446,11 @@ export function CategoriesPage() {
             </table>
           </div>
         )}
+      </section>
+
+      <section className={shared.section} {...panel('merchant-names')}>
+        <h2 id="merchant-names">Merchant names</h2>
+        {tab === 'merchant-names' && <MerchantNamesPanel />}
       </section>
     </>
   )

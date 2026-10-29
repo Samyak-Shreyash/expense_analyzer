@@ -302,15 +302,16 @@ export const setTransactionCategory = (id: string, categoryId: string | null) =>
   write<Transaction>('PUT', `/transactions/${id}/category`, { categoryId }, {})
 export const setMerchantCategory = (id: string, categoryId: string | null) =>
   write<null>('PUT', `/merchants/${id}/category`, { categoryId }, {})
+/** share applies only while account sharing is on: omitted or true shares the name, false opts it out. */
 export const setTransactionMerchant = (
   id: string,
   name: string,
-  suggest = false,
+  share?: boolean,
 ) =>
   write<Transaction>(
     'PUT',
     `/transactions/${id}/merchant`,
-    { name, suggest },
+    { name, share },
     {
       400: 'Use a merchant name of 1 to 100 characters.',
       404: 'That transaction no longer exists. Reload the page.',
@@ -326,4 +327,57 @@ export const setCounterparty = (
     `/transactions/${id}/counterparty`,
     { type, name },
     { 400: 'Enter a name that looks like a person, up to 100 characters.' },
+  )
+
+/** Reports the suggestion shown on one of your transactions as offensive or wrong. */
+export const reportSuggestion = (id: string) =>
+  write<null>('POST', `/transactions/${id}/suggestion-report`, undefined, {
+    404: 'That suggestion is no longer shown. Reload the page.',
+  })
+
+// ---- merchant names ----
+
+export type NotShareableReason =
+  'TRANSFER' | 'NOT_UPI_MERCHANT' | 'NAME_NOT_ALLOWED' | 'NAME_OFFENSIVE'
+
+export type MerchantName = {
+  id: string
+  name: string
+  /** The payee this name matches (your own data). */
+  payee: string
+  transactionCount: number
+  /** True while the name is shared as a suggestion. */
+  shared: boolean
+  optedOut: boolean
+  shareable: boolean
+  notShareableReason: NotShareableReason | null
+  /** Someone reported this name as offensive or wrong. */
+  reported: boolean
+}
+
+export type MerchantNames = {
+  shareMerchantNames: boolean
+  sharingRevoked: boolean
+  items: MerchantName[]
+}
+
+const SHARING_ERRORS = {
+  403: 'Sharing has been turned off for your account.',
+  404: 'That name no longer exists. Reload the page.',
+}
+
+export const listMerchantNames = () => getJson<MerchantNames>('/merchant-names')
+export const setMerchantNameSharing = (enabled: boolean) =>
+  write<MerchantNames>(
+    'PUT',
+    '/merchant-names/sharing',
+    { enabled },
+    SHARING_ERRORS,
+  )
+export const setMerchantNameShared = (id: string, shared: boolean) =>
+  write<MerchantName>(
+    'PUT',
+    `/merchant-names/${id}/sharing`,
+    { shared },
+    SHARING_ERRORS,
   )
