@@ -16,7 +16,7 @@ export type StatementStatus =
 export type Statement = {
   id: string
   fileName: string
-  format: 'CSV' | 'XLSX'
+  format: 'CSV' | 'XLS' | 'XLSX'
   status: StatementStatus
   processingError: string | null
   createdAt: string
@@ -111,7 +111,7 @@ const UPLOAD_REASONS: Record<string, string> = {
   EMPTY_FILE: 'This file is empty.',
   FILE_TOO_LARGE: 'This file is larger than 20 MB.',
   UNSUPPORTED_EXTENSION:
-    'Choose a CSV or Excel (.xlsx) file. PDF statements are not supported yet.',
+    'Choose a CSV or Excel (.xls or .xlsx) file. PDF statements are not supported yet.',
   MIME_TYPE_MISMATCH: "This file's type doesn't match its extension.",
   SIGNATURE_MISMATCH: "This file's contents don't match its extension.",
 }

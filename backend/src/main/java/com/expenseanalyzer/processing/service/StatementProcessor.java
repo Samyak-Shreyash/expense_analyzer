@@ -125,7 +125,7 @@ public class StatementProcessor {
         try (InputStream in = storage.read(s.getStorageKey())) {
             parsed = switch (s.getFormat()) {
                 case CSV -> csvParser.parse(in, limits);
-                case XLSX -> excelParser.parse(in, limits);
+                case XLS, XLSX -> excelParser.parse(in, limits);
             };
         } catch (StatementObjectNotFoundException ex) {
             fail(s, "FILE_MISSING");

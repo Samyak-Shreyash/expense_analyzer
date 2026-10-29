@@ -80,6 +80,29 @@ class CsvStatementParserTest {
     }
 
     @Test
+    void parsesAxisBankExportWithPreambleAndTrailer() {
+        ParsedStatement r = parse("Name :- TEST USER\n"
+                + "Statement of Account No - 000000000000 for the period (From : 01-10-2026 To : 31-10-2026)\n"
+                + "\n"
+                + "SRL NO,Tran Date,CHQNO,PARTICULARS,DR,CR,BAL,SOL\n"
+                + "1,01-10-2026,,UPI/P2M/123/SWIGGY,450.00,,9550.00,123\n"
+                + "2,03-10-2026,,NEFT/ACME PAYROLL,,85000.00,94550.00,123\n"
+                + ",,,TRANSACTION TOTAL,450.00,85000.00,,\n");
+        assertThat(r.transactions()).extracting(t -> t.rawDescription(), t -> t.type())
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple("UPI/P2M/123/SWIGGY", "DEBIT"),
+                        org.assertj.core.groups.Tuple.tuple("NEFT/ACME PAYROLL", "CREDIT"));
+        assertThat(r.transactions().get(1).amount()).isEqualByComparingTo("85000.00");
+        assertThat(r.errors()).extracting(RowError::code).containsExactly(RowErrorCode.INVALID_DATE);
+    }
+
+    @Test
+    void findsHeaderAfterLongPreamble() {
+        ParsedStatement r = parse("note\n".repeat(100) + "Date,Description,Amount\n2026-10-01,Coffee,-4.50\n");
+        assertThat(r.transactions()).hasSize(1);
+    }
+
+    @Test
     void missingRequiredHeaderReturnsErrorNotException() {
         ParsedStatement r = parse("Foo,Bar\n1,2\n");
         assertThat(r.transactions()).isEmpty();

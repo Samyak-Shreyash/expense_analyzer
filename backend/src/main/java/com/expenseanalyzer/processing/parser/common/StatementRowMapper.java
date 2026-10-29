@@ -29,11 +29,22 @@ public class StatementRowMapper {
         for (String s : header) {
             h.add(s == null ? "" : s.trim().toLowerCase(Locale.ROOT));
         }
-        dateIdx = h.indexOf("date");
-        descIdx = h.indexOf("description");
-        debitIdx = h.indexOf("debit");
-        creditIdx = h.indexOf("credit");
-        amountIdx = h.indexOf("amount");
+        // Generic names first, then bank-specific ones (Axis: Tran Date, PARTICULARS, DR, CR).
+        dateIdx = indexOf(h, "date", "tran date");
+        descIdx = indexOf(h, "description", "particulars");
+        debitIdx = indexOf(h, "debit", "dr");
+        creditIdx = indexOf(h, "credit", "cr");
+        amountIdx = indexOf(h, "amount");
+    }
+
+    private static int indexOf(List<String> header, String... names) {
+        for (String n : names) {
+            int i = header.indexOf(n);
+            if (i >= 0) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     public boolean hasValidHeaders() {

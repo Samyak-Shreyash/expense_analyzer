@@ -1,6 +1,6 @@
 // Mirrors the backend upload rules (StatementFileValidator, app.statement.upload.max-size-bytes).
 export const MAX_UPLOAD_BYTES = 20 * 1024 * 1024
-const UPLOAD_EXTENSIONS = ['csv', 'xlsx']
+const UPLOAD_EXTENSIONS = ['csv', 'xls', 'xlsx']
 
 const INR = new Intl.NumberFormat('en-IN', {
   style: 'currency',
@@ -21,7 +21,7 @@ export function changeLabel(percent: number | null) {
 export function validateStatementFile(file: File) {
   const ext = file.name.split('.').pop()?.toLowerCase() ?? ''
   if (!UPLOAD_EXTENSIONS.includes(ext)) {
-    return 'Choose a CSV or Excel (.xlsx) file. PDF statements are not supported yet.'
+    return 'Choose a CSV or Excel (.xls or .xlsx) file. PDF statements are not supported yet.'
   }
   if (file.size === 0) return 'This file is empty.'
   if (file.size > MAX_UPLOAD_BYTES) return 'This file is larger than 20 MB.'
