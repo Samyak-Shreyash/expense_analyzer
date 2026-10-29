@@ -726,7 +726,7 @@ The source security model proposes:
 
 - AWS KMS/encrypted RDS storage;
 - SSE-S3 for S3;
-- equivalent encrypted storage for MinIO/local development.
+- equivalent encrypted storage for RustFS/local development.
 
 ## 12.3 Application-Level Encryption
 
@@ -1799,7 +1799,7 @@ Opaque IDs are useful but never substitute for authorization.
 | IDOR | Ownership authorization | Service/repository | Cross-user tests |
 | Privilege escalation | RBAC | Security layer | Role tests |
 | DB leak | Encryption/least privilege | PostgreSQL | Deployment review |
-| Object leak | Private storage | S3/MinIO | Storage tests |
+| Object leak | Private storage | S3/RustFS | Storage tests |
 | Malicious upload | File validation | Statement API | Upload tests |
 | Parser DoS | Resource limits | Worker/parser | Resilience tests |
 | Log leakage | Redaction | Logging | Log tests |

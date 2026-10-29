@@ -33,7 +33,7 @@ The initial implementation is a **Spring Boot modular monolith** with asynchrono
 | Persistence | PostgreSQL |
 | ORM/data access | Spring Data JPA / Hibernate |
 | Database migrations | Flyway |
-| Object storage | S3-compatible abstraction; MinIO locally |
+| Object storage | S3-compatible abstraction; RustFS locally |
 | Async processing | Broker/job abstraction; RabbitMQ is a reasonable early implementation |
 | Cache | Redis only when justified |
 | Authentication | Token/session mechanism behind an auth abstraction |

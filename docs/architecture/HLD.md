@@ -49,7 +49,7 @@ PostgreSQL  Object     Queue/Broker
 System of record for users, accounts, statements, transactions, merchants, categories, recurring expenses, insights, and audit metadata.
 
 ### Object Storage
-Store original uploaded statements. Use an abstraction so S3/MinIO/provider can change without domain coupling.
+Store original uploaded statements. Use an abstraction so S3/RustFS/provider can change without domain coupling.
 
 ### Queue/Broker
 Used for long-running document processing and downstream asynchronous work. RabbitMQ is a reasonable early option for job/command semantics; Kafka can be evaluated when event-stream scale or replay requirements justify it.
