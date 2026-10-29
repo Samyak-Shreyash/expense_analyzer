@@ -7,6 +7,7 @@ import com.expenseanalyzer.category.model.UserMerchantCategory;
 import com.expenseanalyzer.category.repository.CategoryRepository;
 import com.expenseanalyzer.category.repository.UserMerchantCategoryRepository;
 import com.expenseanalyzer.merchant.repository.MerchantRepository;
+import com.expenseanalyzer.merchant.repository.PersonRepository;
 import com.expenseanalyzer.merchant.service.MerchantNormalizer;
 import com.expenseanalyzer.transaction.repository.TransactionRepository;
 import com.expenseanalyzer.user.model.User;
@@ -36,6 +37,7 @@ public class CategoryService {
     private final UserRepository userRepository;
     private final UserMerchantCategoryRepository merchantCategoryRepository;
     private final MerchantRepository merchantRepository;
+    private final PersonRepository personRepository;
 
     public UUID userId(String email) {
         return userRepository.findByEmail(email).map(User::getId)
@@ -82,12 +84,13 @@ public class CategoryService {
         return category;
     }
 
-    /** Clears every reference to the category, then deletes it. Task 3 adds its reference table here. */
+    /** Clears every reference to the category, then deletes it. */
     @Transactional
     public void delete(String email, UUID id) {
         Category category = owned(userId(email), id);
         transactionRepository.clearCategory(id);
         merchantCategoryRepository.deleteByCategoryId(id);
+        personRepository.clearCategory(id);
         categoryRepository.delete(category);
     }
 

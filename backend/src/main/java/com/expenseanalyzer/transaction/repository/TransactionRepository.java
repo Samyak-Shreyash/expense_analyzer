@@ -52,13 +52,16 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
 
     /** Removes a statement's transactions before the statement itself is deleted. */
     /** Detaches the category from every transaction (the FK also does this on Postgres; H2 tests have no FK). */
-    @Modifying
+    @Modifying(clearAutomatically = true)
     @Query("UPDATE Transaction t SET t.categoryId = NULL WHERE t.categoryId = :categoryId")
     void clearCategory(UUID categoryId);
 
     @Modifying
     @Query("DELETE FROM Transaction t WHERE t.statementId = :statementId")
     void deleteByStatementId(UUID statementId);
+
+    /** The user's transactions sharing a normalized description (counterparty corrections apply to all of them). */
+    List<Transaction> findByUserIdAndNormalizedDescription(UUID userId, String normalizedDescription);
 
     /** Which of these fingerprints the user already has. */
     @Query("SELECT t.transactionFingerprint FROM Transaction t WHERE t.userId = :userId AND t.transactionFingerprint IN :fingerprints")

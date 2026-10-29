@@ -3,6 +3,7 @@ package com.expenseanalyzer.transaction.dto;
 import com.expenseanalyzer.analytics.service.SpendingAnalyticsService;
 import com.expenseanalyzer.category.model.Category;
 import com.expenseanalyzer.merchant.model.Merchant;
+import com.expenseanalyzer.merchant.model.Person;
 import com.expenseanalyzer.transaction.model.Transaction;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -17,18 +18,20 @@ import java.util.UUID;
 public record TransactionResponse(UUID id, LocalDate date, String description, String normalizedDescription,
                                   BigDecimal amount, String currency, String direction, UUID merchantId,
                                   String merchantName, UUID categoryId, String category, boolean categoryOverridden,
-                                  UUID statementId) {
+                                  UUID statementId, UUID personId, String personName) {
 
     /**
      * @param merchant  the transaction's merchant, or null when it has none
+     * @param person    the transaction's person, or null when it has none
      * @param effective the transaction's effective category, or null for Uncategorized
      */
-    public static TransactionResponse from(Transaction t, Merchant merchant, Category effective) {
+    public static TransactionResponse from(Transaction t, Merchant merchant, Person person, Category effective) {
         return new TransactionResponse(t.getId(), LocalDate.ofInstant(t.getDate(), ZoneOffset.UTC),
                 t.getRawDescription(), t.getNormalizedDescription(), t.getAmount(), t.getCurrency(), t.getType(),
                 t.getMerchantId(), merchant == null ? null : merchant.getCanonicalName(),
                 effective == null ? null : effective.getId(),
                 effective == null ? SpendingAnalyticsService.UNCATEGORIZED : effective.getName(),
-                t.getCategoryId() != null, t.getStatementId());
+                t.getCategoryId() != null, t.getStatementId(), t.getPersonId(),
+                person == null ? null : person.getName());
     }
 }

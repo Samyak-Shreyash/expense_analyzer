@@ -78,6 +78,10 @@ public class Transaction {
     @Column(name = "category_id", nullable = true)
     private UUID categoryId;
 
+    /** The person this money went to (UPI P2A/P2P transfer); mutually exclusive with merchantId. */
+    @Column(name = "person_id", nullable = true)
+    private UUID personId;
+
     /**
      * Transaction amount in cents (to avoid floating point issues).
      * Using BigDecimal for financial accuracy.
