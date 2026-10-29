@@ -220,7 +220,7 @@ function ShareCell({
       <label className={styles.check}>
         <input
           type="checkbox"
-          checked={on ? item.shared : item.shareable && !item.optedOut}
+          checked={on && item.shared}
           disabled={!on || revoked || !item.shareable}
           aria-describedby={hintId}
           onChange={(e) => onSave(e.target.checked)}
