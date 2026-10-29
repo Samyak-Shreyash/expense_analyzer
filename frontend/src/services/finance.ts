@@ -300,6 +300,16 @@ export const setTransactionCategory = (id: string, categoryId: string | null) =>
   write<Transaction>('PUT', `/transactions/${id}/category`, { categoryId }, {})
 export const setMerchantCategory = (id: string, categoryId: string | null) =>
   write<null>('PUT', `/merchants/${id}/category`, { categoryId }, {})
+export const setTransactionMerchant = (id: string, name: string) =>
+  write<Transaction>(
+    'PUT',
+    `/transactions/${id}/merchant`,
+    { name },
+    {
+      400: 'Use a merchant name of 1 to 100 characters.',
+      404: 'That transaction no longer exists. Reload the page.',
+    },
+  )
 export const setCounterparty = (
   id: string,
   type: 'PERSON' | 'MERCHANT',

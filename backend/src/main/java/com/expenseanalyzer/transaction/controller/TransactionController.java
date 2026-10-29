@@ -3,6 +3,7 @@ package com.expenseanalyzer.transaction.controller;
 import com.expenseanalyzer.category.dto.CategoryAssignment;
 import com.expenseanalyzer.common.dto.PageResponse;
 import com.expenseanalyzer.transaction.dto.CounterpartyRequest;
+import com.expenseanalyzer.transaction.dto.MerchantNameRequest;
 import com.expenseanalyzer.transaction.dto.TransactionFilter;
 import com.expenseanalyzer.transaction.dto.TransactionResponse;
 import com.expenseanalyzer.transaction.model.TransactionDirection;
@@ -73,5 +74,11 @@ public class TransactionController {
     public TransactionResponse setCounterparty(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
                                                @RequestBody CounterpartyRequest body) {
         return transactionService.setCounterparty(jwt.getSubject(), id, body);
+    }
+
+    @PutMapping("/{id}/merchant")
+    public TransactionResponse setMerchant(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
+                                           @RequestBody MerchantNameRequest body) {
+        return transactionService.setMerchant(jwt.getSubject(), id, body.name());
     }
 }
