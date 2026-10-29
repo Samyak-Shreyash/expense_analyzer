@@ -49,4 +49,15 @@ public final class AnalyticsDtos {
 
     public record Trends(LocalDate from, LocalDate to, String currency, List<MonthlyTrend> months) {
     }
+
+    public record PersonSpend(UUID personId, String name, BigDecimal spend, long transactionCount) {
+    }
+
+    public record NonSpendingCategory(String category, BigDecimal spend, BigDecimal sharePercent,
+                                      long transactionCount, List<PersonSpend> people) {
+    }
+
+    public record NonSpendingBreakdown(LocalDate from, LocalDate to, String currency, BigDecimal total,
+                                       List<NonSpendingCategory> items) {
+    }
 }
