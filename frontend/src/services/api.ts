@@ -85,3 +85,49 @@ export async function apiFetch(path: string, init: RequestInit = {}) {
   }
   return res
 }
+
+export type UploadResult = { status: number; body: unknown }
+
+/**
+ * Multipart upload with progress (fetch can't report upload progress).
+ * Same auth rules as apiFetch: Bearer token, one refresh on 401.
+ */
+export async function apiUpload(
+  path: string,
+  file: File,
+  onProgress: (fraction: number) => void,
+): Promise<UploadResult> {
+  const send = () =>
+    new Promise<UploadResult>((resolve, reject) => {
+      const xhr = new XMLHttpRequest()
+      xhr.open('POST', API_BASE_URL + path)
+      if (accessToken)
+        xhr.setRequestHeader('Authorization', `Bearer ${accessToken}`)
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) onProgress(e.loaded / e.total)
+      }
+      xhr.onload = () => {
+        let body: unknown = null
+        try {
+          body = JSON.parse(xhr.responseText)
+        } catch {
+          // empty or non-JSON body
+        }
+        resolve({ status: xhr.status, body })
+      }
+      xhr.onerror = () => reject(new Error('network'))
+      const form = new FormData()
+      form.append('file', file)
+      xhr.send(form)
+    })
+
+  let res = await send()
+  if (res.status === 401 && (await refresh())) {
+    res = await send()
+  }
+  if (res.status === 401) {
+    accessToken = null
+    onAuthLost()
+  }
+  return res
+}

@@ -1,6 +1,7 @@
 package com.expenseanalyzer.processing.parser.excel;
 
 import com.expenseanalyzer.processing.parser.common.ParsedStatement;
+import com.expenseanalyzer.processing.parser.common.ParserLimits;
 import com.expenseanalyzer.processing.parser.common.ParsedTransaction;
 import com.expenseanalyzer.processing.parser.common.RowError;
 import com.expenseanalyzer.processing.parser.common.RowErrorCode;
@@ -22,12 +23,20 @@ import org.springframework.stereotype.Component;
 public class ExcelStatementParser {
 
     public ParsedStatement parse(InputStream in) {
+        return parse(in, ParserLimits.DEFAULTS);
+    }
+
+    public ParsedStatement parse(InputStream in, ParserLimits limits) {
         try (XSSFWorkbook wb = new XSSFWorkbook(in)) {
             Sheet sheet = wb.getSheetAt(0);
             StatementRowMapper mapper = null;
             List<ParsedTransaction> txns = new ArrayList<>();
             List<RowError> errors = new ArrayList<>();
+            ParserLimits.Budget budget = limits.new Budget();
             for (Row row : sheet) {
+                if (mapper != null) {
+                    budget.checkRow(Math.max(row.getLastCellNum(), 0)); // data rows only, before materialising cells
+                }
                 List<String> cells = cells(row);
                 if (cells.stream().allMatch(String::isEmpty)) {
                     continue;
@@ -50,6 +59,8 @@ public class ExcelStatementParser {
                 return ParsedStatement.failed(new RowError(1, RowErrorCode.MISSING_HEADER, null));
             }
             return new ParsedStatement(txns, errors);
+        } catch (ParserLimits.LimitExceeded e) {
+            return ParsedStatement.failed(new RowError(0, e.code(), null));
         } catch (Exception e) { // corrupt/non-xlsx input: POI throws assorted runtime exceptions
             return ParsedStatement.failed(new RowError(0, RowErrorCode.UNREADABLE_FILE, null));
         }

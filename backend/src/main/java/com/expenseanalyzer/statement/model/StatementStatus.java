@@ -1,9 +1,6 @@
 package com.expenseanalyzer.statement.model;
 
-/** Processing state of an uploaded statement. */
+/** Processing lifecycle of an uploaded statement (LLD section 7). */
 public enum StatementStatus {
-    QUEUED,
-    PROCESSING,
-    PROCESSED,
-    FAILED
+    UPLOADED, QUEUED, PROCESSING, COMPLETED, FAILED
 }

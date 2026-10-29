@@ -64,78 +64,83 @@ Delete/archive an account according to retention rules.
 
 ## 4. Statements
 
-Statement endpoints are served under `/api/statements` (not `/api/v1`). All require a bearer JWT (401 otherwise). The caller is taken from the token, never from request parameters. Every read and write is scoped to the owner: a statement owned by someone else is reported as 404, never 403.
+### POST `/statements`
+Implemented as `POST /api/statements`, `multipart/form-data` with one part named `file`.
 
-Status values: `QUEUED`, `PROCESSING`, `PROCESSED`, `FAILED`. An upload persists the statement as `QUEUED`; no broker handoff exists yet (tracked in #189).
+- **Formats:** `.csv` (UTF-8 text) and `.xlsx`. Extension, MIME type and leading bytes must agree. PDF is rejected until a PDF parser exists.
+- **Limits:** `app.statement.upload.max-size-bytes` (default 20 MB).
+- **Idempotency:** files are de-duplicated by SHA-256 per user. Re-uploading an identical file returns `409` with the existing `statementId`, so retries are safe.
+- **Account selection:** not yet supported (no accounts module).
 
-Account selection is deferred: upload takes no account field until an Account module exists. Account fields on a statement are filled after parsing.
-
-Errors are Problem Details bodies (`application/problem+json`). Invalid-file errors carry `title: "Invalid file"` and a `reason` property. Other errors added by the upload endpoint carry a `code` property (see below).
-
-### POST `/api/statements`
-Multipart upload (`multipart/form-data`) with a single part named `file`. Accepted formats: CSV, XLSX, PDF. PDF files are stored and queued like the others; parsing them is not yet available. Maximum size is 20 MB, set by `app.statement.upload.max-size-bytes` (default `20971520`).
-
-Duplicate detection is idempotent per user on the SHA-256 of the file content.
-
-Response `202 Accepted`:
+Response `201`:
 ```json
-{
-  "id": "stmt_123",
-  "status": "QUEUED",
-  "fileName": "statement.csv"
-}
+{ "id": "uuid", "fileName": "statement.csv", "format": "CSV", "status": "QUEUED",
+  "processingError": null, "createdAt": "...", "completedAt": null }
 ```
 
-| Status | When | Body |
+Errors (RFC 7807 `ProblemDetail`):
+
+| Status | When | Extra fields |
 |---|---|---|
-| 202 | Accepted and stored | `{id, status: "QUEUED", fileName}` |
-| 400 | Missing, empty, unsupported or mismatched file | `reason`: `EMPTY_FILE`, `UNSUPPORTED_EXTENSION`, `MIME_TYPE_MISMATCH` or `SIGNATURE_MISMATCH` |
-| 400 | Multipart request has no `file` part | `code: "STATEMENT_FILE_MISSING"` |
-| 401 | Missing or invalid token | |
-| 409 | Same user already uploaded identical content | `code: "STATEMENT_DUPLICATE"`; reveals only the existing statement `id` |
-| 413 | File larger than the maximum size | `reason: "FILE_TOO_LARGE"` |
-| 503 | Object storage failure | `code: "STATEMENT_STORAGE_UNAVAILABLE"` |
+| 400 | empty, wrong extension/MIME/signature, unsupported format | `reason` |
+| 401 | missing/invalid bearer token | |
+| 409 | identical file already uploaded by this user | `statementId` |
+| 413 | file too large | `reason=FILE_TOO_LARGE` |
+| 503 | object storage unavailable (nothing is persisted) | |
 
-### GET `/api/statements`
-List owned statements, newest first.
+### GET `/statements`
+List owned statements, newest first, in the pagination envelope (`page`, `size` up to 100).
 
-### GET `/api/statements/{id}`
-Get metadata and status. 404 with `code: "STATEMENT_NOT_FOUND"` if not owned.
+### GET `/statements/{statementId}`
+Get metadata/status. Another user's statement returns `404`.
 
-### GET `/api/statements/{id}/status`
-Get processing status and safe error details (an error code only, never file contents). 404 with `code: "STATEMENT_NOT_FOUND"` if not owned.
+### GET `/statements/{statementId}/status`
+`{ "id", "status", "processingError" }`. `processingError` is a safe code, never file content.
 
-### DELETE `/api/statements/{id}`
-Delete a statement: removes the stored object, then the row. Returns 204. 404 with `code: "STATEMENT_NOT_FOUND"` if not owned. 503 with `code: "STATEMENT_STORAGE_UNAVAILABLE"` on object storage failure.
+### DELETE `/statements/{statementId}`
+Deletes the statement, its transactions and the stored file. `204`, or `404` if not owned.
 
 ## 5. Transactions
 
 ### GET `/transactions`
-Query parameters:
-`accountId, statementId, from, to, categoryId, merchantId, direction, minAmount, maxAmount, page, size, sort`
+Implemented as `GET /api/transactions`. Query parameters (all optional):
+`q` (case-insensitive substring of the raw or normalised description; `%` and `_` match literally), `statementId, from, to` (ISO dates, inclusive), `merchantId, direction` (`DEBIT`|`CREDIT`), `minAmount, maxAmount` (currency units, inclusive), `page, size` (size up to 200).
+Not yet supported: `accountId`, `categoryId` (no accounts or categories module), custom `sort` (always newest first).
+
+Item:
+```json
+{ "id": "uuid", "date": "2026-01-02", "description": "UPI-SWIGGY-ORDER", "normalizedDescription": "SWIGGY ORDER",
+  "amount": 450.00, "currency": "INR", "direction": "DEBIT", "merchantId": "uuid|null",
+  "merchantName": "Swiggy|null", "category": "Food & Dining|null", "statementId": "uuid|null" }
+```
+`amount` is always positive; `direction` gives the sign. `400` if `from` is after `to` or a parameter is malformed.
 
 ### GET `/transactions/{transactionId}`
-Get one transaction after ownership validation.
+Get one transaction after ownership validation. Another user's transaction returns `404`.
 
 ### PATCH `/transactions/{transactionId}`
 Update user-editable transaction metadata such as category/merchant where supported.
 
 ## 6. Analytics
 
+All implemented under `/api/analytics`. `from` and `to` are required, inclusive ISO dates (UTC days); `400` if `from` is after `to` or the range exceeds 5 years. Amounts are rupees with 2 decimals; percentages have 2 decimals and are `null` when the comparison base is zero.
+
+**Semantics:** inflow = all credits (refunds included), outflow = all debits, net = inflow - outflow. "Spend" per merchant/category = debits minus credits for a matched merchant (refunds net out); unmatched transactions contribute debits only. Groups with non-positive spend are omitted. Transfers between own accounts are not detected yet (no accounts module), so they count as inflow/outflow.
+
 ### GET `/analytics/summary`
-Period spending/income/cash-flow summary.
+`{ from, to, currency, inflow, outflow, net, transactionCount, previous: {from, to, inflow, outflow, net, transactionCount}, inflowChangePercent, outflowChangePercent }`. `previous` is the period of the same length ending the day before `from`.
 
 ### GET `/analytics/categories`
-Category totals for a period.
+`{ from, to, currency, totalSpend, items: [{ category, spend, sharePercent, transactionCount }] }`, largest first. Category is the matched merchant's category hint, else `Uncategorized` (no categorisation engine yet).
 
 ### GET `/analytics/merchants`
-Merchant totals for a period.
+`?limit=` (default 10, max 50). `{ from, to, currency, totalSpend, items: [{ merchantId, name, spend, sharePercent, transactionCount }] }`, largest first; transactions without a merchant appear as `merchantId: null, name: "Unmatched"`.
 
 ### GET `/analytics/trends`
-Monthly/period trends.
+`{ months: [{ month: "2026-01", outflow, changePercent }] }`; `changePercent` vs the previous month in the range (null for the first month or a zero base).
 
 ### GET `/analytics/cash-flow`
-Income, expense, and net cash-flow summary.
+`{ months: [{ month, inflow, outflow, net }] }`, one entry per calendar month touching the range (zero-filled; first/last months clipped to the range).
 
 ### GET `/analytics/recurring`
 Detected recurring expenses.

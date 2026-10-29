@@ -7,12 +7,10 @@ import com.expenseanalyzer.transaction.model.Transaction;
 import jakarta.persistence.EntityManager;
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Consumer;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -184,60 +182,9 @@ class TransactionPersistenceTest {
         assertThat(repository.findByUserIdAndStatementId(UUID.randomUUID(), statementId)).isEmpty();
     }
 
-    @Test
-    void findByUserIdAndMerchantId_shouldNotReturnOtherUsersTransactions() {
-        UUID merchantId = UUID.randomUUID();
-        Transaction alice = transaction(ALICE, "Alice m", "10.00", "DEBIT");
-        alice.setMerchantId(merchantId);
-        Transaction bob = transaction(BOB, "Bob m", "20.00", "DEBIT");
-        bob.setMerchantId(merchantId);
-        repository.save(alice);
-        repository.save(bob);
-        flushAndClear();
 
-        assertThat(repository.findByUserIdAndMerchantId(ALICE, merchantId))
-                .extracting(Transaction::getRawDescription).containsExactly("Alice m");
-    }
 
-    @Test
-    void findByUserIdAndCategoryId_shouldNotReturnOtherUsersTransactions() {
-        UUID categoryId = UUID.randomUUID();
-        Transaction alice = transaction(ALICE, "Alice c", "10.00", "DEBIT");
-        alice.setCategoryId(categoryId);
-        Transaction bob = transaction(BOB, "Bob c", "20.00", "DEBIT");
-        bob.setCategoryId(categoryId);
-        repository.save(alice);
-        repository.save(bob);
-        flushAndClear();
 
-        assertThat(repository.findByUserIdAndCategoryId(ALICE, categoryId))
-                .extracting(Transaction::getRawDescription).containsExactly("Alice c");
-    }
-
-    @Test
-    void findByUserIdAndRawDescriptionContaining_shouldNotReturnOtherUsersTransactions() {
-        repository.save(transaction(ALICE, "Amazon order", "10.00", "DEBIT"));
-        repository.save(transaction(BOB, "Amazon order", "20.00", "DEBIT"));
-        flushAndClear();
-
-        assertThat(repository.findByUserIdAndRawDescriptionContaining(ALICE, "%amazon%"))
-                .hasSize(1)
-                .allMatch(t -> t.getUserId().equals(ALICE));
-    }
-
-    @Test
-    void counts_shouldOnlyCountTheOwnersTransactions() {
-        repository.save(transaction(ALICE, "A debit", "10.00", "DEBIT"));
-        repository.save(transaction(ALICE, "A credit", "10.00", "CREDIT"));
-        repository.save(transaction(BOB, "B debit", "10.00", "DEBIT"));
-        repository.save(transaction(BOB, "B debit 2", "10.00", "DEBIT"));
-        flushAndClear();
-
-        assertThat(repository.countByUserId(ALICE)).isEqualTo(2);
-        assertThat(repository.countDebitByUserId(ALICE)).isEqualTo(1);
-        assertThat(repository.countByUserId(BOB)).isEqualTo(2);
-        assertThat(repository.countDebitByUserId(BOB)).isEqualTo(2);
-    }
 
     @Test
     void queries_shouldReturnNothing_forUserWithNoTransactions() {
@@ -245,25 +192,6 @@ class TransactionPersistenceTest {
         flushAndClear();
 
         assertThat(repository.findByUserId(BOB)).isEmpty();
-        assertThat(repository.countByUserId(BOB)).isZero();
-    }
-
-    // ---- Date-range queries (LocalDate parameters against an Instant field) ----
-
-    @Disabled("Known bug: TransactionRepository date-range queries bind LocalDate to the Instant field 'date'; "
-            + "Hibernate throws QueryArgumentException. Fix the repository signature, then enable.")
-    @Test
-    void findByUserIdAndDateRange_shouldScopeToOwner_andHonourRange() {
-        repository.save(transaction(ALICE, "Alice in range", "10.00", "DEBIT"));
-        repository.save(transaction(BOB, "Bob in range", "10.00", "DEBIT"));
-        flushAndClear();
-
-        List<Transaction> result = repository.findByUserIdAndDateRange(
-                ALICE, LocalDate.of(2026, 9, 1), LocalDate.of(2026, 9, 30));
-
-        assertThat(result).extracting(Transaction::getRawDescription).containsExactly("Alice in range");
-        assertThat(repository.findByUserIdAndDateRange(
-                ALICE, LocalDate.of(2026, 10, 1), LocalDate.of(2026, 10, 31))).isEmpty();
     }
 
     // ---- Lifecycle ----

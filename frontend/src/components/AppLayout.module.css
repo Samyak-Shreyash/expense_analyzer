@@ -1,0 +1,91 @@
+.page {
+  --pad: 1.25rem;
+  min-height: 100vh;
+  padding: 0 var(--pad) 4rem;
+}
+
+@media (min-width: 48rem) {
+  .page {
+    --pad: 3rem;
+  }
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem 2rem;
+  margin-inline: calc(-1 * var(--pad));
+  padding: 1rem var(--pad);
+  background: var(--night);
+  color: var(--on-night);
+}
+
+.header :focus-visible {
+  outline-color: var(--on-night);
+}
+
+.wordmark {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.nav {
+  display: flex;
+  gap: 1.25rem;
+  order: 3;
+  width: 100%;
+}
+
+@media (min-width: 48rem) {
+  .nav {
+    order: 0;
+    width: auto;
+  }
+}
+
+.navLink {
+  padding-block: 0.25rem;
+  color: var(--on-night);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+}
+
+.navLink:hover {
+  border-bottom-color: var(--on-night);
+}
+
+.navLink[aria-current='page'] {
+  color: var(--credit-on-night);
+  border-bottom-color: var(--credit-on-night);
+}
+
+.account {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  margin-left: auto;
+}
+
+.email {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.875rem;
+}
+
+.logout {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--credit-on-night);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.main {
+  max-width: 72rem;
+  margin: 2.5rem auto 0;
+}

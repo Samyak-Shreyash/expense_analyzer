@@ -1,10 +1,13 @@
 import { BrowserRouter, Link, Navigate, Route, Routes } from 'react-router'
+import { AppLayout } from './components/AppLayout'
 import { AuthLayout } from './components/AuthLayout'
 import { AuthProvider } from './features/auth/AuthContext'
 import { LoginPage } from './features/auth/LoginPage'
 import { RegisterPage } from './features/auth/RegisterPage'
 import { RequireAuth } from './features/auth/RequireAuth'
 import { DashboardPage } from './features/dashboard/DashboardPage'
+import { StatementsPage } from './features/statements/StatementsPage'
+import { TransactionsPage } from './features/transactions/TransactionsPage'
 
 function App() {
   return (
@@ -13,14 +16,21 @@ function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
-          <Route
-            path="/dashboard"
-            element={
-              <RequireAuth>
-                <DashboardPage />
-              </RequireAuth>
-            }
-          />
+          {[
+            { path: '/dashboard', page: <DashboardPage /> },
+            { path: '/statements', page: <StatementsPage /> },
+            { path: '/transactions', page: <TransactionsPage /> },
+          ].map(({ path, page }) => (
+            <Route
+              key={path}
+              path={path}
+              element={
+                <RequireAuth>
+                  <AppLayout>{page}</AppLayout>
+                </RequireAuth>
+              }
+            />
+          ))}
           <Route
             path="/forbidden"
             element={

@@ -1,32 +1,43 @@
 package com.expenseanalyzer.statement.service;
 
-import com.expenseanalyzer.common.exception.DuplicateStatementException;
-import com.expenseanalyzer.common.exception.StatementNotFoundException;
-import com.expenseanalyzer.common.exception.StatementStorageException;
-import com.expenseanalyzer.statement.dto.StatementResponse;
-import com.expenseanalyzer.statement.dto.StatementStatusResponse;
-import com.expenseanalyzer.statement.dto.StatementUploadResponse;
+import com.expenseanalyzer.audit.model.AuditAction;
+import com.expenseanalyzer.audit.service.AuditService;
+import com.expenseanalyzer.common.exception.InvalidFileException;
+import com.expenseanalyzer.messaging.service.OutboxService;
+import com.expenseanalyzer.common.exception.InvalidFileException.Reason;
 import com.expenseanalyzer.statement.model.Statement;
+import com.expenseanalyzer.statement.model.StatementFormat;
 import com.expenseanalyzer.statement.model.StatementStatus;
 import com.expenseanalyzer.statement.repository.StatementRepository;
+import com.expenseanalyzer.transaction.repository.TransactionRepository;
+import com.expenseanalyzer.user.model.User;
 import com.expenseanalyzer.user.repository.UserRepository;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.UncheckedIOException;
+import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.Arrays;
 import java.util.HexFormat;
-import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 
 /**
- * Upload, read and delete of the caller's statements. Every operation is scoped to the owner
- * resolved from the token subject. Never logs filenames or file contents.
+ * Accepts statement uploads and serves owner-scoped statement metadata.
+ * Logs ids and status only: never file names, hashes or contents.
  */
 @Service
 @RequiredArgsConstructor
@@ -34,87 +45,131 @@ public class StatementService {
 
     private static final Logger log = LoggerFactory.getLogger(StatementService.class);
     private static final int HEAD_BYTES = 8192;
-    private static final String DEFAULT_CURRENCY = "USD";
+    private static final String RESOURCE_TYPE = "STATEMENT";
 
     private final StatementRepository statementRepository;
+    private final TransactionRepository transactionRepository;
     private final UserRepository userRepository;
     private final StatementFileValidator validator;
     private final StatementStorage storage;
+    private final OutboxService outboxService;
+    private final AuditService auditService;
 
-    public StatementUploadResponse upload(String email, String filename, String contentType, byte[] bytes) {
-        UUID userId = resolveUserId(email);
-        validator.validate(filename, contentType, bytes.length, Arrays.copyOf(bytes, Math.min(bytes.length, HEAD_BYTES)));
-        String sha256 = sha256Hex(bytes);
-        statementRepository.findByUserIdAndSha256(userId, sha256).ifPresent(existing -> {
-            throw new DuplicateStatementException(existing.getId());
-        });
+    /**
+     * Validates, de-duplicates by content hash, persists metadata and stores the original file.
+     * A storage failure rolls the metadata back. Queues processing via the outbox.
+     */
+    @Transactional
+    public Statement upload(String email, MultipartFile file) {
+        User user = currentUser(email);
+        validator.validate(file.getOriginalFilename(), file.getContentType(), file.getSize(), head(file));
+        StatementFormat format = format(file.getOriginalFilename());
+        String hash = sha256(file);
 
-        Statement statement = new Statement(userId, null, null);
-        statement.setOriginalFilename(filename);
-        statement.setContentType(contentType);
-        statement.setSizeBytes((long) bytes.length);
-        statement.setSha256(sha256);
-        statement.setObjectKey("statements/" + userId + "/" + statement.getId());
-        statement.setStatus(StatementStatus.QUEUED);
-        statement.setCurrencyCode(DEFAULT_CURRENCY);
-        statement.onCreate();
-        try {
-            statement = statementRepository.save(statement);
-        } catch (DataIntegrityViolationException e) {
-            // A concurrent upload of the same content won the unique (user_id, sha256) constraint.
-            Statement existing = statementRepository.findByUserIdAndSha256(userId, sha256).orElseThrow(() -> e);
-            throw new DuplicateStatementException(existing.getId());
+        Optional<Statement> existing = statementRepository.findByUserIdAndFileHash(user.getId(), hash);
+        if (existing.isPresent()) {
+            throw new DuplicateStatementException(existing.get().getId());
         }
 
-        try {
-            storage.put(statement.getObjectKey(), bytes, contentType);
-        } catch (StatementStorageException e) {
-            statementRepository.delete(statement);
-            log.warn("Statement upload rolled back after storage failure: statementId={}", statement.getId());
-            throw e;
+        Statement s = new Statement();
+        s.setUserId(user.getId());
+        s.setActive(true);
+        s.setFileName(file.getOriginalFilename());
+        s.setFileHash(hash);
+        s.setFormat(format);
+        s.setStatus(StatementStatus.UPLOADED);
+        s.onCreate();
+        s = statementRepository.saveAndFlush(s);
+
+        String key = StatementStorage.keyFor(user.getId(), s.getId());
+        s.setStorageKey(key);
+        try (InputStream in = file.getInputStream()) {
+            storage.store(key, in, file.getSize(), file.getContentType());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
-        log.info("Statement queued: statementId={}", statement.getId());
-        return new StatementUploadResponse(statement.getId(), statement.getStatus(), statement.getOriginalFilename());
+        // Same transaction as the row: the processing request cannot be lost (LLD 23).
+        s.setStatus(StatementStatus.QUEUED);
+        outboxService.enqueue(OutboxService.STATEMENT_UPLOADED, s.getId(), user.getId(), Map.of(
+                "statementId", s.getId(),
+                "storageKey", key,
+                "format", format.name(),
+                "fileHash", hash));
+        auditService.record(AuditAction.STATEMENT_UPLOADED, user.getId(), RESOURCE_TYPE, s.getId());
+        log.info("Statement uploaded: statementId={} format={}", s.getId(), format);
+        return s;
     }
 
-    public List<StatementResponse> list(String email) {
-        return statementRepository.findByUserIdOrderByCreatedAtDesc(resolveUserId(email)).stream()
-                .map(StatementResponse::from)
-                .toList();
+    @Transactional(readOnly = true)
+    public Page<Statement> list(String email, Pageable pageable) {
+        return statementRepository.findByUserIdOrderByCreatedAtDesc(currentUser(email).getId(), pageable);
     }
 
-    public StatementResponse get(String email, UUID id) {
-        return StatementResponse.from(owned(email, id));
+    @Transactional(readOnly = true)
+    public Optional<Statement> find(String email, UUID id) {
+        return statementRepository.findByIdAndUserId(id, currentUser(email).getId());
     }
 
-    public StatementStatusResponse status(String email, UUID id) {
-        Statement s = owned(email, id);
-        return new StatementStatusResponse(s.getId(), s.getStatus(), s.getErrorCode());
+    /** {@link #find} for an owner viewing the statement; successful views are audited. */
+    @Transactional
+    public Optional<Statement> view(String email, UUID id) {
+        Optional<Statement> found = find(email, id);
+        found.ifPresent(s -> auditService.record(AuditAction.STATEMENT_ACCESSED, s.getUserId(), RESOURCE_TYPE, s.getId()));
+        return found;
     }
 
-    public void delete(String email, UUID id) {
-        Statement statement = owned(email, id);
-        storage.delete(statement.getObjectKey());
-        statementRepository.delete(statement);
-        log.info("Statement deleted: statementId={}", id);
+    /** @return false if the statement does not exist or belongs to someone else */
+    @Transactional
+    public boolean delete(String email, UUID id) {
+        Optional<Statement> found = find(email, id);
+        if (found.isEmpty()) {
+            return false;
+        }
+        Statement s = found.get();
+        transactionRepository.deleteByStatementId(s.getId());
+        statementRepository.delete(s);
+        if (s.getStorageKey() != null) {
+            storage.delete(s.getStorageKey());
+        }
+        auditService.record(AuditAction.STATEMENT_DELETED, s.getUserId(), RESOURCE_TYPE, s.getId());
+        log.info("Statement deleted: statementId={}", s.getId());
+        return true;
     }
 
-    private Statement owned(String email, UUID id) {
-        return statementRepository.findByIdAndUserId(id, resolveUserId(email))
-                .orElseThrow(StatementNotFoundException::new);
-    }
-
-    private UUID resolveUserId(String email) {
+    private User currentUser(String email) {
         return userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED))
-                .getId();
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
     }
 
-    private static String sha256Hex(byte[] bytes) {
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(bytes));
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 unavailable", e);
+    private static StatementFormat format(String filename) {
+        String name = filename.toLowerCase(Locale.ROOT);
+        if (name.endsWith(".csv")) {
+            return StatementFormat.CSV;
+        }
+        if (name.endsWith(".xlsx")) {
+            return StatementFormat.XLSX;
+        }
+        // The validator accepts PDF, but no PDF parser exists yet (LLD 8.3).
+        throw new InvalidFileException(Reason.UNSUPPORTED_EXTENSION, "This file format is not supported yet");
+    }
+
+    private static byte[] head(MultipartFile file) {
+        try (InputStream in = file.getInputStream()) {
+            return in.readNBytes(HEAD_BYTES);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
+
+    private static String sha256(MultipartFile file) {
+        try (DigestInputStream in = new DigestInputStream(file.getInputStream(), MessageDigest.getInstance("SHA-256"))) {
+            in.transferTo(OutputStream.nullOutputStream());
+            return HexFormat.of().formatHex(in.getMessageDigest().digest());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
 }

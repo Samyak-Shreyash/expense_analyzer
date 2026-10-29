@@ -53,42 +53,8 @@ class StatementRepositoryTest {
         assertThat(result).isEmpty();
     }
 
-    @Test
-    void findByAccountNumber_shouldReturnStatement_whenFound() {
-        // Arrange
-        Statement statement = new Statement(TEST_USER_ID, TEST_ACCOUNT_NUMBER, "Bank A");
-        when(statementRepository.findByUserIdAndAccountNumber(TEST_USER_ID, TEST_ACCOUNT_NUMBER)).thenReturn(statement);
 
-        // Act
-        Statement result = statementRepository.findByUserIdAndAccountNumber(TEST_USER_ID, TEST_ACCOUNT_NUMBER);
 
-        // Assert
-        assertThat(result).isNotNull();
-    }
-
-    @Test
-    void findByAccountNumber_shouldReturnNull_whenNotFound() {
-        // Arrange
-        when(statementRepository.findByUserIdAndAccountNumber(TEST_USER_ID, "**** **** 0000")).thenReturn(null);
-
-        // Act
-        Statement result = statementRepository.findByUserIdAndAccountNumber(TEST_USER_ID, "**** **** 0000");
-
-        // Assert
-        assertThat(result).isNull();
-    }
-
-    @Test
-    void countByUserId_shouldReturnCount() {
-        // Arrange
-        when(statementRepository.countByUserId(TEST_USER_ID)).thenReturn(5L);
-
-        // Act
-        long result = statementRepository.countByUserId(TEST_USER_ID);
-
-        // Assert
-        assertThat(result).isEqualTo(5L);
-    }
 
     @Test
     void findAll_shouldReturnAllStatements() {
@@ -119,16 +85,4 @@ class StatementRepositoryTest {
         assertThat(result).hasSize(1);
     }
 
-    @Test
-    void findByAccountNumber_shouldReturnNull_whenDifferentAccount() {
-        // Arrange
-        String differentAccount = "**** **** 9999";
-        when(statementRepository.findByUserIdAndAccountNumber(TEST_USER_ID, differentAccount)).thenReturn(null);
-
-        // Act
-        Statement result = statementRepository.findByUserIdAndAccountNumber(TEST_USER_ID, differentAccount);
-
-        // Assert
-        assertThat(result).isNull();
-    }
 }

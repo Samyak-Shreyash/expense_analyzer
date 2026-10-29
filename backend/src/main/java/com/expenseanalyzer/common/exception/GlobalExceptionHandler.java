@@ -1,15 +1,22 @@
 package com.expenseanalyzer.common.exception;
 
+import com.expenseanalyzer.statement.service.DuplicateStatementException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
+import software.amazon.awssdk.core.exception.SdkException;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.springframework.web.multipart.MaxUploadSizeExceededException;
-import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(InvalidFileException.class)
     public ResponseEntity<ProblemDetail> handleInvalidFile(InvalidFileException e) {
@@ -21,42 +28,39 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(s).body(p);
     }
 
-    /** The servlet multipart limit was hit before the validator ran; same body as the validator's 413. */
+    @ExceptionHandler(DuplicateStatementException.class)
+    public ResponseEntity<ProblemDetail> handleDuplicateStatement(DuplicateStatementException e) {
+        ProblemDetail p = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.getMessage());
+        p.setTitle("Duplicate statement");
+        p.setProperty("statementId", e.getStatementId());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(p);
+    }
+
+    /** Object storage unreachable or failing; detail stays generic. */
+    @ExceptionHandler(SdkException.class)
+    public ResponseEntity<ProblemDetail> handleStorageFailure(SdkException e) {
+        log.warn("Object storage call failed: {}", e.getClass().getSimpleName());
+        ProblemDetail p = ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE,
+                "File storage is temporarily unavailable");
+        p.setTitle("Storage unavailable");
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(p);
+    }
+
     @ExceptionHandler(MaxUploadSizeExceededException.class)
     public ResponseEntity<ProblemDetail> handleMaxUploadSize(MaxUploadSizeExceededException e) {
-        return handleInvalidFile(new InvalidFileException(
-                InvalidFileException.Reason.FILE_TOO_LARGE, "File exceeds the maximum allowed size"));
+        ProblemDetail p = ProblemDetail.forStatusAndDetail(HttpStatus.PAYLOAD_TOO_LARGE,
+                "File exceeds the maximum allowed size");
+        p.setTitle("Invalid file");
+        p.setProperty("reason", InvalidFileException.Reason.FILE_TOO_LARGE.name());
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(p);
     }
 
     @ExceptionHandler(MissingServletRequestPartException.class)
     public ResponseEntity<ProblemDetail> handleMissingPart(MissingServletRequestPartException e) {
-        return problem(HttpStatus.BAD_REQUEST, "Missing file", "STATEMENT_FILE_MISSING",
+        ProblemDetail p = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,
                 "Request must include a multipart part named file");
-    }
-
-    @ExceptionHandler(DuplicateStatementException.class)
-    public ResponseEntity<ProblemDetail> handleDuplicateStatement(DuplicateStatementException e) {
-        ResponseEntity<ProblemDetail> res = problem(HttpStatus.CONFLICT, "Duplicate statement",
-                "STATEMENT_DUPLICATE", e.getMessage());
-        res.getBody().setProperty("id", e.getExistingId());
-        return res;
-    }
-
-    @ExceptionHandler(StatementNotFoundException.class)
-    public ResponseEntity<ProblemDetail> handleStatementNotFound(StatementNotFoundException e) {
-        return problem(HttpStatus.NOT_FOUND, "Statement not found", "STATEMENT_NOT_FOUND", e.getMessage());
-    }
-
-    @ExceptionHandler(StatementStorageException.class)
-    public ResponseEntity<ProblemDetail> handleStatementStorage(StatementStorageException e) {
-        return problem(HttpStatus.SERVICE_UNAVAILABLE, "Storage unavailable", "STATEMENT_STORAGE_UNAVAILABLE",
-                "Statement storage is temporarily unavailable");
-    }
-
-    private static ResponseEntity<ProblemDetail> problem(HttpStatus s, String title, String code, String detail) {
-        ProblemDetail p = ProblemDetail.forStatusAndDetail(s, detail);
-        p.setTitle(title);
-        p.setProperty("code", code);
-        return ResponseEntity.status(s).body(p);
+        p.setTitle("Missing file");
+        p.setProperty("code", "STATEMENT_FILE_MISSING");
+        return ResponseEntity.badRequest().body(p);
     }
 }

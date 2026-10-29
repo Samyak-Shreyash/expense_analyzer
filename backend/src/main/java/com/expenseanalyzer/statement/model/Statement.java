@@ -10,6 +10,8 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
@@ -21,7 +23,7 @@ import java.util.UUID;
  */
 @Entity
 @Table(name = "statements",
-        uniqueConstraints = @UniqueConstraint(name = "uk_statements_user_sha256", columnNames = {"user_id", "sha256"}))
+        uniqueConstraints = @UniqueConstraint(name = "uq_statements_user_file_hash", columnNames = {"user_id", "file_hash"}))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -29,12 +31,11 @@ public class Statement {
 
     /**
      * Primary key - UUID for distributed system compatibility.
-     * Assigned on creation (not at persist time) so the storage object key, which embeds the id,
-     * can be written in the same INSERT.
      */
     @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", updatable = false, nullable = false)
-    private UUID id = UUID.randomUUID();
+    private UUID id;
 
     /**
      * Bank account number (masked for security).
@@ -59,7 +60,7 @@ public class Statement {
      * Currency code (ISO 4217).
      * Example: USD, INR, EUR.
      */
-    @Column(name = "currency_code", nullable = false, length = 3)
+    @Column(name = "currency_code", length = 3)
     private String currencyCode;
 
     /**
@@ -102,31 +103,41 @@ public class Statement {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    /** Filename the user sent; returned to the owner only, never logged or used as a storage key. */
-    @Column(name = "original_filename", nullable = false, length = 255)
-    private String originalFilename;
+    /**
+     * Original upload file name, shown back to the owner. Never logged.
+     */
+    @Column(name = "file_name", length = 255)
+    private String fileName;
 
-    @Column(name = "content_type", nullable = false, length = 100)
-    private String contentType;
+    /**
+     * Object-storage key of the original file.
+     */
+    @Column(name = "storage_key", length = 512)
+    private String storageKey;
 
-    @Column(name = "size_bytes", nullable = false)
-    private Long sizeBytes;
+    /**
+     * SHA-256 (hex) of the uploaded file; unique per user.
+     */
+    @Column(name = "file_hash", length = 64)
+    private String fileHash;
 
-    /** Hex SHA-256 of the file content; unique per user for duplicate detection. */
-    @JdbcTypeCode(SqlTypes.CHAR)
-    @Column(name = "sha256", nullable = false, length = 64)
-    private String sha256;
-
-    @Column(name = "object_key", nullable = false, length = 512)
-    private String objectKey;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "format", length = 10)
+    private StatementFormat format;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)
-    private StatementStatus status;
+    private StatementStatus status = StatementStatus.UPLOADED;
 
-    /** Safe processing error code; never file contents. */
-    @Column(name = "error_code", length = 64)
-    private String errorCode;
+    /**
+     * Safe, user-facing error code when processing failed. Never contains file contents.
+     */
+    @Column(name = "processing_error", length = 100)
+    private String processingError;
+
+    @JdbcTypeCode(SqlTypes.TIMESTAMP)
+    @Column(name = "completed_at")
+    private Instant completedAt;
 
     // ---- Lifecycle hooks ----
 

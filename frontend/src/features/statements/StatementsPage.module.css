@@ -1,0 +1,81 @@
+.drop {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  max-width: 40rem;
+  padding: 2rem;
+  border: 2px dashed var(--ink-muted);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.drop[data-dragging] {
+  border-color: var(--ledger);
+  background: #e3f1ec;
+}
+
+.dropText {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+}
+
+.choose {
+  display: inline-flex;
+  align-items: center;
+}
+
+.choose:focus-within {
+  outline: 3px solid var(--ledger);
+  outline-offset: 2px;
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--ink-muted);
+}
+
+.progress {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  font-variant-numeric: tabular-nums;
+}
+
+.progress progress {
+  flex: 1;
+  accent-color: var(--ledger);
+}
+
+.file {
+  overflow-wrap: anywhere;
+}
+
+.status {
+  font-weight: 700;
+}
+
+.status[data-status='Imported'] {
+  color: var(--ledger);
+}
+
+.status[data-status='Failed'] {
+  color: var(--debit);
+}
+
+.note {
+  max-width: 24rem;
+  margin: 0.25rem 0 0;
+  font-size: 0.875rem;
+  color: var(--ink-muted);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  justify-content: flex-end;
+}

@@ -3,11 +3,13 @@ package com.expenseanalyzer.processing.parser.csv;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.expenseanalyzer.processing.parser.common.ParsedStatement;
+import com.expenseanalyzer.processing.parser.common.ParserLimits;
 import com.expenseanalyzer.processing.parser.common.RowError;
 import com.expenseanalyzer.processing.parser.common.RowErrorCode;
 import java.io.ByteArrayInputStream;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 
@@ -103,5 +105,53 @@ class CsvStatementParserTest {
         ParsedStatement r = parse("\uFEFFDate,Description,Amount\n2025-01-01,X,-1.00\n");
         assertThat(r.errors()).isEmpty();
         assertThat(r.transactions()).hasSize(1);
+    }
+
+    // ---- resource limits (SEC-016) ----
+
+    private static final String HEADER = "Date,Description,Amount\n";
+
+    private ParsedStatement parse(String csv, ParserLimits limits) {
+        return parser.parse(new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)), limits);
+    }
+
+    @Test
+    void tooManyRowsFailsTheWholeFile() {
+        String csv = HEADER + "2025-01-05,A,-1\n".repeat(4);
+        ParsedStatement r = parse(csv, new ParserLimits(3, 50, Duration.ofSeconds(30)));
+        assertThat(r.transactions()).isEmpty();
+        assertThat(r.errors()).extracting(RowError::code).containsExactly(RowErrorCode.TOO_MANY_ROWS);
+    }
+
+    @Test
+    void rowCountAtTheLimitIsAccepted() {
+        String csv = HEADER + "2025-01-05,A,-1\n".repeat(3);
+        ParsedStatement r = parse(csv, new ParserLimits(3, 50, Duration.ofSeconds(30)));
+        assertThat(r.errors()).isEmpty();
+        assertThat(r.transactions()).hasSize(3);
+    }
+
+    @Test
+    void tooManyColumnsFailsTheWholeFile() {
+        String csv = HEADER + "2025-01-05,A,-1" + ",x".repeat(10) + "\n";
+        ParsedStatement r = parse(csv, new ParserLimits(100, 5, Duration.ofSeconds(30)));
+        assertThat(r.transactions()).isEmpty();
+        assertThat(r.errors()).extracting(RowError::code).containsExactly(RowErrorCode.TOO_MANY_COLUMNS);
+    }
+
+    @Test
+    void exceedingTheTimeBudgetFailsTheWholeFile() {
+        String csv = HEADER + "2025-01-05,A,-1\n".repeat(10);
+        ParsedStatement r = parse(csv, new ParserLimits(100, 50, Duration.ZERO));
+        assertThat(r.transactions()).isEmpty();
+        assertThat(r.errors()).extracting(RowError::code).containsExactly(RowErrorCode.PARSE_TIMEOUT);
+    }
+
+    @Test
+    void defaultLimitsAllowLargeOrdinaryStatement() {
+        String csv = HEADER + "2025-01-05,Grocery store purchase,-123.45\n".repeat(10_000);
+        ParsedStatement r = parse(csv, ParserLimits.DEFAULTS);
+        assertThat(r.errors()).isEmpty();
+        assertThat(r.transactions()).hasSize(10_000);
     }
 }

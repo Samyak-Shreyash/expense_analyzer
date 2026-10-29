@@ -15,6 +15,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
@@ -27,7 +28,9 @@ import java.util.UUID;
  * - Spring Data JPA repository with methods for querying by user and statement
  */
 @Entity
-@Table(name = "transactions")
+@Table(name = "transactions",
+        uniqueConstraints = @UniqueConstraint(name = "uq_transactions_user_fingerprint",
+                columnNames = {"user_id", "transaction_fingerprint"}))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -61,6 +64,12 @@ public class Transaction {
      */
     @Column(name = "merchant_id", nullable = true)
     private UUID merchantId;
+
+    /**
+     * Confidence (0..1) in merchantId from normalisation; null when no merchant was matched.
+     */
+    @Column(name = "merchant_confidence", precision = 3, scale = 2)
+    private BigDecimal merchantConfidence;
 
     /**
      * Category identifier (from expense analyzer categories).
@@ -121,6 +130,18 @@ public class Transaction {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    /**
+     * ISO 4217 currency code. INR is the initially supported currency (LLD 4.3).
+     */
+    @Column(name = "currency", nullable = false, length = 3)
+    private String currency = "INR";
+
+    /**
+     * Anti-duplication fingerprint for imported rows (see TransactionFingerprint); null for other sources.
+     */
+    @Column(name = "transaction_fingerprint", length = 64)
+    private String transactionFingerprint;
+
     // ---- Lifecycle hooks ----
 
     /**
@@ -149,17 +170,6 @@ public class Transaction {
             return null;
         }
         return amountCents.divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
-    }
-
-    /**
-     * Format amount as currency string.
-     */
-    public String formatAmount() {
-        BigDecimal amount = getAmount();
-        if (amount == null) {
-            return null;
-        }
-        return String.format("$%.2f", amount.doubleValue());
     }
 
     /**

@@ -611,6 +611,30 @@ OCR is not part of the initial mandatory implementation.
 
 ---
 
+## 8.4 Parser Resource Limits (implemented)
+
+| Limit | Default | Where | On breach |
+|---|---|---|---|
+| File size | 20 MB (`app.statement.upload.max-size-bytes`) | upload validator + multipart limit | `413`, nothing stored |
+| Data rows | 50,000 (`app.parser.max-rows`) | `ParserLimits.Budget` | whole file fails `TOO_MANY_ROWS` |
+| Cells per row | 50 (`app.parser.max-columns`) | `ParserLimits.Budget` (Excel: checked before cells are materialised) | whole file fails `TOO_MANY_COLUMNS` |
+| Description length | 2,048 chars | `StatementRowMapper` | row error `DESCRIPTION_TOO_LONG` |
+| Wall-clock time | 30 s (`app.parser.timeout`) | checked per row | whole file fails `PARSE_TIMEOUT` |
+| XLSX decompression | POI `ZipSecureFile` defaults (min inflate ratio 0.01) | POI | `UNREADABLE_FILE` |
+| Concurrency | Kafka listener concurrency (`app.worker.concurrency`, default 2) | worker | queued, not rejected |
+
+Only the first sheet of a workbook is read. Limit breaches fail the whole file rather than importing a prefix, because a partial import would understate spending.
+
+## 8.5 CSV / XLSX Mapping (implemented)
+
+- **Header row:** first non-empty row. Column names are matched case-insensitively: `Date`, `Description`, and either `Debit`/`Credit` or a signed `Amount`. Other columns are ignored.
+- **Dates:** `yyyy-MM-dd`, `dd/MM/yyyy`, `dd-MM-yyyy` (strict; day-first, as in Indian bank exports). XLSX date cells are read as dates.
+- **Amounts:** plain decimals, optionally grouped western-style (`123,456.78`) or Indian lakh/crore-style (`1,23,456.78`); malformed grouping is rejected. At most 2 decimals. Stored as positive `amount_cents` (amount x 100) plus a direction.
+- **Direction:** Debit column -> `DEBIT`, Credit column -> `CREDIT`; a zero in the unused column is treated as blank; both or neither filled is `AMBIGUOUS_DIRECTION`. With a signed `Amount`, negative = `DEBIT`.
+- **Descriptions:** stored exactly as exported in `raw_description` (trimmed only), max 2,048 chars.
+- **Currency:** `INR` for now (no currency column is read).
+- **Invalid rows** are skipped and counted: the statement completes with `processing_error = SKIPPED_ROWS:<n>`. A file with no valid rows fails with `NO_VALID_ROWS`; file-level problems fail with the parser code (`MISSING_HEADER`, `UNREADABLE_FILE`, limit codes). Amounts too large for `amount_cents` count as skipped rows.
+
 # 9. Transaction Validation
 
 Validation occurs before persistence.
@@ -656,6 +680,21 @@ A fingerprint is an anti-duplication mechanism, not a universal transaction iden
 
 ---
 
+## 10.1 Implemented Algorithm
+
+`SHA-256(userId | date | amount_cents | direction | normalised description | occurrence)`, where the description is lower-cased with whitespace collapsed and `occurrence` is the index of the row among identical rows *in the same statement*. Unique on `(user_id, transaction_fingerprint)`.
+
+| Case | Result |
+|---|---|
+| Same statement processed twice | same fingerprints, nothing inserted the second time |
+| Identical file uploaded again | rejected at upload (`409`, file hash) |
+| Same transaction in two overlapping statements | inserted once |
+| Two genuine identical purchases on one day | kept (occurrence 0 and 1) |
+| Refund of the same amount | kept (different direction) |
+| Same data for two users | kept for both (user is part of the hash) |
+
+Known limitation: if two overlapping statements contain a *different* number of identical same-day rows, the extra ones are inserted.
+
 # 11. Merchant Normalization
 
 ## 11.1 Pipeline
@@ -693,6 +732,18 @@ Store confidence when normalization is uncertain.
 Do not fabricate a canonical merchant when evidence is insufficient.
 
 ---
+
+## 11.3 Implemented Rules (version 1)
+
+- **Where:** `MerchantNormalizer` (rules, `RULES_VERSION`), applied by the statement worker before transactions are saved. `raw_description` is never changed.
+- **Normalised description:** upper-case; UPI handles (`name@bank`) removed; punctuation split into tokens; payment-rail and bank noise dropped (`UPI`, `POS`, `NEFT`, `IMPS`, `ACH`, `REF`, `PAYTM`, UPI app handles...), IFSC codes, pure numbers and reference-like tokens (6+ chars containing a digit) dropped. If nothing is left, the collapsed raw text is used.
+- **Canonical naming:** brand names as customers know them (`Amazon`, `Swiggy`, `Domino's`, `IRCTC`). One `merchants` row per canonical name, shared across users (holds no user data).
+- **Aliases:** whole-token matches, checked in order, multi-token first (`UBER EATS` before `UBER`). `AMZN` and `AMAZON` -> `Amazon`; `AMAZONIA` does not match. Version 1 covers 20 common Indian merchants across shopping, food, groceries, transport, travel, entertainment, subscriptions and telecom.
+- **Confidence:** a rule match sets `merchant_confidence = 0.95`. There is no fuzzy matching, so lower confidences are not produced yet.
+- **Fallback:** no rule match -> `merchant_id` and `merchant_confidence` stay NULL (person-to-person UPI transfers, salaries, unknown shops). A merchant is never guessed from free text.
+- **Category hint:** each rule carries a coarse hint (`Food & Dining`, `Shopping`...) stored on the merchant for the future categorisation step.
+- **Corrections (planned):** a user correction of a transaction's merchant will be stored as user-sourced and must win over rules; reprocessing never overwrites existing transactions (fingerprints prevent re-insert), so corrections survive rule changes.
+- **Changing rules:** bump `RULES_VERSION`, add test cases. Existing transactions are not re-normalised automatically.
 
 # 12. Categorization
 
@@ -1003,6 +1054,16 @@ The database should not store the entire statement binary.
 
 Object storage should be private and accessed through controlled backend operations.
 
+## 21.1 Storage Contract (implemented)
+
+- **Backend:** S3 API (`S3StatementStorage`); RustFS in local compose. Path-style addressing.
+- **Bucket:** `app.storage.bucket` (default `statements`), created privately on first write. No public policy, no presigned URLs: files are only read by the backend worker.
+- **Object key:** `users/{userId}/statements/{statementId}`. Contains no file name, hash or account data.
+- **Metadata in DB:** `statements.storage_key`, `file_hash` (SHA-256), `format`, original `file_name`.
+- **Encryption:** SSE-S3 (`AES256`) on every object (`app.storage.server-side-encryption`, default on); RustFS needs `RUSTFS_SSE_S3_MASTER_KEY`. TLS to the endpoint in non-local environments.
+- **Retention/deletion:** `DELETE /api/statements/{id}` removes the object and the statement row. Deleting a missing object is a no-op.
+- **Logging:** keys and file names are never logged.
+
 ---
 
 # 22. Asynchronous Processing
@@ -1110,6 +1171,17 @@ Rules:
 - Keys are scoped to user/operation as appropriate.
 
 ---
+
+## 25.1 Event Idempotency Contract (implemented)
+
+- **Event identity:** `eventId` (the outbox row id). Producers never reuse it.
+- **Dedup scope:** per consumer: `processed_events(event_id, consumer)` primary key. A new consumer group re-processes history on its own.
+- **Processing unit:** one DB transaction per event: statement status, inserted transactions and the `processed_events` row commit together or not at all. The Kafka offset is committed only after the transaction commits (`StatementUploadedListener`).
+- **Duplicate delivery:** `processed_events` hit -> skipped. **Replay with a new eventId** for a `COMPLETED` statement -> acknowledged without re-import. **Re-queued statement** -> reprocessed; fingerprints make it converge to the same data.
+- **Concurrency:** events are keyed by statement id, so one statement's events go to one partition and one consumer. If two attempts still race, the unique constraints (`processed_events` PK, transaction fingerprint) make the loser roll back; it is redelivered and then skipped.
+- **Retries:** transient failures (storage/DB unavailable) roll back and are retried by `DefaultErrorHandler` with exponential backoff for up to 5 minutes; afterwards the statement stays `QUEUED`. Deterministic failures (unreadable file, limits, missing object) set `FAILED` with a safe code and are acknowledged.
+- **Rejected without processing:** malformed JSON, unknown `eventType`, unsupported `eventVersion`, and events whose `userId` does not own the statement.
+- **State machine as implemented:** `UPLOADED -> QUEUED` at upload; `QUEUED -> COMPLETED | FAILED` in one worker transaction (`PROCESSING` is not persisted separately because the attempt is a single transaction).
 
 # 26. Security Design
 

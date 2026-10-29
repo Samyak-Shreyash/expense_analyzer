@@ -1,13 +1,20 @@
 package com.expenseanalyzer.statement.service;
 
+import java.io.InputStream;
+import java.util.UUID;
+
+/** Private storage for original statement files. The database keeps only the key, never the bytes. */
 public interface StatementStorage {
 
-    /** Stores the bytes under the key, replacing any existing object. */
-    void put(String key, byte[] bytes, String contentType);
+    static String keyFor(UUID userId, UUID statementId) {
+        return "users/" + userId + "/statements/" + statementId;
+    }
 
-    /** Throws StatementObjectNotFoundException when no object exists for the key. */
-    byte[] get(String key);
+    void store(String key, InputStream content, long size, String contentType);
 
-    /** Idempotent: deleting a missing key succeeds. */
+    /** @throws StatementObjectNotFoundException if no object exists for the key */
+    InputStream read(String key);
+
+    /** Deleting a missing object is a no-op. */
     void delete(String key);
 }

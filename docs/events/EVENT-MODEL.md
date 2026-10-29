@@ -24,6 +24,15 @@ Every event contains:
 }
 ```
 
+## 2.1 Transport (implemented)
+
+- **Outbox:** events are written to `outbox_events` in the same DB transaction as the state change, then sent by `OutboxPublisher` (polls every `app.outbox.poll-interval-ms`, default 1 s).
+- **Topics:** `StatementUploaded` -> `statement.uploaded` (3 partitions). Message key = `aggregateId`, so events for one statement stay ordered. Value = the JSON envelope above.
+- **Delivery:** at-least-once. Producer uses `acks=all` and idempotence. A failed send increments `attempt_count` and records the exception class in `last_error`; the row is retried on the next poll, up to 10 attempts, then left for operator attention.
+- **Consumers must de-duplicate** on `eventId` (= outbox row id) and must tolerate replays.
+- **Versioning:** `eventVersion` starts at 1. Additive payload fields keep the version; breaking changes increment it, and consumers reject versions they don't know.
+- **Correlation:** `correlationId` is copied from the request's `X-Correlation-ID` (MDC) at enqueue time.
+
 ## 3. Events
 
 ### StatementUploaded

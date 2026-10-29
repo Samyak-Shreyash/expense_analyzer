@@ -42,14 +42,10 @@ public class SecurityConfiguration {
 
     private static final Logger logger = LoggerFactory.getLogger(SecurityConfiguration.class);
     private final UserRepository userRepository;
-    private final RateLimiter loginRateLimiter;
-    private final RateLimiter registrationRateLimiter;
     private final JwtTokenProvider jwtTokenProvider;
 
-    public SecurityConfiguration(UserRepository userRepository, RateLimiter loginRateLimiter, RateLimiter registrationRateLimiter, JwtTokenProvider jwtTokenProvider) {
+    public SecurityConfiguration(UserRepository userRepository, JwtTokenProvider jwtTokenProvider) {
         this.userRepository = userRepository;
-        this.loginRateLimiter = loginRateLimiter;
-        this.registrationRateLimiter = registrationRateLimiter;
         this.jwtTokenProvider = jwtTokenProvider;
         logger.debug("SecurityConfiguration initialized");
     }
@@ -131,25 +127,4 @@ public class SecurityConfiguration {
                 .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin())) // X-Frame-Options: SAMEORIGIN
                 .build();
     }
-
-    /**
-     * Rate limiter bean for login attempts.
-     * Uses Redis-backed rate limiting to prevent brute force attacks.
-     * Configured to allow max 5 failed attempts per IP within 15 minutes.
-     */
-    @Bean
-    public RateLimiter loginRateLimiter() {
-        return new RateLimiter(); // Injected via @Value annotations
-    }
-
-    /**
-     * Rate limiter bean for registration attempts.
-     * Uses Redis-backed rate limiting to prevent spam.
-     * Configured to allow max 3 failed attempts per IP within 15 minutes.
-     */
-    @Bean
-    public RateLimiter registrationRateLimiter() {
-        return new RateLimiter(); // Injected via @Value annotations
-    }
-
 }

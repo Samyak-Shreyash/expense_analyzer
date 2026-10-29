@@ -223,30 +223,7 @@ class TransactionTest {
         assertThat(result).isNull();
     }
 
-    @Test
-    void formatAmount_shouldReturnFormattedString() {
-        // Arrange
-        Transaction transaction = new Transaction();
-        transaction.setAmountCents(new BigDecimal("1234"));
 
-        // Act
-        String result = transaction.formatAmount();
-
-        // Assert
-        assertThat(result).isEqualTo("$12.34");
-    }
-
-    @Test
-    void formatAmount_shouldReturnZero_whenNoAmount() {
-        // Arrange
-        Transaction transaction = new Transaction();
-
-        // Act
-        String result = transaction.formatAmount();
-
-        // Assert
-        assertThat(result).isNull();
-    }
 
     @Test
     void isDebit_shouldReturnTrue_whenTypeIsDebit() {
