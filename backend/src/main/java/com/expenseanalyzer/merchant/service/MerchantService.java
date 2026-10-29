@@ -39,8 +39,8 @@ public class MerchantService {
 
     /** Only accounts at least this old count as suggestion voters. */
     static final Duration VOTER_MIN_AGE = Duration.ofDays(7);
-    /** Letters (any script), spaces and & . ' - only, 2-60 chars; no "x.com" / "www.x" style domains. */
     private static final Set<String> BLOCKED_WORDS = loadBlockedWords();
+    /** Letters (any script), spaces and & . ' - only, 2-60 chars; no "x.com" / "www.x" style domains. */
     private static final Pattern SUGGESTABLE = Pattern.compile("(?=.*\\p{L})(?!.*\\.\\p{L}{2})[\\p{L}\\p{M} &.'\\-]{2,60}");
 
     /**

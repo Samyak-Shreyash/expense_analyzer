@@ -32,6 +32,10 @@ public interface SharingSettingsRepository extends Repository<User, UUID> {
     int setSharing(UUID userId, boolean enabled);
 
     @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("UPDATE User u SET u.sharingRevoked = false WHERE u.id = :userId")
+    int clearRevoked(UUID userId);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("UPDATE User u SET u.sharingRevoked = true, u.shareMerchantNames = false WHERE u.id IN :userIds")
     int revoke(Collection<UUID> userIds);
 }

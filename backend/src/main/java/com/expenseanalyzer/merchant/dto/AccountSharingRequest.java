@@ -1,4 +1,6 @@
 package com.expenseanalyzer.merchant.dto;
 
-public record AccountSharingRequest(boolean enabled) {
+import jakarta.validation.constraints.NotNull;
+
+public record AccountSharingRequest(@NotNull Boolean enabled) {
 }

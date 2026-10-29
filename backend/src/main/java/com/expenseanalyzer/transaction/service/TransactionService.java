@@ -223,7 +223,8 @@ public class TransactionService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         String key = t.getMerchantId() == null && shareable(t) ? PayeeKey.ofP2m(t.getRawDescription()).orElseThrow() : null;
         UUID merchantId = key == null ? null : merchantService.suggestions(userId, Set.of(key)).get(key);
-        if (merchantId == null || suggestions(userId, List.of(t)).get(t.getId()) == null) {
+        if (merchantId == null || merchantRepository.findById(merchantId)
+                .filter(m -> MerchantService.nameReason(m.getCanonicalName()) == null).isEmpty()) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
         merchantNameService.report(userId, key, merchantId);
