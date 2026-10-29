@@ -279,7 +279,10 @@ describe('CategoriesPage', () => {
 
     it('opts a single name out through its checkbox', async () => {
       vi.mocked(finance.listMerchantNames).mockResolvedValue(
-        names({ shareMerchantNames: true }),
+        names({
+          shareMerchantNames: true,
+          items: [{ ...acme, shared: true }, beta],
+        }),
       )
       vi.mocked(finance.setMerchantNameShared).mockResolvedValue({
         ...acme,
@@ -335,12 +338,44 @@ describe('CategoriesPage', () => {
       })
       open()
       expect(await screen.findByText('Reported')).toBeTruthy()
-      fireEvent.click(
-        screen.getByRole('button', { name: 'Unshare Acme Store' }),
-      )
+      const box = screen.getByRole('checkbox', {
+        name: 'Unshare Acme Store',
+      }) as HTMLInputElement
+      expect(box.checked).toBe(true)
+      box.focus()
+      fireEvent.click(box)
       await waitFor(() =>
         expect(finance.setMerchantNameShared).toHaveBeenCalledWith('a1', false),
       )
+      const after = (await screen.findByRole('checkbox', {
+        name: 'Share Acme Store',
+      })) as HTMLInputElement
+      expect(after).toBe(box)
+      expect(after.checked).toBe(false)
+      expect(document.activeElement).toBe(box)
+      expect(screen.getByText('Reported')).toBeTruthy()
+      expect(
+        document.getElementById(box.getAttribute('aria-describedby')!)
+          ?.textContent,
+      ).toMatch(/Offensive names are reported/)
+    })
+
+    it('checks a row only when its name is actually shared while on', async () => {
+      vi.mocked(finance.listMerchantNames).mockResolvedValue(
+        names({
+          shareMerchantNames: true,
+          items: [acme, { ...beta, shared: true }],
+        }),
+      )
+      open()
+      const a = (await screen.findByRole('checkbox', {
+        name: 'Share Acme Store',
+      })) as HTMLInputElement
+      const b = screen.getByRole('checkbox', {
+        name: 'Share Beta Mart',
+      }) as HTMLInputElement
+      expect(a.checked).toBe(false)
+      expect(b.checked).toBe(true)
     })
 
     it('explains a revoked account and disables every control', async () => {

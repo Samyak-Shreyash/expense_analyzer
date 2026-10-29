@@ -217,27 +217,18 @@ function ShareCell({
         : null
   return (
     <span className={styles.name}>
-      {item.reported && item.shared ? (
-        <button
-          type="button"
-          className={shared.danger}
+      <label className={styles.check}>
+        <input
+          type="checkbox"
+          checked={on ? item.shared : item.shareable && !item.optedOut}
+          disabled={!on || revoked || !item.shareable}
           aria-describedby={hintId}
-          onClick={() => onSave(false)}
-        >
-          Unshare {item.name}
-        </button>
-      ) : (
-        <label className={styles.check}>
-          <input
-            type="checkbox"
-            checked={item.shareable && !item.optedOut}
-            disabled={!on || revoked || !item.shareable}
-            aria-describedby={hintId}
-            onChange={(e) => onSave(e.target.checked)}
-          />
-          <span className={shared.visuallyHidden}>Share {item.name}</span>
-        </label>
-      )}
+          onChange={(e) => onSave(e.target.checked)}
+        />
+        <span className={shared.visuallyHidden}>
+          {item.reported && item.shared ? 'Unshare' : 'Share'} {item.name}
+        </span>
+      </label>
       <span id={hintId} className={shared.muted}>
         {hint}
         {(item.reported || item.notShareableReason === 'NAME_OFFENSIVE') && (
