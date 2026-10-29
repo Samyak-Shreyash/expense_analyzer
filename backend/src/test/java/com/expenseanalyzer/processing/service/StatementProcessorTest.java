@@ -1,6 +1,8 @@
 package com.expenseanalyzer.processing.service;
 
+import com.expenseanalyzer.merchant.model.Person;
 import com.expenseanalyzer.merchant.repository.MerchantRepository;
+import com.expenseanalyzer.merchant.repository.PersonRepository;
 import com.expenseanalyzer.processing.repository.ProcessedEventRepository;
 import com.expenseanalyzer.statement.model.Statement;
 import com.expenseanalyzer.statement.model.StatementFormat;
@@ -56,6 +58,8 @@ class StatementProcessorTest {
     private ProcessedEventRepository processedEventRepository;
     @Autowired
     private MerchantRepository merchantRepository;
+    @Autowired
+    private PersonRepository personRepository;
 
     @MockitoBean
     private StatementStorage storage;
@@ -66,6 +70,7 @@ class StatementProcessorTest {
         statementRepository.deleteAll();
         processedEventRepository.deleteAll();
         merchantRepository.deleteAll();
+        personRepository.deleteAll();
     }
 
     private Statement queued(UUID userId) {
@@ -157,6 +162,37 @@ class StatementProcessorTest {
         assertThat(person.getMerchantId()).isNull();
         assertThat(person.getMerchantConfidence()).isNull();
         assertThat(person.getNormalizedDescription()).isEqualTo("RAMESH KUMAR");
+    }
+
+    @Test
+    void upiTransfersToPeopleCreateOnePersonPerUserAndNoMerchant() {
+        UUID user = UUID.randomUUID();
+        Statement s = queued(user);
+        fileContains(s, """
+                Date,Description,Amount
+                2026-01-02,UPI/P2A/412345678901/RAHUL SHARMA/HDFC BANK/rent,-15000.00
+                2026-01-03,UPI/P2P/412345678902/rahul sharma/AXIS BANK/dinner,-500.00
+                2026-01-04,UPI/P2M/412345678903/SWIGGY/YES BANK/order,-300.00
+                """);
+
+        processor.process(event(s));
+
+        List<Person> people = personRepository.findByUserIdOrderByNameAsc(user);
+        assertThat(people).extracting(Person::getName).containsExactly("Rahul Sharma");
+        List<Transaction> txns = transactionRepository.findByUserId(user);
+        assertThat(txns).filteredOn(t -> t.getRawDescription().contains("/P2A/") || t.getRawDescription().contains("/P2P/"))
+                .hasSize(2).allSatisfy(t -> {
+                    assertThat(t.getPersonId()).isEqualTo(people.get(0).getId());
+                    assertThat(t.getMerchantId()).isNull();
+                });
+        Transaction p2m = txns.stream().filter(t -> t.getRawDescription().contains("/P2M/")).findFirst().orElseThrow();
+        assertThat(p2m.getPersonId()).isNull();
+        assertThat(p2m.getMerchantId()).isNotNull();
+
+        Statement other = queued(UUID.randomUUID());
+        fileContains(other, "Date,Description,Amount\n2026-01-02,UPI/P2A/412345678901/RAHUL SHARMA/HDFC BANK/rent,-1.00\n");
+        processor.process(event(other));
+        assertThat(personRepository.count()).isEqualTo(2);
     }
 
     @Test
