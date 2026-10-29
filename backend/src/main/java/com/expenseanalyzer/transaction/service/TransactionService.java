@@ -1,6 +1,10 @@
 package com.expenseanalyzer.transaction.service;
 
 import com.expenseanalyzer.analytics.service.SpendingAnalyticsService;
+import com.expenseanalyzer.category.model.Category;
+import com.expenseanalyzer.category.service.CategoryService;
+import com.expenseanalyzer.category.service.EffectiveCategoryResolver;
+import com.expenseanalyzer.category.service.EffectiveCategoryResolver.Resolution;
 import com.expenseanalyzer.merchant.model.Merchant;
 import com.expenseanalyzer.merchant.repository.MerchantRepository;
 import com.expenseanalyzer.transaction.dto.TransactionFilter;
@@ -10,9 +14,9 @@ import com.expenseanalyzer.transaction.repository.TransactionRepository;
 import com.expenseanalyzer.user.model.User;
 import com.expenseanalyzer.user.repository.UserRepository;
 import jakarta.persistence.criteria.Predicate;
-import jakarta.persistence.criteria.Root;
-import jakarta.persistence.criteria.Subquery;
+import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -39,13 +43,16 @@ public class TransactionService {
     private final TransactionRepository transactionRepository;
     private final UserRepository userRepository;
     private final MerchantRepository merchantRepository;
+    private final CategoryService categoryService;
+    private final EffectiveCategoryResolver categoryResolver;
 
-    @Transactional(readOnly = true)
+    @Transactional // not readOnly: first access seeds the user's default categories
     public Page<TransactionResponse> list(String email, TransactionFilter f, Pageable pageable) {
         if (f.from() != null && f.to() != null && f.from().isAfter(f.to())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "from must not be after to");
         }
         UUID userId = currentUser(email).getId();
+        Resolution resolution = categoryResolver.forUser(userId);
         Specification<Transaction> spec = (root, q, cb) -> cb.equal(root.get("userId"), userId);
         if (f.q() != null && !f.q().isBlank()) {
             String pattern = "%" + escapeLike(f.q().trim().toLowerCase(Locale.ROOT)) + "%";
@@ -60,7 +67,7 @@ public class TransactionService {
             spec = spec.and((root, q, cb) -> cb.equal(root.get("merchantId"), f.merchantId()));
         }
         if (f.category() != null && !f.category().isBlank()) {
-            spec = spec.and(categoryIs(f.category()));
+            spec = spec.and(categoryIs(f.category(), resolution));
         }
         if (f.direction() != null) {
             spec = spec.and((root, q, cb) -> cb.equal(root.get("type"), f.direction().name()));
@@ -81,13 +88,35 @@ public class TransactionService {
         }
         Page<Transaction> page = transactionRepository.findAll(spec, pageable);
         Map<UUID, Merchant> merchants = merchants(page.getContent());
-        return page.map(t -> TransactionResponse.from(t, merchants.get(t.getMerchantId())));
+        return page.map(t -> response(t, merchants.get(t.getMerchantId()), resolution));
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public Optional<TransactionResponse> find(String email, UUID id) {
-        return transactionRepository.findByIdAndUserId(id, currentUser(email).getId())
-                .map(t -> TransactionResponse.from(t, merchants(List.of(t)).get(t.getMerchantId())));
+        UUID userId = currentUser(email).getId();
+        return transactionRepository.findByIdAndUserId(id, userId).map(t -> response(t, userId));
+    }
+
+    /** Sets (or, with a null categoryId, clears) the transaction's own category. Not yours or unknown: 404. */
+    @Transactional
+    public TransactionResponse setCategory(String email, UUID id, UUID categoryId) {
+        UUID userId = currentUser(email).getId();
+        Transaction t = transactionRepository.findByIdAndUserId(id, userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        if (categoryId != null) {
+            categoryService.owned(userId, categoryId);
+        }
+        t.setCategoryId(categoryId);
+        t.setUpdatedAt(Instant.now());
+        return response(transactionRepository.save(t), userId);
+    }
+
+    private TransactionResponse response(Transaction t, UUID userId) {
+        return response(t, merchants(List.of(t)).get(t.getMerchantId()), categoryResolver.forUser(userId));
+    }
+
+    private static TransactionResponse response(Transaction t, Merchant merchant, Resolution resolution) {
+        return TransactionResponse.from(t, merchant, resolution.resolve(t, merchant));
     }
 
     private Map<UUID, Merchant> merchants(List<Transaction> transactions) {
@@ -97,18 +126,52 @@ public class TransactionService {
                 .collect(Collectors.toMap(Merchant::getId, Function.identity()));
     }
 
-    /** Same category semantics as spending analytics: merchant categoryHint, else "Uncategorized". */
-    private static Specification<Transaction> categoryIs(String category) {
+    /**
+     * Filters by effective category name (case-insensitive), mirroring {@link Resolution#resolve}: own category; else
+     * merchant mapping; else merchant categoryHint naming one of the user's categories. The person step goes here too.
+     */
+    private Specification<Transaction> categoryIs(String name, Resolution resolution) {
+        List<UUID> hinted = merchantRepository.findIdsByCategoryHintLower(resolution.lowerNames());
+        Set<UUID> mapped = resolution.mappedMerchants();
+        if (SpendingAnalyticsService.UNCATEGORIZED.equalsIgnoreCase(name.trim())) {
+            return (root, q, cb) -> {
+                List<Predicate> unresolved = new ArrayList<>();
+                unresolved.add(cb.isNull(root.get("categoryId")));
+                Predicate noMerchant = cb.isNull(root.get("merchantId"));
+                List<Predicate> merchantUnresolved = new ArrayList<>();
+                if (!mapped.isEmpty()) {
+                    merchantUnresolved.add(cb.not(root.get("merchantId").in(mapped)));
+                }
+                if (!hinted.isEmpty()) {
+                    merchantUnresolved.add(cb.not(root.get("merchantId").in(hinted)));
+                }
+                unresolved.add(cb.or(noMerchant, cb.and(merchantUnresolved.toArray(Predicate[]::new))));
+                return cb.and(unresolved.toArray(Predicate[]::new));
+            };
+        }
+        Category category = resolution.named(name.trim());
+        if (category == null) {
+            return (root, q, cb) -> cb.disjunction();
+        }
+        Set<UUID> mappedHere = resolution.merchantsMappedTo(category.getId());
+        List<UUID> hintedHere = merchantRepository.findIdsByCategoryHintLower(Set.of(name.trim().toLowerCase(Locale.ROOT)));
         return (root, q, cb) -> {
-            Subquery<UUID> sub = q.subquery(UUID.class);
-            Root<Merchant> m = sub.from(Merchant.class);
-            boolean uncategorized = SpendingAnalyticsService.UNCATEGORIZED.equals(category);
-            sub.select(m.get("id")).where(uncategorized ? cb.isNull(m.get("categoryHint"))
-                    : cb.equal(m.get("categoryHint"), category));
-            Predicate inMerchants = root.get("merchantId").in(sub);
-            return uncategorized ? cb.or(cb.isNull(root.get("merchantId")), inMerchants) : inMerchants;
+            List<Predicate> viaMerchant = new ArrayList<>();
+            if (!mappedHere.isEmpty()) {
+                viaMerchant.add(root.get("merchantId").in(mappedHere));
+            }
+            if (!hintedHere.isEmpty()) {
+                Predicate hintMatches = root.get("merchantId").in(hintedHere);
+                viaMerchant.add(mapped.isEmpty() ? hintMatches : cb.and(hintMatches, cb.not(root.get("merchantId").in(mapped))));
+            }
+            Predicate own = cb.equal(root.get("categoryId"), category.getId());
+            if (viaMerchant.isEmpty()) {
+                return own;
+            }
+            return cb.or(own, cb.and(cb.isNull(root.get("categoryId")), cb.or(viaMerchant.toArray(Predicate[]::new))));
         };
     }
+
 
     /** Escapes LIKE wildcards so user text matches literally (escape character is a backslash). */
     private static String escapeLike(String s) {
