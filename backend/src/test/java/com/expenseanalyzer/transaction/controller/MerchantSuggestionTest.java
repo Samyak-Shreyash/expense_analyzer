@@ -94,7 +94,7 @@ class MerchantSuggestionTest {
         return user(email, Duration.ofDays(30));
     }
 
-    /** A user stored with the given account age (votes count only from accounts at least 7 days old). */
+    /** A user (sharing merchant names) stored with the given account age (votes count only from accounts at least 7 days old). */
     private User user(String email, Duration age) {
         User u = new User();
         u.setId(UUID.randomUUID());
@@ -104,7 +104,7 @@ class MerchantSuggestionTest {
         when(userRepository.findByEmail(email)).thenReturn(Optional.of(u));
         Timestamp created = Timestamp.from(Instant.now().minus(age));
         jdbcTemplate.update("INSERT INTO users (id, email, password_hash, role, is_active, categories_seeded, "
-                + "created_at, updated_at) VALUES (?, ?, 'x', 'USER', TRUE, FALSE, ?, ?)", u.getId(), email, created, created);
+                + "created_at, updated_at, share_merchant_names) VALUES (?, ?, 'x', 'USER', TRUE, FALSE, ?, ?, TRUE)", u.getId(), email, created, created);
         users.add(u.getId());
         return u;
     }
@@ -126,10 +126,10 @@ class MerchantSuggestionTest {
         return transactionRepository.saveAndFlush(t).getId();
     }
 
-    private void name(User u, UUID tx, String name, boolean suggest) throws Exception {
+    private void name(User u, UUID tx, String name, boolean share) throws Exception {
         mockMvc.perform(put("/api/transactions/" + tx + "/merchant").header("Authorization", bearer(u))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"name\":\"" + name + "\",\"suggest\":" + suggest + "}"))
+                        .content("{\"name\":\"" + name + "\",\"share\":" + share + "}"))
                 .andExpect(status().isOk());
     }
 

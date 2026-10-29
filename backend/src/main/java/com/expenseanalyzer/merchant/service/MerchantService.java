@@ -6,12 +6,21 @@ import com.expenseanalyzer.merchant.model.MerchantSuggestionVote;
 import com.expenseanalyzer.merchant.model.UserMerchantAlias;
 import com.expenseanalyzer.merchant.repository.MerchantSuggestionVoteRepository;
 import com.expenseanalyzer.merchant.repository.UserMerchantAliasRepository;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.text.Normalizer;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.regex.Pattern;
@@ -31,6 +40,7 @@ public class MerchantService {
     /** Only accounts at least this old count as suggestion voters. */
     static final Duration VOTER_MIN_AGE = Duration.ofDays(7);
     /** Letters (any script), spaces and & . ' - only, 2-60 chars; no "x.com" / "www.x" style domains. */
+    private static final Set<String> BLOCKED_WORDS = loadBlockedWords();
     private static final Pattern SUGGESTABLE = Pattern.compile("(?=.*\\p{L})(?!.*\\.\\p{L}{2})[\\p{L}\\p{M} &.'\\-]{2,60}");
 
     /**
@@ -82,12 +92,55 @@ public class MerchantService {
     }
 
     /**
-     * Records (or atomically replaces) the user's opt-in vote for a payee key. A merchant whose name is not
-     * {@link #suggestable} is silently not recorded and any earlier vote is withdrawn.
+     * Why a payment's payee may not be shared, or null when it may: only a UPI P2M merchant payment that is not a
+     * transfer to a person (no P2A/P2P token, no linked person) is shareable.
+     */
+    public static NotShareableReason payeeReason(String rawDescription, UUID personId) {
+        if (personId != null || PersonNameParser.isTransfer(rawDescription)) {
+            return NotShareableReason.TRANSFER;
+        }
+        return PayeeKey.ofP2m(rawDescription).isPresent() ? null : NotShareableReason.NOT_UPI_MERCHANT;
+    }
+
+    /** Why a merchant name may not be shown to other users, or null when it may. */
+    public static NotShareableReason nameReason(String name) {
+        if (offensive(name)) {
+            return NotShareableReason.NAME_OFFENSIVE;
+        }
+        return suggestable(name) ? null : NotShareableReason.NAME_NOT_ALLOWED;
+    }
+
+    /**
+     * True when any whole word of the name is on the blocklist, compared without accents and reading leetspeak digits
+     * (0=o 1=i 3=e 4=a 5=s 7=t). Never logs the name or the word.
+     */
+    public static boolean offensive(String name) {
+        return name != null && Arrays.stream(fold(name).split("[^\\p{L}]+")).anyMatch(BLOCKED_WORDS::contains);
+    }
+
+    private static String fold(String s) {
+        String plain = Normalizer.normalize(s, Normalizer.Form.NFD).replaceAll("\\p{M}", "").toLowerCase(Locale.ROOT);
+        return plain.replace('0', 'o').replace('1', 'i').replace('3', 'e').replace('4', 'a').replace('5', 's')
+                .replace('7', 't');
+    }
+
+    private static Set<String> loadBlockedWords() {
+        try (InputStream in = MerchantService.class.getResourceAsStream("/moderation/blocked-words.txt")) {
+            return new String(Objects.requireNonNull(in).readAllBytes(), StandardCharsets.UTF_8).lines()
+                    .map(String::trim).filter(l -> !l.isEmpty() && !l.startsWith("#"))
+                    .map(MerchantService::fold).collect(Collectors.toUnmodifiableSet());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    /**
+     * Records (or atomically replaces) the user's vote for a payee key. A merchant whose name may not be shared (see
+     * {@link #nameReason}) is silently not recorded and any earlier vote is withdrawn.
      */
     @Transactional
     public void vote(UUID userId, String payeeKey, Merchant merchant) {
-        if (!suggestable(merchant.getCanonicalName())) {
+        if (nameReason(merchant.getCanonicalName()) != null) {
             withdrawVote(userId, payeeKey);
             return;
         }
