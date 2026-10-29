@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import shared from '../../components/shared.module.css'
@@ -27,6 +27,9 @@ export function TransactionsPage() {
   const [categories, setCategories] = useState<Category[]>([])
   // Bumped to refetch after a change that can touch other rows.
   const [version, setVersion] = useState(0)
+  // Row whose merchant was just named: its trigger unmounts, so focus moves on after the refetch.
+  const focusRow = useRef<string | null>(null)
+  const tableWrap = useRef<HTMLDivElement>(null)
   const [draft, setDraft] = useState(() =>
     Object.fromEntries(FORM_KEYS.map((k) => [k, params.get(k) ?? ''])),
   )
@@ -58,6 +61,14 @@ export function TransactionsPage() {
     }
     // filterKey captures every param; params itself is a new object each render
   }, [filterKey, version])
+
+  useEffect(() => {
+    if (!result || !focusRow.current) return
+    const row = focusRow.current
+    focusRow.current = null
+    const button = document.getElementById(`merchant-${row}`)
+    ;(button ?? tableWrap.current)?.focus()
+  }, [result])
 
   function update(changes: Record<string, string>) {
     const next = new URLSearchParams(params)
@@ -197,7 +208,7 @@ export function TransactionsPage() {
 
       {result && result.totalItems > 0 && (
         <>
-          <div className={shared.tableWrap}>
+          <div className={shared.tableWrap} ref={tableWrap} tabIndex={-1}>
             <table className={shared.table}>
               <thead>
                 <tr>
@@ -232,6 +243,7 @@ export function TransactionsPage() {
                         ) : t.merchantId ? (
                           <button
                             type="button"
+                            id={`merchant-${t.id}`}
                             className={shared.quiet}
                             onClick={() =>
                               update({ merchantId: t.merchantId! })
@@ -244,7 +256,10 @@ export function TransactionsPage() {
                             <span className={shared.muted}>Not matched</span>
                             <MerchantCell
                               t={t}
-                              reload={() => setVersion((v) => v + 1)}
+                              reload={() => {
+                                focusRow.current = t.id
+                                setVersion((v) => v + 1)
+                              }}
                             />
                           </>
                         )}

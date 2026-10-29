@@ -79,6 +79,6 @@ public class TransactionController {
     @PutMapping("/{id}/merchant")
     public TransactionResponse setMerchant(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
                                            @RequestBody MerchantNameRequest body) {
-        return transactionService.setMerchant(jwt.getSubject(), id, body.name());
+        return transactionService.setMerchant(jwt.getSubject(), id, body.name(), body.shouldSuggest());
     }
 }

@@ -33,6 +33,7 @@ const swiggy: Transaction = {
   personId: null,
   personName: null,
   statementId: 's1',
+  suggestedMerchantName: null,
 }
 
 const categories: finance.Category[] = [
@@ -383,6 +384,59 @@ describe('TransactionsPage', () => {
         expect(finance.setTransactionMerchant).toHaveBeenCalledWith(
           't1',
           'Acme Store',
+          false,
+        ),
+      )
+      await waitFor(() =>
+        expect(vi.mocked(finance.listTransactions).mock.calls.length).toBe(
+          calls + 1,
+        ),
+      )
+    })
+
+    it('shares the name only when the box is ticked', async () => {
+      vi.mocked(finance.setTransactionMerchant).mockResolvedValue(unmatched)
+      renderPage()
+      fireEvent.click(await screen.findByRole('button', { name: addMerchant }))
+      const box = screen.getByLabelText(/Suggest this name to other users/)
+      expect((box as HTMLInputElement).checked).toBe(false)
+      fireEvent.click(box)
+      fireEvent.change(screen.getByLabelText('Merchant name'), {
+        target: { value: 'Acme Store' },
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+      await waitFor(() =>
+        expect(finance.setTransactionMerchant).toHaveBeenCalledWith(
+          't1',
+          'Acme Store',
+          true,
+        ),
+      )
+    })
+
+    it('offers a suggested name that Use applies without sharing', async () => {
+      vi.mocked(finance.setTransactionMerchant).mockResolvedValue(unmatched)
+      vi.mocked(finance.listTransactions).mockResolvedValue({
+        items: [{ ...unmatched, suggestedMerchantName: 'Acme Store' }],
+        page: 0,
+        size: 50,
+        totalItems: 1,
+        totalPages: 1,
+      })
+      renderPage()
+      expect(await screen.findByText(/Suggested: Acme Store/)).toBeTruthy()
+      expect(screen.getByRole('button', { name: addMerchant })).toBeTruthy()
+      const calls = vi.mocked(finance.listTransactions).mock.calls.length
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: 'Use Acme Store for UPI-SWIGGY-ORDER-12345678',
+        }),
+      )
+      await waitFor(() =>
+        expect(finance.setTransactionMerchant).toHaveBeenCalledWith(
+          't1',
+          'Acme Store',
+          false,
         ),
       )
       await waitFor(() =>

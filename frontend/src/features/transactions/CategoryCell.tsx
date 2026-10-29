@@ -70,7 +70,11 @@ export function CategoryCell({
         if (t.personId)
           await updatePerson(t.personId, t.personName!, categoryId)
         else await setMerchantCategory(t.merchantId!, categoryId)
-        await setTransactionCategory(t.id, null)
+        try {
+          await setTransactionCategory(t.id, null)
+        } catch {
+          // the merchant/person-wide save worked; the reload shows the real state
+        }
         close()
         reload()
       } else {
