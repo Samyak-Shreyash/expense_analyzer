@@ -33,13 +33,21 @@ export type Transaction = {
   direction: 'DEBIT' | 'CREDIT'
   merchantId: string | null
   merchantName: string | null
+  /** Effective category name (override, person, merchant, hint). */
   category: string | null
+  categoryId: string | null
+  /** True when this transaction has its own category, set by the user. */
+  categoryOverridden: boolean
+  personId: string | null
+  personName: string | null
   statementId: string | null
 }
 
 type Totals = {
   inflow: number
   outflow: number
+  /** Money out that is not counted as spending (transfers, repayments). */
+  nonSpendingOutflow: number
   net: number
   transactionCount: number
 }
@@ -65,6 +73,22 @@ export type MerchantBreakdown = {
 export type CategoryBreakdown = {
   totalSpend: number
   items: (Spend & { category: string })[]
+}
+
+export type NonSpending = {
+  total: number
+  items: {
+    category: string
+    spend: number
+    sharePercent: number | null
+    transactionCount: number
+    people: {
+      personId: string
+      name: string
+      spend: number
+      transactionCount: number
+    }[]
+  }[]
 }
 
 export type CashFlow = {
@@ -201,3 +225,89 @@ export const getCashFlow = (from: string, to: string) =>
   getJson<CashFlow>(`/analytics/cash-flow?${range(from, to)}`)
 export const getTrends = (from: string, to: string) =>
   getJson<Trends>(`/analytics/trends?${range(from, to)}`)
+
+export const getNonSpending = (from: string, to: string) =>
+  getJson<NonSpending>(`/analytics/non-spending?${range(from, to)}`)
+
+// ---- categories and people ----
+
+export type Category = { id: string; name: string; countsAsSpending: boolean }
+export type Person = { id: string; name: string; categoryId: string | null }
+
+/** Write call: returns the parsed body (null when empty) or throws with a message safe to show. */
+async function write<T>(
+  method: 'POST' | 'PUT' | 'DELETE',
+  path: string,
+  body: unknown,
+  messages: Record<number, string>,
+): Promise<T> {
+  const res = await apiFetch(path, {
+    method,
+    headers:
+      body === undefined ? undefined : { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+  if (!res.ok)
+    throw new ApiError(
+      res.status,
+      messages[res.status] ?? 'Could not save that. Try again in a moment.',
+    )
+  return (res.status === 204 ? null : await res.json()) as T
+}
+
+const CATEGORY_ERRORS = {
+  400: 'Use a name of 1 to 50 characters. "Uncategorized" is reserved.',
+  404: 'That category no longer exists. Reload the page.',
+  409: 'You already have a category with that name.',
+}
+const PERSON_ERRORS = {
+  400: 'Use a name of 1 to 100 characters.',
+  404: 'That person no longer exists. Reload the page.',
+  409: 'You already have a person with that name.',
+}
+
+export const listCategories = () => getJson<Category[]>('/categories')
+export const createCategory = (name: string, countsAsSpending: boolean) =>
+  write<Category>(
+    'POST',
+    '/categories',
+    { name, countsAsSpending },
+    CATEGORY_ERRORS,
+  )
+export const updateCategory = (
+  id: string,
+  name: string,
+  countsAsSpending: boolean,
+) =>
+  write<Category>(
+    'PUT',
+    `/categories/${id}`,
+    { name, countsAsSpending },
+    CATEGORY_ERRORS,
+  )
+export const deleteCategory = (id: string) =>
+  write<null>('DELETE', `/categories/${id}`, undefined, CATEGORY_ERRORS)
+
+export const listPeople = () => getJson<Person[]>('/people')
+export const updatePerson = (
+  id: string,
+  name: string,
+  categoryId: string | null,
+) => write<Person>('PUT', `/people/${id}`, { name, categoryId }, PERSON_ERRORS)
+
+/** categoryId null clears the assignment. */
+export const setTransactionCategory = (id: string, categoryId: string | null) =>
+  write<Transaction>('PUT', `/transactions/${id}/category`, { categoryId }, {})
+export const setMerchantCategory = (id: string, categoryId: string | null) =>
+  write<null>('PUT', `/merchants/${id}/category`, { categoryId }, {})
+export const setCounterparty = (
+  id: string,
+  type: 'PERSON' | 'MERCHANT',
+  name?: string,
+) =>
+  write<Transaction>(
+    'PUT',
+    `/transactions/${id}/counterparty`,
+    { type, name },
+    { 400: 'Enter a name that looks like a person, up to 100 characters.' },
+  )
