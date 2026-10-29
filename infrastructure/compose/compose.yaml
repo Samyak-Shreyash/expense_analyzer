@@ -84,9 +84,9 @@ services:
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
 
-    # No auth: set KAFKA_BIND_ADDRESS=127.0.0.1 to keep it off the network.
+    # No auth: bound to localhost by default. The backend uses the internal listener (kafka:29092).
     ports:
-      - "${KAFKA_BIND_ADDRESS:-0.0.0.0}:${KAFKA_PORT:-9092}:9092"
+      - "${KAFKA_BIND_ADDRESS:-127.0.0.1}:${KAFKA_PORT:-9092}:9092"
 
     volumes:
       - kafka_data:/var/lib/kafka/data
