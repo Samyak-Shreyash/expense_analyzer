@@ -59,6 +59,7 @@ class CategoryControllerTest {
     @BeforeEach
     void setUp() {
         mockMvc = MockMvcBuilders.webAppContextSetup(context).apply(springSecurity()).build();
+        when(userRepository.claimCategorySeeding(org.mockito.ArgumentMatchers.any())).thenReturn(1); // mocked repo: always claim
         alice = user(ALICE);
         user(BOB);
     }

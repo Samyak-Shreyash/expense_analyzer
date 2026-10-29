@@ -95,6 +95,9 @@ public class User {
     @Column(name = "role", nullable = false, length = 20)
     private UserRole role;
 
+    @Column(name = "categories_seeded", nullable = false)
+    private boolean categoriesSeeded = false;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

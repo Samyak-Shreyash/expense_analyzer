@@ -44,19 +44,21 @@ public class CategoryService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED));
     }
 
-    /** Seeds the default categories the user does not have yet (matched case-insensitively); safe to call repeatedly. */
+    /** Seeds the defaults once per user; the atomic flag claim stops deletes/renames resurrecting them and races duplicating them. */
     @Transactional
     public List<Category> ensureDefaults(UUID userId) {
         List<Category> existing = categoryRepository.findByUserIdOrderByNameAsc(userId);
+        if (userRepository.claimCategorySeeding(userId) == 0) {
+            return existing;
+        }
         Set<String> have = existing.stream().map(c -> key(c.getName())).collect(Collectors.toSet());
-        boolean added = false;
         for (String name : MerchantNormalizer.defaultCategoryNames()) {
-            added |= seed(userId, name, true, have);
+            seed(userId, name, true, have);
         }
         for (String name : NON_SPENDING_DEFAULTS) {
-            added |= seed(userId, name, false, have);
+            seed(userId, name, false, have);
         }
-        return added ? categoryRepository.findByUserIdOrderByNameAsc(userId) : existing;
+        return categoryRepository.findByUserIdOrderByNameAsc(userId);
     }
 
     @Transactional
@@ -94,12 +96,10 @@ public class CategoryService {
         categoryRepository.delete(category);
     }
 
-    private boolean seed(UUID userId, String name, boolean spends, Set<String> have) {
-        if (!have.add(key(name))) {
-            return false;
+    private void seed(UUID userId, String name, boolean spends, Set<String> have) {
+        if (have.add(key(name))) {
+            categoryRepository.save(new Category(userId, name, spends));
         }
-        categoryRepository.save(new Category(userId, name, spends));
-        return true;
     }
 
     /** Sets (or, with a null categoryId, clears) the caller's category for a merchant. Unknown merchant or category: 404. */
