@@ -5,6 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
+import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.core.exception.SdkException;
 
 import org.springframework.http.HttpStatus;
@@ -39,7 +40,12 @@ public class GlobalExceptionHandler {
     /** Object storage unreachable or failing; detail stays generic. */
     @ExceptionHandler(SdkException.class)
     public ResponseEntity<ProblemDetail> handleStorageFailure(SdkException e) {
-        log.warn("Object storage call failed: {}", e.getClass().getSimpleName());
+        if (e instanceof AwsServiceException ase && ase.awsErrorDetails() != null) {
+            log.warn("Object storage call failed: {} {} {}", e.getClass().getSimpleName(),
+                    ase.statusCode(), ase.awsErrorDetails().errorCode());
+        } else {
+            log.warn("Object storage call failed: {}", e.getClass().getSimpleName());
+        }
         ProblemDetail p = ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE,
                 "File storage is temporarily unavailable");
         p.setTitle("Storage unavailable");
