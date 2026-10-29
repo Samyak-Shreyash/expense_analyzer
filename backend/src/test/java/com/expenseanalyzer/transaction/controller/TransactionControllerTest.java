@@ -1,6 +1,8 @@
 package com.expenseanalyzer.transaction.controller;
 
 import com.expenseanalyzer.auth.dto.JwtTokenProvider;
+import com.expenseanalyzer.merchant.model.Merchant;
+import com.expenseanalyzer.merchant.repository.MerchantRepository;
 import com.expenseanalyzer.transaction.model.Transaction;
 import com.expenseanalyzer.transaction.repository.TransactionRepository;
 import com.expenseanalyzer.user.model.User;
@@ -42,6 +44,8 @@ class TransactionControllerTest {
     private JwtTokenProvider jwtTokenProvider;
     @Autowired
     private TransactionRepository transactionRepository;
+    @Autowired
+    private MerchantRepository merchantRepository;
 
     @MockitoBean
     private UserRepository userRepository;
@@ -67,6 +71,7 @@ class TransactionControllerTest {
     @AfterEach
     void cleanUp() {
         transactionRepository.deleteAll();
+        merchantRepository.deleteAll();
     }
 
     private UUID user(String email) {
@@ -131,6 +136,45 @@ class TransactionControllerTest {
         mockMvc.perform(get("/api/transactions").param("minAmount", "450").param("maxAmount", "20000")
                         .header("Authorization", token))
                 .andExpect(jsonPath("$.items[*].description", containsInAnyOrder("Swiggy order", "Rent")));
+    }
+
+    @Test
+    void textSearchMatchesRawOrNormalizedDescriptionCaseInsensitively() throws Exception {
+        Transaction t = transactionRepository.findByUserId(alice).stream()
+                .filter(x -> x.getRawDescription().equals("Coffee")).findFirst().orElseThrow();
+        t.setNormalizedDescription("BLUE TOKAI");
+        transactionRepository.save(t);
+
+        mockMvc.perform(get("/api/transactions").param("q", "swiggy").header("Authorization", bearer(ALICE)))
+                .andExpect(jsonPath("$.items[*].description", containsInAnyOrder("Swiggy order")));
+        mockMvc.perform(get("/api/transactions").param("q", "tokai").header("Authorization", bearer(ALICE)))
+                .andExpect(jsonPath("$.items[*].description", containsInAnyOrder("Coffee")));
+    }
+
+    @Test
+    void textSearchTreatsWildcardsLiterally() throws Exception {
+        mockMvc.perform(get("/api/transactions").param("q", "%").header("Authorization", bearer(ALICE)))
+                .andExpect(jsonPath("$.totalItems").value(0));
+        mockMvc.perform(get("/api/transactions").param("q", "_").header("Authorization", bearer(ALICE)))
+                .andExpect(jsonPath("$.totalItems").value(0));
+    }
+
+    @Test
+    void itemsCarryMerchantNameAndCategory() throws Exception {
+        Merchant m = merchantRepository.save(new Merchant("Swiggy", "Food & Dining"));
+        Transaction t = transactionRepository.findByUserId(alice).stream()
+                .filter(x -> x.getRawDescription().equals("Swiggy order")).findFirst().orElseThrow();
+        t.setMerchantId(m.getId());
+        transactionRepository.save(t);
+
+        mockMvc.perform(get("/api/transactions").param("q", "swiggy").header("Authorization", bearer(ALICE)))
+                .andExpect(jsonPath("$.items[0].merchantName").value("Swiggy"))
+                .andExpect(jsonPath("$.items[0].category").value("Food & Dining"));
+        mockMvc.perform(get("/api/transactions/" + t.getId()).header("Authorization", bearer(ALICE)))
+                .andExpect(jsonPath("$.merchantName").value("Swiggy"));
+        mockMvc.perform(get("/api/transactions").param("q", "coffee").header("Authorization", bearer(ALICE)))
+                .andExpect(jsonPath("$.items[0].merchantName").doesNotExist())
+                .andExpect(jsonPath("$.items[0].category").doesNotExist());
     }
 
     @Test
