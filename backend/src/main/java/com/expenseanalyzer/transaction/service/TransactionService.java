@@ -11,6 +11,7 @@ import com.expenseanalyzer.merchant.repository.MerchantRepository;
 import com.expenseanalyzer.merchant.service.MerchantMatch;
 import com.expenseanalyzer.merchant.service.MerchantNormalizer;
 import com.expenseanalyzer.merchant.service.MerchantService;
+import com.expenseanalyzer.merchant.service.PayeeKey;
 import com.expenseanalyzer.merchant.service.PersonService;
 import com.expenseanalyzer.category.model.UserMerchantCategory;
 import com.expenseanalyzer.transaction.dto.CounterpartyRequest;
@@ -145,6 +146,7 @@ public class TransactionService {
         List<Transaction> rows = t.getNormalizedDescription() == null ? List.of(t)
                 : transactionRepository.findByUserIdAndNormalizedDescription(userId, t.getNormalizedDescription());
         Map<String, UUID> merchantIds = new HashMap<>();
+        Map<String, UUID> aliases = person == null ? merchantService.aliases(userId) : new HashMap<>();
         Instant now = Instant.now();
         for (Transaction row : rows) {
             row.setPersonId(person == null ? null : person.getId());
@@ -152,11 +154,43 @@ public class TransactionService {
             row.setMerchantConfidence(null);
             if (person == null) {
                 MerchantMatch m = merchantNormalizer.normalize(row.getRawDescription());
-                if (m.canonicalName() != null) {
+                UUID named = aliases.get(PayeeKey.of(row.getRawDescription(), m.normalizedDescription()));
+                if (named != null) {
+                    row.setMerchantId(named);
+                } else if (m.canonicalName() != null) {
                     row.setMerchantId(merchantIds.computeIfAbsent(m.canonicalName(), n -> merchantService.resolve(m).getId()));
                     row.setMerchantConfidence(m.confidence());
                 }
             }
+            row.setUpdatedAt(now);
+        }
+        transactionRepository.saveAll(rows);
+        return response(t, userId);
+    }
+
+    /**
+     * Names the merchant of an unmatched payment: finds or creates the merchant, remembers it for the payee and
+     * applies it (dropping any person) to all of the caller's transactions with the same payee key. Raw data is untouched.
+     */
+    @Transactional
+    public TransactionResponse setMerchant(String email, UUID id, String name) {
+        UUID userId = currentUser(email).getId();
+        Transaction t = transactionRepository.findByIdAndUserId(id, userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        String clean = PersonService.validName(name);
+        String key = PayeeKey.of(t.getRawDescription(), t.getNormalizedDescription());
+        if (key == null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Transaction has no payee");
+        }
+        UUID merchantId = merchantService.resolve(new MerchantMatch(clean, clean, null, null)).getId();
+        merchantService.saveAlias(userId, key, merchantId);
+        Instant now = Instant.now();
+        List<Transaction> rows = transactionRepository.findByUserId(userId).stream()
+                .filter(r -> key.equals(PayeeKey.of(r.getRawDescription(), r.getNormalizedDescription()))).toList();
+        for (Transaction row : rows) {
+            row.setMerchantId(merchantId);
+            row.setMerchantConfidence(null);
+            row.setPersonId(null);
             row.setUpdatedAt(now);
         }
         transactionRepository.saveAll(rows);

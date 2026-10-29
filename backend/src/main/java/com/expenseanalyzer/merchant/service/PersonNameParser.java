@@ -2,6 +2,7 @@ package com.expenseanalyzer.merchant.service;
 
 import java.util.Locale;
 import java.util.Optional;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 /**
@@ -19,31 +20,41 @@ public final class PersonNameParser {
     }
 
     public static Optional<String> parse(String rawDescription) {
+        return segmentAfterReference(rawDescription, PersonNameParser::isTransferToken).flatMap(name -> {
+            if (name.contains("@") || name.chars().noneMatch(Character::isLetter)) {
+                return Optional.empty();
+            }
+            return Optional.of(titleCase(name.length() > MAX_LENGTH ? name.substring(0, MAX_LENGTH) : name));
+        });
+    }
+
+    /**
+     * The whitespace-collapsed segment right after the 9+ digit reference number (skipping {@code token} segments
+     * some banks put there), provided the description has a {@code token} segment and a reference.
+     */
+    static Optional<String> segmentAfterReference(String rawDescription, Predicate<String> token) {
         if (rawDescription == null) {
             return Optional.empty();
         }
         String[] parts = SEGMENT_SPLIT.split(rawDescription.trim());
-        boolean transfer = false;
+        boolean marked = false;
         int reference = -1;
         for (int i = 0; i < parts.length; i++) {
             String p = parts[i].trim();
-            transfer |= isTransferToken(p);
+            marked |= token.test(p);
             if (reference < 0 && REFERENCE.matcher(p).matches()) {
                 reference = i;
             }
         }
         int next = reference + 1;
-        while (next < parts.length && isTransferToken(parts[next])) { // some banks put P2A/P2P after the reference
+        while (next < parts.length && token.test(parts[next])) {
             next++;
         }
-        if (!transfer || reference < 0 || next >= parts.length) {
+        if (!marked || reference < 0 || next >= parts.length) {
             return Optional.empty();
         }
         String name = parts[next].trim().replaceAll("\\s+", " ");
-        if (name.isEmpty() || name.contains("@") || name.chars().noneMatch(Character::isLetter)) {
-            return Optional.empty();
-        }
-        return Optional.of(titleCase(name.length() > MAX_LENGTH ? name.substring(0, MAX_LENGTH) : name));
+        return name.isEmpty() ? Optional.empty() : Optional.of(name);
     }
 
     private static boolean isTransferToken(String segment) {
