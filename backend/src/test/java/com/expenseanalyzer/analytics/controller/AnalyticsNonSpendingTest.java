@@ -129,7 +129,12 @@ class AnalyticsNonSpendingTest {
         call("summary").andExpect(status().isOk())
                 .andExpect(jsonPath("$.outflow").value(500.00))
                 .andExpect(jsonPath("$.inflow").value(200.00))
-                .andExpect(jsonPath("$.transactionCount").value(5));
+                .andExpect(jsonPath("$.nonSpendingOutflow").value(2000.00))
+                .andExpect(jsonPath("$.net").value(-2300.00))
+                .andExpect(jsonPath("$.transactionCount").value(5))
+                .andExpect(jsonPath("$.previous.outflow").value(0.00))
+                .andExpect(jsonPath("$.previous.nonSpendingOutflow").value(0.00))
+                .andExpect(jsonPath("$.previous.net").value(0.00));
         call("cash-flow").andExpect(jsonPath("$.months[0].outflow").value(2500.00))
                 .andExpect(jsonPath("$.months[0].inflow").value(200.00));
         call("trends").andExpect(jsonPath("$.months[0].outflow").value(500.00));
