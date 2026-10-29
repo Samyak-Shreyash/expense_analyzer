@@ -31,12 +31,11 @@ public class Statement {
 
     /**
      * Primary key - UUID for distributed system compatibility.
-     * Assigned on creation (not at persist time) so the storage object key, which embeds the id,
-     * can be written in the same INSERT.
      */
     @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", updatable = false, nullable = false)
-    private UUID id = UUID.randomUUID();
+    private UUID id;
 
     /**
      * Bank account number (masked for security).

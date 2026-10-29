@@ -176,6 +176,16 @@ class StatementControllerTest {
     }
 
     @Test
+    void contentThatDoesNotMatchTheExtensionIsRejected() throws Exception {
+        MockMultipartFile fake = new MockMultipartFile("file", "statement.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", CSV);
+        mockMvc.perform(multipart("/api/statements").file(fake).header("Authorization", bearer(ALICE)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.reason").value("SIGNATURE_MISMATCH"));
+        assertThat(statementRepository.count()).isZero();
+    }
+
+    @Test
     void pdfIsRejectedUntilAParserExists() throws Exception {
         MockMultipartFile pdf = new MockMultipartFile("file", "s.pdf", "application/pdf",
                 "%PDF-1.7\n".getBytes(StandardCharsets.US_ASCII));

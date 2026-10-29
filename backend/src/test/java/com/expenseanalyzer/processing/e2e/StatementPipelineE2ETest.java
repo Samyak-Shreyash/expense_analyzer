@@ -67,6 +67,7 @@ class StatementPipelineE2ETest {
     static final GenericContainer<?> RUSTFS = new GenericContainer<>("rustfs/rustfs:latest")
             .withEnv("RUSTFS_ACCESS_KEY", "e2eaccess")
             .withEnv("RUSTFS_SECRET_KEY", "e2esecret123")
+            .withEnv("RUSTFS_SSE_S3_MASTER_KEY", "dGVzdC1vbmx5LXNzZS1tYXN0ZXIta2V5LTMyYnl0ZSE=") // test-only key; SSE-S3 needs one
             .withExposedPorts(9000)
             .waitingFor(Wait.forListeningPort());
 

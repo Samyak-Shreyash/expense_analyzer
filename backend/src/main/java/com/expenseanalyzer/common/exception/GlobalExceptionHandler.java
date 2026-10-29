@@ -4,6 +4,7 @@ import com.expenseanalyzer.statement.service.DuplicateStatementException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import software.amazon.awssdk.core.exception.SdkException;
 
 import org.springframework.http.HttpStatus;
@@ -11,8 +12,6 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.springframework.web.multipart.MaxUploadSizeExceededException;
-import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -54,5 +53,14 @@ public class GlobalExceptionHandler {
         p.setTitle("Invalid file");
         p.setProperty("reason", InvalidFileException.Reason.FILE_TOO_LARGE.name());
         return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(p);
+    }
+
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    public ResponseEntity<ProblemDetail> handleMissingPart(MissingServletRequestPartException e) {
+        ProblemDetail p = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,
+                "Request must include a multipart part named file");
+        p.setTitle("Missing file");
+        p.setProperty("code", "STATEMENT_FILE_MISSING");
+        return ResponseEntity.badRequest().body(p);
     }
 }

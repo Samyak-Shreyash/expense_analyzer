@@ -1060,7 +1060,7 @@ Object storage should be private and accessed through controlled backend operati
 - **Bucket:** `app.storage.bucket` (default `statements`), created privately on first write. No public policy, no presigned URLs: files are only read by the backend worker.
 - **Object key:** `users/{userId}/statements/{statementId}`. Contains no file name, hash or account data.
 - **Metadata in DB:** `statements.storage_key`, `file_hash` (SHA-256), `format`, original `file_name`.
-- **Encryption:** relies on storage-level encryption at rest (deployment concern, #120/#159); TLS to the endpoint in non-local environments.
+- **Encryption:** SSE-S3 (`AES256`) on every object (`app.storage.server-side-encryption`, default on); RustFS needs `RUSTFS_SSE_S3_MASTER_KEY`. TLS to the endpoint in non-local environments.
 - **Retention/deletion:** `DELETE /api/statements/{id}` removes the object and the statement row. Deleting a missing object is a no-op.
 - **Logging:** keys and file names are never logged.
 
