@@ -88,6 +88,13 @@ app:
   statement:
     upload:
       max-size-bytes: ${STATEMENT_UPLOAD_MAX_BYTES:20971520}
+  # S3-compatible statement storage (RustFS locally). Credentials have no defaults.
+  storage:
+    endpoint: ${STORAGE_ENDPOINT:http://localhost:${RUSTFS_API_PORT:9000}}
+    region: ${STORAGE_REGION:us-east-1}
+    bucket: ${STORAGE_BUCKET:statements}
+    access-key: ${RUSTFS_ACCESS_KEY}
+    secret-key: ${RUSTFS_SECRET_KEY}
   oauth:
     client:
       id: expense-analyzer-client
