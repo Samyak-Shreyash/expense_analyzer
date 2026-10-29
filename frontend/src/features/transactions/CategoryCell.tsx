@@ -4,7 +4,9 @@ import shared from '../../components/shared.module.css'
 import {
   ApiError,
   createCategory,
+  setMerchantCategory,
   setTransactionCategory,
+  updatePerson,
   type Category,
   type Transaction,
 } from '../../services/finance'
@@ -16,6 +18,8 @@ type Props = {
   onCreated: (c: Category) => void
   onSaved: (t: Transaction) => void
   onFilter: (category: string) => void
+  /** Refetch the list: a merchant or person default changes other rows. */
+  reload: () => void
 }
 
 /** Category of one transaction: click to pick from the list or type a new one. */
@@ -25,16 +29,22 @@ export function CategoryCell({
   onCreated,
   onSaved,
   onFilter,
+  reload,
 }: Props) {
   const [editing, setEditing] = useState(false)
   const [name, setName] = useState('')
   const [countsAsSpending, setCountsAsSpending] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [only, setOnly] = useState(false)
   const trigger = useRef<HTMLButtonElement>(null)
   const listId = useId()
 
   const label = t.category ?? 'Uncategorized'
+  // A matched merchant or person keeps the category for all its transactions.
+  const holder = t.personId ? t.personName : t.merchantName
+  const hasHolder = t.personId !== null || t.merchantId !== null
+  const wide = hasHolder && !only
   const existing = categories.find(
     (c) => c.name.toLowerCase() === name.trim().toLowerCase(),
   )
@@ -43,6 +53,7 @@ export function CategoryCell({
   function open() {
     setName(t.categoryOverridden ? label : '')
     setError(null)
+    setOnly(false)
     setEditing(true)
   }
 
@@ -51,12 +62,21 @@ export function CategoryCell({
     trigger.current?.focus()
   }
 
-  async function save(categoryId: string | null) {
+  async function save(categoryId: string | null, forAll = wide) {
     setSaving(true)
     setError(null)
     try {
-      onSaved(await setTransactionCategory(t.id, categoryId))
-      close()
+      if (forAll) {
+        if (t.personId)
+          await updatePerson(t.personId, t.personName!, categoryId)
+        else await setMerchantCategory(t.merchantId!, categoryId)
+        await setTransactionCategory(t.id, null)
+        close()
+        reload()
+      } else {
+        onSaved(await setTransactionCategory(t.id, categoryId))
+        close()
+      }
     } catch (e) {
       setError(e instanceof ApiError ? e.message : 'Could not save that.')
     } finally {
@@ -121,6 +141,16 @@ export function CategoryCell({
           <option key={c.id} value={c.name} />
         ))}
       </datalist>
+      {hasHolder && (
+        <label className={styles.inline}>
+          <input
+            type="checkbox"
+            checked={only}
+            onChange={(e) => setOnly(e.target.checked)}
+          />
+          Only this transaction
+        </label>
+      )}
       {isNew && (
         <label className={styles.inline}>
           <input
@@ -138,13 +168,14 @@ export function CategoryCell({
           disabled={saving || !name.trim()}
         >
           {isNew ? `Create "${name.trim()}" and use it` : 'Save'}
+          {wide && ` for all ${holder}`}
         </button>
         {t.categoryOverridden && (
           <button
             type="button"
             className={shared.quiet}
             disabled={saving}
-            onClick={() => save(null)}
+            onClick={() => save(null, false)}
           >
             Use merchant/person default
           </button>

@@ -3,6 +3,7 @@ package com.expenseanalyzer.processing.service;
 import com.expenseanalyzer.merchant.service.MerchantMatch;
 import com.expenseanalyzer.merchant.service.MerchantNormalizer;
 import com.expenseanalyzer.merchant.service.MerchantService;
+import com.expenseanalyzer.merchant.service.PayeeKey;
 import com.expenseanalyzer.merchant.service.PersonNameParser;
 import com.expenseanalyzer.merchant.service.PersonService;
 import com.expenseanalyzer.messaging.service.OutboxService;
@@ -155,6 +156,7 @@ public class StatementProcessor {
         Map<String, Transaction> byFingerprint = new HashMap<>();
         Map<String, UUID> merchantIds = new HashMap<>();
         Map<String, UUID> personIds = new HashMap<>();
+        Map<String, UUID> aliases = merchantService.aliases(s.getUserId());
         for (ParsedTransaction p : parsed.transactions()) {
             BigDecimal cents = p.amount().movePointRight(2);
             if (cents.precision() - cents.scale() > MAX_CENT_DIGITS) {
@@ -165,7 +167,7 @@ public class StatementProcessor {
             int occurrence = occurrences.merge(base, 1, Integer::sum) - 1;
             String fp = TransactionFingerprint.of(s.getUserId(), p.date(), cents, p.type(), p.rawDescription(), occurrence);
             Transaction t = toTransaction(s, p, cents, fp);
-            enrich(t, s.getUserId(), merchantIds, personIds);
+            enrich(t, s.getUserId(), merchantIds, personIds, aliases);
             byFingerprint.put(fp, t);
         }
 
@@ -197,12 +199,18 @@ public class StatementProcessor {
     }
 
     /**
-     * Merchant normalisation (LLD 11) or, for a UPI P2A/P2P transfer, the person paid (such a row gets no merchant);
+     * The user's own merchant name for the payee, else merchant normalisation (LLD 11) or, for a UPI P2A/P2P transfer, the person paid (such a row gets no merchant);
      * the raw description is never modified.
      */
-    private void enrich(Transaction t, UUID userId, Map<String, UUID> merchantIds, Map<String, UUID> personIds) {
+    private void enrich(Transaction t, UUID userId, Map<String, UUID> merchantIds, Map<String, UUID> personIds,
+                        Map<String, UUID> aliases) {
         MerchantMatch m = merchantNormalizer.normalize(t.getRawDescription());
         t.setNormalizedDescription(m.normalizedDescription());
+        String payee = PayeeKey.of(t.getRawDescription(), m.normalizedDescription());
+        if (payee != null && aliases.containsKey(payee)) { // the user named this payee: wins over person and rules
+            t.setMerchantId(aliases.get(payee));
+            return;
+        }
         Optional<String> person = PersonNameParser.parse(t.getRawDescription());
         if (person.isPresent()) {
             t.setPersonId(personIds.computeIfAbsent(person.get().toLowerCase(Locale.ROOT),

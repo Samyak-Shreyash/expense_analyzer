@@ -11,6 +11,7 @@ import {
   type Transaction,
 } from '../../services/finance'
 import { CategoryCell } from './CategoryCell'
+import { MerchantCell } from './MerchantCell'
 import { TransactionActions } from './TransactionActions'
 import styles from './TransactionsPage.module.css'
 
@@ -239,7 +240,13 @@ export function TransactionsPage() {
                             {t.merchantName}
                           </button>
                         ) : (
-                          <span className={shared.muted}>Not matched</span>
+                          <>
+                            <span className={shared.muted}>Not matched</span>
+                            <MerchantCell
+                              t={t}
+                              reload={() => setVersion((v) => v + 1)}
+                            />
+                          </>
                         )}
                       </td>
                       <td>
@@ -265,6 +272,7 @@ export function TransactionsPage() {
                             )
                           }
                           onFilter={(category) => update({ category })}
+                          reload={() => setVersion((v) => v + 1)}
                         />
                       </td>
                       <td

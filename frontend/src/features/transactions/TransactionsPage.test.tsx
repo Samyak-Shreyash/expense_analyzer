@@ -12,6 +12,9 @@ vi.mock('../../services/finance', async (orig) => ({
   setTransactionCategory: vi.fn(),
   createCategory: vi.fn(),
   setCounterparty: vi.fn(),
+  setMerchantCategory: vi.fn(),
+  updatePerson: vi.fn(),
+  setTransactionMerchant: vi.fn(),
 }))
 
 const swiggy: Transaction = {
@@ -160,6 +163,7 @@ describe('TransactionsPage', () => {
     fireEvent.change(screen.getByLabelText('Category for this transaction'), {
       target: { value: 'repayment' },
     })
+    fireEvent.click(screen.getByLabelText('Only this transaction'))
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() =>
@@ -193,6 +197,7 @@ describe('TransactionsPage', () => {
     fireEvent.change(screen.getByLabelText('Category for this transaction'), {
       target: { value: ' Gifts ' },
     })
+    fireEvent.click(screen.getByLabelText('Only this transaction'))
     fireEvent.click(screen.getByLabelText('New category counts as spending'))
     fireEvent.click(
       screen.getByRole('button', { name: 'Create "Gifts" and use it' }),
@@ -217,6 +222,197 @@ describe('TransactionsPage', () => {
       'Change category, now Food & Dining',
     )
     expect(finance.setTransactionCategory).not.toHaveBeenCalled()
+  })
+
+  async function openCategoryEditor() {
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Change category, now Food & Dining',
+      }),
+    )
+  }
+
+  it('saves a category for the whole merchant and refetches', async () => {
+    vi.mocked(finance.setMerchantCategory).mockResolvedValue(null)
+    vi.mocked(finance.setTransactionCategory).mockResolvedValue(swiggy)
+    renderPage()
+    await openCategoryEditor()
+    const calls = vi.mocked(finance.listTransactions).mock.calls.length
+    fireEvent.change(screen.getByLabelText('Category for this transaction'), {
+      target: { value: 'Repayment' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save for all Swiggy' }))
+
+    await waitFor(() =>
+      expect(finance.setMerchantCategory).toHaveBeenCalledWith('m1', 'c2'),
+    )
+    await waitFor(() =>
+      expect(finance.setTransactionCategory).toHaveBeenCalledWith('t1', null),
+    )
+    await waitFor(() =>
+      expect(vi.mocked(finance.listTransactions).mock.calls.length).toBe(
+        calls + 1,
+      ),
+    )
+  })
+
+  it('creates a new category for the whole merchant', async () => {
+    vi.mocked(finance.createCategory).mockResolvedValue({
+      id: 'c9',
+      name: 'Gifts',
+      countsAsSpending: true,
+    })
+    vi.mocked(finance.setMerchantCategory).mockResolvedValue(null)
+    vi.mocked(finance.setTransactionCategory).mockResolvedValue(swiggy)
+    renderPage()
+    await openCategoryEditor()
+    fireEvent.change(screen.getByLabelText('Category for this transaction'), {
+      target: { value: 'Gifts' },
+    })
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Create "Gifts" and use it for all Swiggy',
+      }),
+    )
+    await waitFor(() =>
+      expect(finance.setMerchantCategory).toHaveBeenCalledWith('m1', 'c9'),
+    )
+  })
+
+  it('saves only this transaction when asked', async () => {
+    vi.mocked(finance.setTransactionCategory).mockResolvedValue({
+      ...swiggy,
+      category: 'Repayment',
+      categoryId: 'c2',
+      categoryOverridden: true,
+    })
+    renderPage()
+    await openCategoryEditor()
+    fireEvent.change(screen.getByLabelText('Category for this transaction'), {
+      target: { value: 'Repayment' },
+    })
+    fireEvent.click(screen.getByLabelText('Only this transaction'))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() =>
+      expect(finance.setTransactionCategory).toHaveBeenCalledWith('t1', 'c2'),
+    )
+    expect(finance.setMerchantCategory).not.toHaveBeenCalled()
+  })
+
+  it('saves a category for the person on a person row', async () => {
+    vi.mocked(finance.listTransactions).mockResolvedValue({
+      items: [
+        {
+          ...swiggy,
+          merchantId: null,
+          merchantName: null,
+          personId: 'p1',
+          personName: 'Ravi Kumar',
+        },
+      ],
+      page: 0,
+      size: 50,
+      totalItems: 1,
+      totalPages: 1,
+    })
+    vi.mocked(finance.updatePerson).mockResolvedValue({
+      id: 'p1',
+      name: 'Ravi Kumar',
+      categoryId: 'c2',
+    })
+    vi.mocked(finance.setTransactionCategory).mockResolvedValue(swiggy)
+    renderPage()
+    await openCategoryEditor()
+    fireEvent.change(screen.getByLabelText('Category for this transaction'), {
+      target: { value: 'Repayment' },
+    })
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Save for all Ravi Kumar' }),
+    )
+
+    await waitFor(() =>
+      expect(finance.updatePerson).toHaveBeenCalledWith(
+        'p1',
+        'Ravi Kumar',
+        'c2',
+      ),
+    )
+    expect(finance.setMerchantCategory).not.toHaveBeenCalled()
+  })
+
+  describe('unmatched transaction', () => {
+    const unmatched = { ...swiggy, merchantId: null, merchantName: null }
+    const addMerchant = 'Add merchant for UPI-SWIGGY-ORDER-12345678'
+
+    beforeEach(() => {
+      vi.mocked(finance.listTransactions).mockResolvedValue({
+        items: [unmatched],
+        page: 0,
+        size: 50,
+        totalItems: 1,
+        totalPages: 1,
+      })
+    })
+
+    it('has no scope checkbox and saves the category for this transaction', async () => {
+      vi.mocked(finance.setTransactionCategory).mockResolvedValue(unmatched)
+      renderPage()
+      await openCategoryEditor()
+      expect(screen.queryByLabelText('Only this transaction')).toBeNull()
+      fireEvent.change(screen.getByLabelText('Category for this transaction'), {
+        target: { value: 'Repayment' },
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+      await waitFor(() =>
+        expect(finance.setTransactionCategory).toHaveBeenCalledWith('t1', 'c2'),
+      )
+    })
+
+    it('names the merchant and refetches', async () => {
+      vi.mocked(finance.setTransactionMerchant).mockResolvedValue(unmatched)
+      renderPage()
+      fireEvent.click(await screen.findByRole('button', { name: addMerchant }))
+      const calls = vi.mocked(finance.listTransactions).mock.calls.length
+      const input = screen.getByLabelText('Merchant name')
+      expect(document.activeElement).toBe(input)
+      fireEvent.change(input, { target: { value: ' Acme Store ' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+      await waitFor(() =>
+        expect(finance.setTransactionMerchant).toHaveBeenCalledWith(
+          't1',
+          'Acme Store',
+        ),
+      )
+      await waitFor(() =>
+        expect(vi.mocked(finance.listTransactions).mock.calls.length).toBe(
+          calls + 1,
+        ),
+      )
+    })
+
+    it('shows the error and returns focus on Escape', async () => {
+      vi.mocked(finance.setTransactionMerchant).mockRejectedValue(
+        new finance.ApiError(
+          400,
+          'Use a merchant name of 1 to 100 characters.',
+        ),
+      )
+      renderPage()
+      const trigger = await screen.findByRole('button', { name: addMerchant })
+      fireEvent.click(trigger)
+      const input = screen.getByLabelText('Merchant name')
+      fireEvent.change(input, { target: { value: 'x' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+      expect((await screen.findByRole('alert')).textContent).toMatch(
+        /merchant name/,
+      )
+      fireEvent.keyDown(input, { key: 'Escape' })
+      expect(document.activeElement?.getAttribute('aria-label')).toBe(
+        addMerchant,
+      )
+    })
   })
 
   it('shows raw and normalised descriptions in the row detail', async () => {
