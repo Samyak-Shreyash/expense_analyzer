@@ -204,6 +204,9 @@ export function DashboardPage() {
                   label: c.category,
                   spend: c.spend,
                   share: c.sharePercent,
+                  href: toTransactions(
+                    `category=${encodeURIComponent(c.category)}&`,
+                  ),
                 }))}
               />
             </section>

@@ -178,6 +178,30 @@ class TransactionControllerTest {
     }
 
     @Test
+    void filtersByCategoryWithUncategorizedFallbackAndOwnerScope() throws Exception {
+        UUID food = merchantRepository.save(new Merchant("Swiggy", "Food")).getId();
+        UUID noHint = merchantRepository.save(new Merchant("Mystery", null)).getId();
+        UUID travel = merchantRepository.save(new Merchant("Uber", "Travel")).getId();
+        save(alice, "Pizza", "10.00", "2026-01-10", "DEBIT", null, food);
+        save(alice, "Ride", "10.00", "2026-01-11", "DEBIT", null, travel);
+        save(alice, "Unknown shop", "10.00", "2026-02-10", "DEBIT", null, noHint);
+        save(bob, "Bob pizza", "10.00", "2026-01-10", "DEBIT", null, food);
+        save(bob, "Bob unknown", "10.00", "2026-01-10", "DEBIT", null, noHint);
+        String token = bearer(ALICE);
+
+        mockMvc.perform(get("/api/transactions").param("category", "Food").header("Authorization", token))
+                .andExpect(jsonPath("$.items[*].description", containsInAnyOrder("Pizza")));
+        mockMvc.perform(get("/api/transactions").param("category", "food").header("Authorization", token))
+                .andExpect(jsonPath("$.totalItems").value(0));
+        mockMvc.perform(get("/api/transactions").param("category", "Uncategorized").header("Authorization", token))
+                .andExpect(jsonPath("$.items[*].description",
+                        containsInAnyOrder("Coffee", "Salary", "Rent", "Unknown shop")));
+        mockMvc.perform(get("/api/transactions").param("category", "Uncategorized")
+                        .param("from", "2026-02-01").header("Authorization", token))
+                .andExpect(jsonPath("$.items[*].description", containsInAnyOrder("Rent", "Unknown shop")));
+    }
+
+    @Test
     void pagingUsesEnvelopeAndCapsSize() throws Exception {
         mockMvc.perform(get("/api/transactions").param("page", "1").param("size", "3").header("Authorization", bearer(ALICE)))
                 .andExpect(jsonPath("$.page").value(1))

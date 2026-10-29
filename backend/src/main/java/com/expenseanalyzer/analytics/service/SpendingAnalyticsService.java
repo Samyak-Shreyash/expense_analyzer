@@ -52,7 +52,7 @@ public class SpendingAnalyticsService {
 
     public static final String CURRENCY = "INR";
     static final String UNMATCHED = "Unmatched";
-    static final String UNCATEGORIZED = "Uncategorized";
+    public static final String UNCATEGORIZED = "Uncategorized";
     private static final int MAX_RANGE_YEARS = 5;
     private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
 

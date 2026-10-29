@@ -108,6 +108,14 @@ describe('DashboardPage', () => {
     expect(screen.queryByRole('link', { name: 'Unmatched' })).toBeNull()
   })
 
+  it('links categories to their transactions', async () => {
+    renderPage()
+    const shopping = await screen.findByRole('link', { name: /Shopping/ })
+    expect(shopping.getAttribute('href')).toBe(
+      '/transactions?category=Shopping&from=2026-01-01&to=2026-01-31',
+    )
+  })
+
   it('refetches every chart when the range changes', async () => {
     renderPage()
     await screen.findByText('Money in', { selector: 'dt' })
