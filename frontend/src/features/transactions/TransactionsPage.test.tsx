@@ -10,6 +10,7 @@ vi.mock('../../services/finance', async (orig) => ({
   listTransactions: vi.fn(),
   listCategories: vi.fn(),
   setTransactionCategory: vi.fn(),
+  createCategory: vi.fn(),
   setCounterparty: vi.fn(),
 }))
 
@@ -99,7 +100,12 @@ describe('TransactionsPage', () => {
   it('filters by category from the table and clears it with the chip', async () => {
     renderPage()
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Food & Dining' }),
+      await screen.findByRole('button', {
+        name: 'Change category, now Food & Dining',
+      }),
+    )
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show only Food & Dining' }),
     )
     await waitFor(() =>
       expect(finance.listTransactions).toHaveBeenLastCalledWith(
@@ -124,13 +130,93 @@ describe('TransactionsPage', () => {
     })
     renderPage()
     fireEvent.click(
-      await screen.findByRole('button', { name: 'Uncategorised' }),
+      await screen.findByRole('button', {
+        name: 'Change category, now Uncategorized',
+      }),
+    )
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Show only Uncategorized' }),
     )
     await waitFor(() =>
       expect(finance.listTransactions).toHaveBeenLastCalledWith(
         expect.objectContaining({ category: 'Uncategorized' }),
       ),
     )
+  })
+
+  it('changes a transaction category by picking from the list', async () => {
+    vi.mocked(finance.setTransactionCategory).mockResolvedValue({
+      ...swiggy,
+      category: 'Repayment',
+      categoryId: 'c2',
+      categoryOverridden: true,
+    })
+    renderPage()
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Change category, now Food & Dining',
+      }),
+    )
+    fireEvent.change(screen.getByLabelText('Category for this transaction'), {
+      target: { value: 'repayment' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() =>
+      expect(finance.setTransactionCategory).toHaveBeenCalledWith('t1', 'c2'),
+    )
+    expect(finance.createCategory).not.toHaveBeenCalled()
+    const updated = await screen.findByRole('button', {
+      name: 'Change category, now Repayment',
+    })
+    expect(document.activeElement).toBe(updated)
+  })
+
+  it('creates a new category when the typed name is not in the list', async () => {
+    vi.mocked(finance.createCategory).mockResolvedValue({
+      id: 'c9',
+      name: 'Gifts',
+      countsAsSpending: false,
+    })
+    vi.mocked(finance.setTransactionCategory).mockResolvedValue({
+      ...swiggy,
+      category: 'Gifts',
+      categoryId: 'c9',
+      categoryOverridden: true,
+    })
+    renderPage()
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Change category, now Food & Dining',
+      }),
+    )
+    fireEvent.change(screen.getByLabelText('Category for this transaction'), {
+      target: { value: ' Gifts ' },
+    })
+    fireEvent.click(screen.getByLabelText('New category counts as spending'))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Create "Gifts" and use it' }),
+    )
+
+    await waitFor(() =>
+      expect(finance.setTransactionCategory).toHaveBeenCalledWith('t1', 'c9'),
+    )
+    expect(finance.createCategory).toHaveBeenCalledWith('Gifts', false)
+  })
+
+  it('closes the category editor on Escape and returns focus', async () => {
+    renderPage()
+    const trigger = await screen.findByRole('button', {
+      name: 'Change category, now Food & Dining',
+    })
+    fireEvent.click(trigger)
+    const input = screen.getByLabelText('Category for this transaction')
+    expect(document.activeElement).toBe(input)
+    fireEvent.keyDown(input, { key: 'Escape' })
+    expect(document.activeElement?.getAttribute('aria-label')).toBe(
+      'Change category, now Food & Dining',
+    )
+    expect(finance.setTransactionCategory).not.toHaveBeenCalled()
   })
 
   it('shows raw and normalised descriptions in the row detail', async () => {
