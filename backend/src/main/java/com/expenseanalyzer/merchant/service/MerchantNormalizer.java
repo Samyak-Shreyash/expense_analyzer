@@ -60,6 +60,11 @@ public class MerchantNormalizer {
             new Rule("AIRTEL", "Airtel", "Utilities"),
             new Rule("JIO", "Jio", "Utilities"));
 
+    /** Distinct category names used by the rules, in rule order: the user's default categories. */
+    public static List<String> defaultCategoryNames() {
+        return RULES.stream().map(Rule::categoryHint).distinct().toList();
+    }
+
     public MerchantMatch normalize(String rawDescription) {
         List<String> tokens = tokens(rawDescription);
         String normalized = tokens.isEmpty()
