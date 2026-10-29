@@ -4,10 +4,13 @@ import { Link, useSearchParams } from 'react-router'
 import shared from '../../components/shared.module.css'
 import { dayLabel, rupees } from '../../lib/format'
 import {
+  listCategories,
   listTransactions,
+  type Category,
   type Page,
   type Transaction,
 } from '../../services/finance'
+import { TransactionActions } from './TransactionActions'
 import styles from './TransactionsPage.module.css'
 
 // Filters edited in the form; merchantId, statementId and category are set by links elsewhere.
@@ -19,12 +22,21 @@ export function TransactionsPage() {
   const [result, setResult] = useState<Page<Transaction> | null>(null)
   const [error, setError] = useState(false)
   const [open, setOpen] = useState<string | null>(null)
+  const [categories, setCategories] = useState<Category[]>([])
+  // Bumped to refetch after a change that can touch other rows.
+  const [version, setVersion] = useState(0)
   const [draft, setDraft] = useState(() =>
     Object.fromEntries(FORM_KEYS.map((k) => [k, params.get(k) ?? ''])),
   )
 
   const page = Number(params.get('page') ?? 0)
   const filterKey = params.toString()
+
+  useEffect(() => {
+    listCategories()
+      .then(setCategories)
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     let live = true
@@ -43,7 +55,7 @@ export function TransactionsPage() {
       live = false
     }
     // filterKey captures every param; params itself is a new object each render
-  }, [filterKey])
+  }, [filterKey, version])
 
   function update(changes: Record<string, string>) {
     const next = new URLSearchParams(params)
@@ -210,7 +222,12 @@ export function TransactionsPage() {
                         </button>
                       </td>
                       <td>
-                        {t.merchantId ? (
+                        {t.personId ? (
+                          <>
+                            {t.personName}
+                            <span className={styles.tag}>Person</span>
+                          </>
+                        ) : t.merchantId ? (
                           <button
                             type="button"
                             className={shared.quiet}
@@ -277,6 +294,22 @@ export function TransactionsPage() {
                               </>
                             )}
                           </dl>
+                          <TransactionActions
+                            t={t}
+                            categories={categories}
+                            reload={() => setVersion((v) => v + 1)}
+                            onSaved={(saved) =>
+                              setResult(
+                                (r) =>
+                                  r && {
+                                    ...r,
+                                    items: r.items.map((x) =>
+                                      x.id === saved.id ? saved : x,
+                                    ),
+                                  },
+                              )
+                            }
+                          />
                         </td>
                       </tr>
                     )}

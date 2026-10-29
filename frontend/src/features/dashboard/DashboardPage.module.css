@@ -48,7 +48,7 @@
 
 @media (min-width: 48rem) {
   .totals {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
   }
 }
 
@@ -214,4 +214,37 @@
   height: 100%;
   background: var(--debit);
   border-radius: 4px;
+}
+
+/* Non-spending categories, with the people behind each. */
+.setAside,
+.people {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.setAside > li {
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.setAside .barText {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.people {
+  margin-top: 0.25rem;
+  padding-left: 1.5rem;
+  color: var(--ink-muted);
+}
+
+.people li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-variant-numeric: tabular-nums;
 }

@@ -5,6 +5,7 @@ import { AuthProvider } from './features/auth/AuthContext'
 import { LoginPage } from './features/auth/LoginPage'
 import { RegisterPage } from './features/auth/RegisterPage'
 import { RequireAuth } from './features/auth/RequireAuth'
+import { CategoriesPage } from './features/categories/CategoriesPage'
 import { DashboardPage } from './features/dashboard/DashboardPage'
 import { StatementsPage } from './features/statements/StatementsPage'
 import { TransactionsPage } from './features/transactions/TransactionsPage'
@@ -20,6 +21,7 @@ function App() {
             { path: '/dashboard', page: <DashboardPage /> },
             { path: '/statements', page: <StatementsPage /> },
             { path: '/transactions', page: <TransactionsPage /> },
+            { path: '/categories', page: <CategoriesPage /> },
           ].map(({ path, page }) => (
             <Route
               key={path}

@@ -9,6 +9,7 @@ const LINKS = [
   { to: '/dashboard', label: 'Overview' },
   { to: '/statements', label: 'Statements' },
   { to: '/transactions', label: 'Transactions' },
+  { to: '/categories', label: 'Categories' },
 ]
 
 /** Signed-in page frame: header with navigation and account, then the page. */

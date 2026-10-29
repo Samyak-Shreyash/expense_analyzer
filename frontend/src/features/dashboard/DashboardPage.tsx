@@ -12,11 +12,13 @@ import {
   getCashFlow,
   getCategories,
   getMerchants,
+  getNonSpending,
   getSummary,
   getTrends,
   type CashFlow,
   type CategoryBreakdown,
   type MerchantBreakdown,
+  type NonSpending,
   type Summary,
   type Trends,
 } from '../../services/finance'
@@ -35,6 +37,7 @@ type Data = {
   merchants: MerchantBreakdown
   cashFlow: CashFlow
   trends: Trends
+  nonSpending: NonSpending
 }
 
 /** The period comes from the URL: ?preset=3m, or ?from=&to= for a custom range. */
@@ -63,12 +66,22 @@ export function DashboardPage() {
       getMerchants(from, to),
       getCashFlow(from, to),
       getTrends(from, to),
+      getNonSpending(from, to),
     ])
-      .then(([summary, categories, merchants, cashFlow, trends]) => {
-        if (!live) return
-        setData({ summary, categories, merchants, cashFlow, trends })
-        setError(false)
-      })
+      .then(
+        ([summary, categories, merchants, cashFlow, trends, nonSpending]) => {
+          if (!live) return
+          setData({
+            summary,
+            categories,
+            merchants,
+            cashFlow,
+            trends,
+            nonSpending,
+          })
+          setError(false)
+        },
+      )
       .catch(() => live && setError(true))
     return () => {
       live = false
@@ -175,6 +188,15 @@ export function DashboardPage() {
               </dd>
             </div>
             <div>
+              <dt>Not counted as spending</dt>
+              <dd className={styles.figureOut}>
+                {rupees(s.nonSpendingOutflow)}
+              </dd>
+              <dd className={styles.compare}>
+                {rupees(s.previous.nonSpendingOutflow)} in the previous period
+              </dd>
+            </div>
+            <div>
               <dt>Net</dt>
               <dd className={styles.figureNet}>{rupees(s.net)}</dd>
               <dd className={styles.compare}>
@@ -192,6 +214,48 @@ export function DashboardPage() {
           <section className={shared.section} aria-labelledby="trend">
             <h2 id="trend">Spending trend</h2>
             <TrendLine data={data.trends} />
+          </section>
+
+          <section className={shared.section} aria-labelledby="non-spending">
+            <h2 id="non-spending">Not counted as spending</h2>
+            {data.nonSpending.items.length === 0 ? (
+              <p className={shared.muted}>
+                Nothing in this period was set aside from spending.
+              </p>
+            ) : (
+              <>
+                <p className={shared.muted}>
+                  Money out in categories that do not count as spending, such as
+                  repayments. Total {rupees(data.nonSpending.total)}.
+                </p>
+                <ul className={styles.setAside}>
+                  {data.nonSpending.items.map((c) => (
+                    <li key={c.category}>
+                      <div className={styles.barText}>
+                        <Link
+                          to={toTransactions(
+                            `category=${encodeURIComponent(c.category)}&`,
+                          )}
+                        >
+                          {c.category}
+                        </Link>
+                        <span>{rupees(c.spend)}</span>
+                      </div>
+                      {c.people.length > 0 && (
+                        <ul className={styles.people}>
+                          {c.people.map((p) => (
+                            <li key={p.personId}>
+                              <span>{p.name}</span>
+                              <span>{rupees(p.spend)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
           </section>
 
           <div className={styles.split}>

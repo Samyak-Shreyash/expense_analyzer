@@ -75,3 +75,51 @@
   text-decoration: none;
   cursor: default;
 }
+
+.actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1rem 1.5rem;
+  margin-top: 1rem;
+  align-items: start;
+}
+
+.bulk {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: start;
+}
+
+.bulk label {
+  align-self: stretch;
+}
+
+.counterparty {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: start;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.counterparty label:last-of-type {
+  align-self: stretch;
+}
+
+.option {
+  display: inline-flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.tag {
+  margin-left: 0.5rem;
+  padding: 0 0.375rem;
+  border: 1px solid var(--ink-muted);
+  border-radius: 4px;
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+}

@@ -17,6 +17,7 @@ vi.mock('../../services/finance', async (orig) => ({
   getMerchants: vi.fn(),
   getCashFlow: vi.fn(),
   getTrends: vi.fn(),
+  getNonSpending: vi.fn(),
 }))
 
 const summary = (count = 5): finance.Summary => ({
@@ -24,13 +25,15 @@ const summary = (count = 5): finance.Summary => ({
   to: '2026-01-31',
   inflow: 85100,
   outflow: 2800,
-  net: 82300,
+  nonSpendingOutflow: 1000,
+  net: 81300,
   transactionCount: count,
   previous: {
     from: '2025-12-01',
     to: '2025-12-31',
     inflow: 0,
     outflow: 1000,
+    nonSpendingOutflow: 0,
     net: -1000,
     transactionCount: 1,
   },
@@ -85,6 +88,20 @@ describe('DashboardPage', () => {
     vi.mocked(finance.getTrends).mockResolvedValue({
       months: [{ month: '2026-01', outflow: 2800, changePercent: null }],
     })
+    vi.mocked(finance.getNonSpending).mockResolvedValue({
+      total: 1000,
+      items: [
+        {
+          category: 'Repayment',
+          spend: 1000,
+          sharePercent: 100,
+          transactionCount: 1,
+          people: [
+            { personId: 'p1', name: 'Ravi', spend: 1000, transactionCount: 1 },
+          ],
+        },
+      ],
+    })
   })
 
   it('shows money in, out and net in rupees with the comparison', async () => {
@@ -95,8 +112,32 @@ describe('DashboardPage', () => {
     )
     expect(totals.getByText('₹85,100.00')).toBeTruthy()
     expect(totals.getByText('₹2,800.00')).toBeTruthy()
-    expect(totals.getByText('₹82,300.00')).toBeTruthy()
+    expect(totals.getByText('₹81,300.00')).toBeTruthy()
+    expect(totals.getByText('Not counted as spending')).toBeTruthy()
+    expect(totals.getByText('₹1,000.00')).toBeTruthy()
     expect(totals.getByText('180% more than the previous period')).toBeTruthy()
+  })
+
+  it('lists non-spending categories with the people under each', async () => {
+    renderPage()
+    const section = within(
+      (await screen.findByRole('heading', { name: 'Not counted as spending' }))
+        .parentElement!,
+    )
+    expect(
+      section.getByRole('link', { name: 'Repayment' }).getAttribute('href'),
+    ).toBe('/transactions?category=Repayment&from=2026-01-01&to=2026-01-31')
+    expect(section.getByText('Ravi')).toBeTruthy()
+  })
+
+  it('says so when nothing was set aside from spending', async () => {
+    vi.mocked(finance.getNonSpending).mockResolvedValue({ total: 0, items: [] })
+    renderPage()
+    expect(
+      await screen.findByText(
+        'Nothing in this period was set aside from spending.',
+      ),
+    ).toBeTruthy()
   })
 
   it('links merchants to their transactions, except unmatched spend', async () => {
