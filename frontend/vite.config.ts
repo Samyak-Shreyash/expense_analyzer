@@ -3,12 +3,16 @@ import { defineConfig, loadEnv } from 'vite'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
-  const env = loadEnv(mode, process.cwd())
+  // Root .env is shared with backend and compose; '' prefix keeps SERVER_PORT server-side.
+  const env = loadEnv(mode, '..', '')
   return {
     plugins: [react()],
     server: {
       // Same-origin /api in dev: the backend has no CORS config (see docs/frontend/FRONTEND-STACK.md).
-      proxy: { '/api': env.VITE_BACKEND_URL ?? 'http://localhost:8080' },
+      proxy: {
+        '/api':
+          env.VITE_BACKEND_URL ?? `http://localhost:${env.SERVER_PORT ?? 8080}`,
+      },
     },
   }
 })
