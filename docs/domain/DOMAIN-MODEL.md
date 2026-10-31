@@ -44,12 +44,12 @@ Not yet persisted. Until it is, an account is identified by its statements' `(ac
 ### Transaction
 Target: `id, user_id, account_id, statement_id, transaction_date, posting_date, amount, currency, direction, raw_description, normalized_description, merchant_id, person_id, category_id, transfer_pair_id, category_confidence, merchant_confidence, transaction_fingerprint, created_at, updated_at`
 
-Implemented today (`transactions`): `id, user_id, statement_id, date, amount_cents, currency, type, raw_description, normalized_description, merchant_id, merchant_confidence, person_id, category_id, transaction_fingerprint, created_at, updated_at`.
+Implemented today (`transactions`): `id, user_id, statement_id, date, amount_cents, currency, type, raw_description, normalized_description, merchant_id, merchant_confidence, person_id, category_id, transfer, transfer_pair_id, transfer_manual, transaction_fingerprint, created_at, updated_at`.
 
-- `amount_cents` holds the amount in currency units (despite the name), always positive. `type` is the direction: `DEBIT` (money out) or `CREDIT` (money in).
+- `amount_cents` holds the amount in minor units (paise), always positive; the API exposes it in currency units. `type` is the direction: `DEBIT` (money out) or `CREDIT` (money in).
 - `merchant_id` and `person_id` are mutually exclusive: a counterparty is a merchant or a person, never both.
 - `category_id` is the transaction's own category, set only by the user. The effective category is derived (section 4.1); it is not stored.
-- `transfer_pair_id` (planned, #327) links the two halves of a transfer between the user's own accounts.
+- `transfer` marks money moved between the user's own accounts; `transfer_pair_id` links the two halves of a pair (null for a single transfer the user marked); `transfer_manual` records that the user marked or unmarked the row, so automatic matching leaves it alone.
 
 ### Person
 `id, user_id, name, category_id, credit_category_id, created_at`
@@ -107,7 +107,7 @@ The user's own merchant name for a payee key, applied to every payment to that p
 ### 4.2 Refunds and reversals
 A `CREDIT` from a matched merchant nets against that merchant's (and its category's) spend. A `CREDIT` with no merchant is treated as income, not a refund.
 
-### 4.3 Transfers between own accounts (decided; implementation #327)
+### 4.3 Transfers between own accounts (#327)
 - Automatic pairing: a `DEBIT` in one account and a `CREDIT` of the same amount and currency in a different account of the same user, with transaction dates at most 3 days apart. Each transaction joins at most one pair; when several candidates match, the closest date wins (ties: earliest created).
 - A description naming the user, "SELF" or "OWN A/C" may support a match but is never sufficient on its own.
 - Manual marking: the user can mark a single transaction as a transfer to or from their own account even when the other half is not imported, and can unmark any pair or single transfer.
@@ -147,7 +147,7 @@ Implemented:
 | Merchant | `merchants` | `id` | `parent_merchant_id → merchants.id` (shared, not user-owned) |
 | Category | `categories` | `id` | `user_id → users.id` |
 | Person | `people` | `id` | `user_id → users.id`; `category_id`, `credit_category_id → categories.id` (SET NULL) |
-| Transaction | `transactions` | `id` | `user_id → users.id`; `statement_id → statements.id`; `merchant_id → merchants.id`; `person_id → people.id` (SET NULL); `category_id → categories.id` (SET NULL) |
+| Transaction | `transactions` | `id` | `user_id → users.id`; `statement_id → statements.id`; `merchant_id → merchants.id`; `person_id → people.id` (SET NULL); `category_id → categories.id` (SET NULL); `transfer_pair_id → transactions.id` (SET NULL) |
 | UserMerchantCategory | `user_merchant_categories` | `(user_id, merchant_id)` | `merchant_id → merchants.id`; `category_id`, `credit_category_id → categories.id` (SET NULL) |
 | UserMerchantAlias | `user_merchant_aliases` | `(user_id, payee_key)` | `user_id → users.id` (CASCADE); `merchant_id → merchants.id` |
 | PersonPayee | `person_payees` | `(user_id, payee_key)` | `person_id → people.id` (CASCADE) |
@@ -155,7 +155,7 @@ Implemented:
 
 Merchant-name sharing (`merchant_suggestion_votes`, `merchant_suggestion_reports`, `hidden_merchant_suggestions`, `sharing_strikes`) and infrastructure tables (`preferences`, `refresh_tokens`, `outbox_events`, `processed_events`) are outside the financial domain.
 
-Planned (not yet created): `accounts` (`user_id → users.id`; then `statements.account_id` and `transactions.account_id → accounts.id`), `recurring_expenses`, `insights`, `ai_queries`, and `transactions.transfer_pair_id → transactions.id` (#327).
+Planned (not yet created): `accounts` (`user_id → users.id`; then `statements.account_id` and `transactions.account_id → accounts.id`), `recurring_expenses`, `insights`, `ai_queries`.
 
 ### 6.3 Constraints
 

@@ -74,6 +74,14 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
     @Query("SELECT t.transactionFingerprint FROM Transaction t WHERE t.userId = :userId AND t.transactionFingerprint IN :fingerprints")
     Set<String> findExistingFingerprints(UUID userId, Collection<String> fingerprints);
 
+    /** The user's rows open to automatic transfer matching: not a transfer and never marked or unmarked by them. */
+    List<Transaction> findByUserIdAndTransferFalseAndTransferManualFalse(UUID userId);
+
+    /** Rows: [type, sum of amountCents] over own-account transfers only. */
+    @Query("SELECT t.type, SUM(t.amountCents) FROM Transaction t "
+            + "WHERE t.userId = :userId AND t.transfer = TRUE AND t.date >= :from AND t.date < :to GROUP BY t.type")
+    List<Object[]> sumTransfersByDirection(UUID userId, Instant from, Instant to);
+
     /** Ownership-scoped lookup: another user's transaction is indistinguishable from a missing one. */
     Optional<Transaction> findByIdAndUserId(UUID id, UUID userId);
 
@@ -81,29 +89,29 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
 
     /** Rows: [type (String), sum of amountCents (BigDecimal), count (Long)]. */
     @Query("SELECT t.type, SUM(t.amountCents), COUNT(t) FROM Transaction t "
-            + "WHERE t.userId = :userId AND t.date >= :from AND t.date < :to GROUP BY t.type")
+            + "WHERE t.userId = :userId AND t.transfer = FALSE AND t.date >= :from AND t.date < :to GROUP BY t.type")
     List<Object[]> sumByDirection(UUID userId, Instant from, Instant to);
 
     /** Rows: [merchantId (UUID or null), type, sum of amountCents, count]. */
     @Query("SELECT t.merchantId, t.type, SUM(t.amountCents), COUNT(t) FROM Transaction t "
-            + "WHERE t.userId = :userId AND t.date >= :from AND t.date < :to GROUP BY t.merchantId, t.type")
+            + "WHERE t.userId = :userId AND t.transfer = FALSE AND t.date >= :from AND t.date < :to GROUP BY t.merchantId, t.type")
     List<Object[]> sumByMerchantAndDirection(UUID userId, Instant from, Instant to);
 
     /** Rows: [year (Integer), month (Integer), type, sum of amountCents]. Dates are UTC days. */
     @Query("SELECT YEAR(t.date), MONTH(t.date), t.type, SUM(t.amountCents) FROM Transaction t "
-            + "WHERE t.userId = :userId AND t.date >= :from AND t.date < :to "
+            + "WHERE t.userId = :userId AND t.transfer = FALSE AND t.date >= :from AND t.date < :to "
             + "GROUP BY YEAR(t.date), MONTH(t.date), t.type")
     List<Object[]> sumByMonthAndDirection(UUID userId, Instant from, Instant to);
 
     /** Rows: [categoryId, personId, merchantId (each UUID or null), type, sum of amountCents, count]. */
     @Query("SELECT t.categoryId, t.personId, t.merchantId, t.type, SUM(t.amountCents), COUNT(t) FROM Transaction t "
-            + "WHERE t.userId = :userId AND t.date >= :from AND t.date < :to "
+            + "WHERE t.userId = :userId AND t.transfer = FALSE AND t.date >= :from AND t.date < :to "
             + "GROUP BY t.categoryId, t.personId, t.merchantId, t.type")
     List<Object[]> sumByCategoryGroup(UUID userId, Instant from, Instant to);
 
     /** Rows: [year, month, categoryId, personId, merchantId, type, sum of amountCents]. Dates are UTC days. */
     @Query("SELECT YEAR(t.date), MONTH(t.date), t.categoryId, t.personId, t.merchantId, t.type, SUM(t.amountCents) "
-            + "FROM Transaction t WHERE t.userId = :userId AND t.date >= :from AND t.date < :to "
+            + "FROM Transaction t WHERE t.userId = :userId AND t.transfer = FALSE AND t.date >= :from AND t.date < :to "
             + "GROUP BY YEAR(t.date), MONTH(t.date), t.categoryId, t.personId, t.merchantId, t.type")
     List<Object[]> sumByMonthAndCategoryGroup(UUID userId, Instant from, Instant to);
 }

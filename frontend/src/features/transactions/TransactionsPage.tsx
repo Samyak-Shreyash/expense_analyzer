@@ -16,9 +16,16 @@ import { MerchantCell } from './MerchantCell'
 import { TransactionActions } from './TransactionActions'
 import styles from './TransactionsPage.module.css'
 
-// Filters edited in the form; merchantId, statementId and category are set by links elsewhere.
+// Filters edited in the form; merchantId, statementId, category and transfer are set by links elsewhere.
 const FORM_KEYS = ['q', 'from', 'to', 'direction'] as const
-const LINK_KEYS = ['merchantId', 'statementId', 'category'] as const
+const LINK_KEYS = ['merchantId', 'statementId', 'category', 'transfer'] as const
+
+/** The day `days` from an ISO date (YYYY-MM-DD). */
+const shift = (date: string, days: number) => {
+  const d = new Date(`${date}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + days)
+  return d.toISOString().slice(0, 10)
+}
 
 export function TransactionsPage() {
   const [params, setParams] = useSearchParams()
@@ -170,7 +177,8 @@ export function TransactionsPage() {
 
       {(params.get('merchantId') ||
         params.get('statementId') ||
-        params.get('category')) && (
+        params.get('category') ||
+        params.get('transfer')) && (
         <p className={styles.chips}>
           {params.get('merchantId') && (
             <span>
@@ -205,6 +213,18 @@ export function TransactionsPage() {
                 onClick={() => update({ category: '' })}
               >
                 Show all categories
+              </button>
+            </span>
+          )}
+          {params.get('transfer') && (
+            <span>
+              Showing transfers between your accounts.{' '}
+              <button
+                type="button"
+                className={shared.quiet}
+                onClick={() => update({ transfer: '' })}
+              >
+                Show all transactions
               </button>
             </span>
           )}
@@ -305,6 +325,26 @@ export function TransactionsPage() {
                         )}
                       </td>
                       <td>
+                        {t.transfer && (
+                          <span className={styles.transfer}>
+                            <span className={styles.tag}>Transfer</span>
+                            <button
+                              type="button"
+                              className={shared.quiet}
+                              onClick={() =>
+                                update({
+                                  transfer: 'true',
+                                  from: shift(t.date, -3),
+                                  to: shift(t.date, 3),
+                                })
+                              }
+                            >
+                              {t.transferPairId
+                                ? 'Show both halves'
+                                : 'Show transfers around this date'}
+                            </button>
+                          </span>
+                        )}
                         <CategoryCell
                           t={t}
                           categories={categories}

@@ -46,12 +46,16 @@ export type Transaction = {
   /** UPI payee (merchant or person) from the description, set only while there is no merchant or person. */
   payeeName: string | null
   payeeType: 'MERCHANT' | 'PERSON' | null
+  /** Money moved between your own accounts; left out of analytics. */
+  transfer: boolean
+  /** The other half of the transfer, when paired. */
+  transferPairId: string | null
 }
 
 type Totals = {
   inflow: number
   outflow: number
-  /** Money out that is not counted as spending (transfers, repayments). */
+  /** Money out that is not counted as spending (e.g. repayments). */
   nonSpendingOutflow: number
   net: number
   transactionCount: number
@@ -63,6 +67,9 @@ export type Summary = Totals & {
   previous: Totals & { from: string; to: string }
   inflowChangePercent: number | null
   outflowChangePercent: number | null
+  /** Money moved between your own accounts, left out of the figures above. */
+  transfersIn: number
+  transfersOut: number
 }
 
 type Spend = {
@@ -210,6 +217,8 @@ export type TransactionQuery = {
   merchantId?: string
   statementId?: string
   category?: string
+  /** 'true' keeps only transfers between your accounts. */
+  transfer?: string
   page?: number
 }
 
@@ -383,6 +392,22 @@ export const setCounterparty = (
     `/transactions/${id}/counterparty`,
     { type, name },
     { 400: 'Enter a name that looks like a person, up to 100 characters.' },
+  )
+
+/** Marks (or unmarks) a transaction as money moved between your own accounts; pairWithId names the other half. */
+export const setTransfer = (
+  id: string,
+  transfer: boolean,
+  pairWithId?: string,
+) =>
+  write<Transaction>(
+    'PUT',
+    `/transactions/${id}/transfer`,
+    { transfer, pairWithId },
+    {
+      400: 'A transfer pairs money out and money in of the same amount.',
+      404: 'That transaction no longer exists. Reload the page.',
+    },
   )
 
 /** Reports the suggestion shown on one of your transactions as offensive or wrong. */

@@ -20,6 +20,7 @@ import com.expenseanalyzer.merchant.service.PersonService;
 import com.expenseanalyzer.transaction.dto.CounterpartyRequest;
 import com.expenseanalyzer.transaction.dto.TransactionFilter;
 import com.expenseanalyzer.transaction.dto.TransactionResponse;
+import com.expenseanalyzer.transaction.dto.TransferRequest;
 import com.expenseanalyzer.transaction.model.Transaction;
 import com.expenseanalyzer.transaction.repository.TransactionRepository;
 import com.expenseanalyzer.user.model.User;
@@ -91,6 +92,9 @@ public class TransactionService {
         if (f.category() != null && !f.category().isBlank()) {
             spec = spec.and(categoryIs(f.category().trim(), resolution, userId));
         }
+        if (f.transfer() != null) {
+            spec = spec.and((root, q, cb) -> cb.equal(root.get("transfer"), f.transfer()));
+        }
         if (f.direction() != null) {
             spec = spec.and((root, q, cb) -> cb.equal(root.get("type"), f.direction().name()));
         }
@@ -134,6 +138,63 @@ public class TransactionService {
         t.setCategoryId(categoryId);
         t.setUpdatedAt(Instant.now());
         return response(transactionRepository.save(t), userId);
+    }
+
+    /**
+     * Marks or unmarks a transaction as money moved between the caller's own accounts; the user's choice sticks
+     * (automatic matching skips it afterwards). Unmarking a pair unmarks both halves. Marking with {@code pairWithId}
+     * pairs it with that transaction, which must be the caller's, in the other direction, with the same amount and
+     * currency (else 400); any earlier partner of either is released back to automatic matching. Not yours: 404.
+     */
+    @Transactional
+    public TransactionResponse setTransfer(String email, UUID id, TransferRequest request) {
+        UUID userId = currentUser(email).getId();
+        Transaction t = owned(id, userId);
+        Instant now = Instant.now();
+        if (!request.transfer()) {
+            release(t, userId, true, now);
+            t.setTransfer(false);
+            t.setTransferManual(true);
+        } else if (request.pairWithId() != null) {
+            Transaction other = owned(request.pairWithId(), userId);
+            if (other.getId().equals(t.getId()) || other.getType().equals(t.getType())
+                    || other.getAmount().compareTo(t.getAmount()) != 0 || !other.getCurrency().equals(t.getCurrency())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "A transfer pairs money out and money in of the same amount");
+            }
+            if (!other.getId().equals(t.getTransferPairId())) {
+                release(t, userId, false, now);
+                release(other, userId, false, now);
+            }
+            TransferService.pair(t, other, true, now);
+            transactionRepository.save(other);
+        } else {
+            release(t, userId, false, now);
+            t.setTransfer(true);
+            t.setTransferManual(true);
+        }
+        t.setUpdatedAt(now);
+        return response(transactionRepository.save(t), userId);
+    }
+
+    /** Unlinks the transaction's partner, if any; {@code manual} records the partner as the user's choice too. */
+    private void release(Transaction t, UUID userId, boolean manual, Instant now) {
+        if (t.getTransferPairId() == null) {
+            return;
+        }
+        transactionRepository.findByIdAndUserId(t.getTransferPairId(), userId).ifPresent(partner -> {
+            partner.setTransfer(false);
+            partner.setTransferPairId(null);
+            partner.setTransferManual(manual);
+            partner.setUpdatedAt(now);
+            transactionRepository.save(partner);
+        });
+        t.setTransferPairId(null);
+    }
+
+    private Transaction owned(UUID id, UUID userId) {
+        return transactionRepository.findByIdAndUserId(id, userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
     }
 
     /**

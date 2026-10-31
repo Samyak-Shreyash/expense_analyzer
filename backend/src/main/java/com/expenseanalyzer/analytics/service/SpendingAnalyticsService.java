@@ -115,7 +115,14 @@ public class SpendingAnalyticsService {
         return new SpendingSummary(from, to, CURRENCY, money(cur.inflowCents()), money(cur.outflowCents()),
                 money(cur.inflowCents().subtract(cur.outflowCents()).subtract(cur.nonSpendingCents())), cur.count(),
                 previous, changePercent(cur.inflowCents(), prev.inflowCents()),
-                changePercent(cur.outflowCents(), prev.outflowCents()), money(cur.nonSpendingCents()));
+                changePercent(cur.outflowCents(), prev.outflowCents()), money(cur.nonSpendingCents()),
+                money(transfers(userId, from, to, "CREDIT")), money(transfers(userId, from, to, "DEBIT")));
+    }
+
+    /** Own-account transfers in one direction; they are left out of every other figure. */
+    private BigDecimal transfers(UUID userId, LocalDate from, LocalDate to, String type) {
+        return transactionRepository.sumTransfersByDirection(userId, start(from), endExclusive(to)).stream()
+                .filter(r -> type.equals(r[0])).map(r -> (BigDecimal) r[1]).findFirst().orElse(BigDecimal.ZERO);
     }
 
     @Transactional // not readOnly: first access seeds the user's default categories

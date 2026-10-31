@@ -3,8 +3,9 @@ import shared from '../../components/shared.module.css'
 import {
   setCounterparty,
   setMerchantCategory,
+  setPersonCategory,
   setTransactionCategory,
-  updatePerson,
+  setTransfer,
   type Category,
   type Transaction,
 } from '../../services/finance'
@@ -104,9 +105,10 @@ export function TransactionActions({
             onClick={() =>
               save(async () => {
                 const id = bulk === CLEAR ? null : bulk
-                if (t.personId)
-                  await updatePerson(t.personId, t.personName!, id)
-                else await setMerchantCategory(t.merchantId!, id)
+                // Money in and money out keep separate defaults.
+                const credit = t.direction === 'CREDIT'
+                if (t.personId) await setPersonCategory(t.personId, id, credit)
+                else await setMerchantCategory(t.merchantId!, id, credit)
                 setBulk(PICK)
                 reload()
               }, `Default category saved for ${holder}.`)
@@ -116,6 +118,29 @@ export function TransactionActions({
           </button>
         </div>
       )}
+
+      <div className={styles.bulk}>
+        <span className={shared.label}>Between your own accounts</span>
+        <button
+          type="button"
+          className={shared.button}
+          onClick={() =>
+            save(
+              async () => {
+                await setTransfer(t.id, !t.transfer)
+                reload()
+              },
+              t.transfer
+                ? 'No longer counted as a transfer.'
+                : 'Marked as a transfer between your accounts.',
+            )
+          }
+        >
+          {t.transfer
+            ? 'Not a transfer between my accounts'
+            : 'Mark as a transfer between my accounts'}
+        </button>
+      </div>
 
       <fieldset className={styles.counterparty}>
         <legend className={shared.label}>Who was paid</legend>

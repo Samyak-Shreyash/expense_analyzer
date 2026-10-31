@@ -124,6 +124,14 @@
   color: var(--ink-muted);
 }
 
+.transfer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.25rem;
+}
+
 /* People and merchants get their own colour; the tag repeats it in words. */
 .person {
   color: var(--person);
