@@ -123,6 +123,29 @@ class PdfStatementParserTest {
     }
 
     @Test
+    void descriptionLinesAboveTheDatedLineBelongToThatRow() throws IOException {
+        // Axis as PDFBox reads it: a wrapped row's first lines come before the line holding date + amounts.
+        ParsedStatement r = parse(pdf(
+                "Statement of Account No :123 for the period",
+                "Tran Date Chq No Particulars Debit Credit Balance Init.",
+                "Br",
+                "OPENING BALANCE            5000.00",
+                "UPI/P2M/111111111111/FUEL STATION               ",
+                "30-10-2026 /UPI/YES BANK LIMITED YBS 100.00             4900.00 300",
+                "UPI/P2M/222222222222/LAB",
+                "TECHNOLOGI/UPIInt/INDUSIND BANK",
+                "30-10-2026 LIMITE                50.00              4850.00 300",
+                "31-10-2026 SINGLE LINE ROW 10.00 4840.00 300",
+                "TRANSACTION TOTAL 160.00 0.00",
+                "CLOSING BALANCE             4840.00"));
+        assertThat(r.errors()).isEmpty();
+        assertThat(r.transactions()).extracting(t -> t.rawDescription()).containsExactly(
+                "UPI/P2M/111111111111/FUEL STATION/UPI/YES BANK LIMITED YBS",
+                "UPI/P2M/222222222222/LAB TECHNOLOGI/UPIInt/INDUSIND BANK LIMITE",
+                "SINGLE LINE ROW");
+    }
+
+    @Test
     void singleLineRowWithBranchCodeIsParsed() throws IOException {
         ParsedStatement r = parse(pdf(
                 "Opening Balance 1,000.00",
