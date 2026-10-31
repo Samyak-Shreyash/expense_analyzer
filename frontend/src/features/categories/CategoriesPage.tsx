@@ -8,12 +8,17 @@ import {
   deleteCategory,
   listCategories,
   listPeople,
+  mergePerson,
+  movePayee,
+  setPersonCategory,
   updateCategory,
   updatePerson,
   type Category,
   type Person,
 } from '../../services/finance'
 import styles from './CategoriesPage.module.css'
+import { DirectionDefaults } from './DirectionDefaults'
+import { EditableName } from './EditableName'
 import { MerchantNamesPanel } from './MerchantNamesPanel'
 
 const TABS = [
@@ -23,78 +28,11 @@ const TABS = [
 ] as const
 type Tab = (typeof TABS)[number]['id']
 
+/** "Move to" option value for a person of its own. */
+const NEW = 'new'
+
 const message = (e: unknown) =>
   e instanceof Error ? e.message : 'Could not save that.'
-
-/** A name with a Rename button that opens an inline editor; focus returns to the button. */
-function EditableName({
-  id,
-  name,
-  label,
-  onSave,
-}: {
-  id: string
-  name: string
-  label: string
-  onSave: (name: string) => Promise<void>
-}) {
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(name)
-  const buttonId = `rename-${id}`
-
-  function close() {
-    flushSync(() => setEditing(false))
-    document.getElementById(buttonId)?.focus()
-  }
-
-  async function submit(e: FormEvent) {
-    e.preventDefault()
-    try {
-      await onSave(draft.trim())
-      close()
-    } catch {
-      // the page shows the message; keep the editor open to correct the name
-    }
-  }
-
-  if (!editing) {
-    return (
-      <span className={styles.name}>
-        {name}
-        <button
-          type="button"
-          id={buttonId}
-          className={shared.quiet}
-          aria-label={`Rename ${label} ${name}`}
-          onClick={() => {
-            setDraft(name)
-            setEditing(true)
-          }}
-        >
-          Rename
-        </button>
-      </span>
-    )
-  }
-  return (
-    <form className={styles.editor} onSubmit={submit}>
-      <input
-        className={shared.input}
-        aria-label={`New name for ${name}`}
-        value={draft}
-        autoFocus
-        onChange={(e) => setDraft(e.target.value)}
-        onKeyDown={(e) => e.key === 'Escape' && close()}
-      />
-      <button type="submit" className={shared.button}>
-        Save
-      </button>
-      <button type="button" className={shared.quiet} onClick={close}>
-        Cancel
-      </button>
-    </form>
-  )
-}
 
 export function CategoriesPage() {
   const [params, setParams] = useSearchParams()
@@ -122,6 +60,8 @@ export function CategoriesPage() {
       live = false
     }
   }, [])
+
+  const others = (id: string) => people!.filter((x) => x.id !== id)
 
   const replace = (c: Category) =>
     setCategories((all) => all!.map((x) => (x.id === c.id ? c : x)))
@@ -161,9 +101,12 @@ export function CategoriesPage() {
       setCategories((all) => all!.filter((x) => x.id !== c.id))
       // The server clears this category from people too.
       setPeople((all) =>
-        all!.map((p) =>
-          p.categoryId === c.id ? { ...p, categoryId: null } : p,
-        ),
+        all!.map((p) => ({
+          ...p,
+          categoryId: p.categoryId === c.id ? null : p.categoryId,
+          creditCategoryId:
+            p.creditCategoryId === c.id ? null : p.creditCategoryId,
+        })),
       )
       document.getElementById('category-list')?.focus()
     }, setCategoryError).catch(() => {})
@@ -383,7 +326,8 @@ export function CategoriesPage() {
         <h2 id="people">People</h2>
         <p className={shared.muted}>
           Found from UPI transfers. A person's default category applies to their
-          transactions unless you set one on a single transaction.
+          transactions unless you set one on a single transaction. Merge people
+          who are the same; you can move a UPI name back out at any time.
         </p>
         {peopleError && (
           <p className={shared.error} role="alert">
@@ -399,7 +343,9 @@ export function CategoriesPage() {
               <thead>
                 <tr>
                   <th>Name</th>
-                  <th>Default category</th>
+                  <th>UPI names</th>
+                  <th>Default categories</th>
+                  <th>Merge</th>
                 </tr>
               </thead>
               <tbody>
@@ -426,21 +372,78 @@ export function CategoriesPage() {
                         />
                       </td>
                       <td>
+                        <ul className={styles.payees}>
+                          {p.payees.map((payee) => (
+                            <li key={payee}>
+                              {payee}
+                              {p.payees.length > 1 && (
+                                <select
+                                  className={shared.input}
+                                  aria-label={`Move ${payee} to`}
+                                  value=""
+                                  onChange={(e) =>
+                                    run(async () => {
+                                      setPeople(
+                                        await movePayee(
+                                          p.id,
+                                          payee,
+                                          e.target.value === NEW
+                                            ? null
+                                            : e.target.value,
+                                        ),
+                                      )
+                                    }, setPeopleError).catch(() => {})
+                                  }
+                                >
+                                  <option value="">Move to…</option>
+                                  <option value={NEW}>A new person</option>
+                                  {others(p.id).map((o) => (
+                                    <option key={o.id} value={o.id}>
+                                      {o.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </td>
+                      <td>
+                        <DirectionDefaults
+                          name={p.name}
+                          out={p.categoryId}
+                          into={p.creditCategoryId}
+                          categories={categories}
+                          onChange={(credit, categoryId) =>
+                            run(async () => {
+                              const saved = await setPersonCategory(
+                                p.id,
+                                categoryId,
+                                credit,
+                              )
+                              setPeople((all) =>
+                                all!.map((x) => (x.id === p.id ? saved : x)),
+                              )
+                            }, setPeopleError).catch(() => {})
+                          }
+                        />
+                      </td>
+                      <td>
                         <select
                           className={shared.input}
-                          aria-label={`Default category for ${p.name}`}
-                          value={p.categoryId ?? ''}
+                          aria-label={`Merge ${p.name} into`}
+                          value=""
+                          disabled={people.length < 2}
                           onChange={(e) =>
-                            run(
-                              () => save(p.name, e.target.value || null),
-                              setPeopleError,
-                            ).catch(() => {})
+                            run(async () => {
+                              setPeople(await mergePerson(p.id, e.target.value))
+                            }, setPeopleError).catch(() => {})
                           }
                         >
-                          <option value="">No default</option>
-                          {categories.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.name}
+                          <option value="">Merge into…</option>
+                          {others(p.id).map((o) => (
+                            <option key={o.id} value={o.id}>
+                              {o.name}
                             </option>
                           ))}
                         </select>
@@ -456,7 +459,9 @@ export function CategoriesPage() {
 
       <section className={shared.section} {...panel('merchant-names')}>
         <h2 id="merchant-names">Merchant names</h2>
-        {tab === 'merchant-names' && <MerchantNamesPanel />}
+        {tab === 'merchant-names' && categories && (
+          <MerchantNamesPanel categories={categories} />
+        )}
       </section>
     </>
   )

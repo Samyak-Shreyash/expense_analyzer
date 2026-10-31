@@ -124,6 +124,21 @@
   color: var(--ink-muted);
 }
 
+/* People and merchants get their own colour; the tag repeats it in words. */
+.person {
+  color: var(--person);
+}
+
+.person .tag {
+  border-color: var(--person);
+  color: var(--person);
+}
+
+.merchant .tag {
+  border-color: var(--ledger);
+  color: var(--ledger);
+}
+
 .categoryEditor {
   display: grid;
   gap: 0.5rem;

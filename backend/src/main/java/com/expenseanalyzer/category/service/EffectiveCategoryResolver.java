@@ -34,8 +34,8 @@ public class EffectiveCategoryResolver {
     @Transactional
     public Resolution forUser(UUID userId) {
         List<Category> categories = categoryService.ensureDefaults(userId);
-        Map<UUID, UUID> byMerchant = mappingRepository.findByUserId(userId).stream()
-                .collect(Collectors.toMap(UserMerchantCategory::getMerchantId, UserMerchantCategory::getCategoryId));
+        Map<UUID, UserMerchantCategory> byMerchant = mappingRepository.findByUserId(userId).stream()
+                .collect(Collectors.toMap(UserMerchantCategory::getMerchantId, m -> m));
         Map<UUID, Person> people = personRepository.findByUserIdOrderByNameAsc(userId).stream()
                 .collect(Collectors.toMap(Person::getId, p -> p));
         return new Resolution(categories, byMerchant, people);
@@ -44,10 +44,11 @@ public class EffectiveCategoryResolver {
     public static final class Resolution {
         private final Map<UUID, Category> byId = new HashMap<>();
         private final Map<String, Category> byName = new HashMap<>();
-        private final Map<UUID, UUID> merchantCategory;
+        private final Map<UUID, UserMerchantCategory> merchantCategory;
         private final Map<UUID, Person> people;
 
-        private Resolution(List<Category> categories, Map<UUID, UUID> merchantCategory, Map<UUID, Person> people) {
+        private Resolution(List<Category> categories, Map<UUID, UserMerchantCategory> merchantCategory,
+                           Map<UUID, Person> people) {
             categories.forEach(c -> {
                 byId.put(c.getId(), c);
                 byName.put(key(c.getName()), c);
@@ -58,23 +59,28 @@ public class EffectiveCategoryResolver {
 
         /** @return the effective category, or null for Uncategorized. {@code merchant} may be null. */
         public Category resolve(Transaction t, Merchant merchant) {
-            return resolve(t.getCategoryId(), t.getPersonId(), t.getMerchantId(), merchant);
+            return resolve(t.getCategoryId(), t.getPersonId(), t.getMerchantId(), merchant, "CREDIT".equals(t.getType()));
         }
 
-        /** Same rule from the fields it uses, so aggregated groups can be resolved without loading transactions. */
-        public Category resolve(UUID categoryId, UUID personId, UUID merchantId, Merchant merchant) {
+        /**
+         * Same rule from the fields it uses, so aggregated groups can be resolved without loading transactions. The
+         * person's and merchant's categories are their money-in ones for a {@code credit}, else their money-out ones.
+         */
+        public Category resolve(UUID categoryId, UUID personId, UUID merchantId, Merchant merchant, boolean credit) {
             if (categoryId != null && byId.containsKey(categoryId)) {
                 return byId.get(categoryId);
             }
             // Keep in sync with TransactionService.categoryIs, which reimplements this rule in SQL.
             Person person = personId == null ? null : people.get(personId);
-            if (person != null && person.getCategoryId() != null && byId.containsKey(person.getCategoryId())) {
-                return byId.get(person.getCategoryId());
+            UUID personCategory = person == null ? null : credit ? person.getCreditCategoryId() : person.getCategoryId();
+            if (personCategory != null && byId.containsKey(personCategory)) {
+                return byId.get(personCategory);
             }
             if (merchantId == null) {
                 return null;
             }
-            UUID mapped = merchantCategory.get(merchantId);
+            UserMerchantCategory mapping = merchantCategory.get(merchantId);
+            UUID mapped = mapping == null ? null : mapping.categoryFor(credit);
             if (mapped != null && byId.containsKey(mapped)) {
                 return byId.get(mapped);
             }

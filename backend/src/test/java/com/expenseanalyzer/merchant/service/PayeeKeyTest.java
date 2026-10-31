@@ -45,4 +45,18 @@ class PayeeKeyTest {
         assertThat(PayeeKey.ofP2m("NEFT/N123456789012/RAHUL SHARMA/HDFC")).isEmpty();
         assertThat(PayeeKey.ofP2m(null)).isEmpty();
     }
+
+    @Test
+    void p2mNameIsTheTitleCasedPayeeForDisplay() {
+        assertThat(PayeeKey.p2mName("UPI/P2M/412345678902/ACME STORE/HDFC/pay")).contains("Acme Store");
+        assertThat(PayeeKey.p2mName("UPI/P2A/412345678901/RAHUL SHARMA/HDFC")).isEmpty();
+        assertThat(PayeeKey.p2mName("UPI/P2M/412345678902/STORE 7/HDFC/pay")).contains("Store 7");
+    }
+
+    @Test
+    void p2mNameSkipsSegmentsThatAreMostlyDigitsOrAUpiId() {
+        assertThat(PayeeKey.p2mName("UPI/P2M/412345678902/Q98765432X/HDFC/pay")).isEmpty();
+        assertThat(PayeeKey.p2mName("UPI/P2M/412345678902/AB 1234/HDFC/pay")).isEmpty();
+        assertThat(PayeeKey.p2mName("UPI/P2M/412345678902/paytm.s1abc@pty/HDFC/pay")).isEmpty();
+    }
 }

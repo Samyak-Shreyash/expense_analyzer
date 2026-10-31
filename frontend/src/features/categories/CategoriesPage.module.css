@@ -64,3 +64,24 @@
   border-bottom-color: currentColor;
   font-weight: 600;
 }
+
+.payees {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.875rem;
+}
+
+.payees li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.defaults {
+  display: grid;
+  gap: 0.5rem;
+}
