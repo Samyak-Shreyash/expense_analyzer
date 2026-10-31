@@ -87,7 +87,7 @@ public final class PersonNameParser {
         return s.equalsIgnoreCase("P2A") || s.equalsIgnoreCase("P2P");
     }
 
-    private static String titleCase(String s) {
+    static String titleCase(String s) {
         StringBuilder out = new StringBuilder(s.length());
         boolean start = true;
         for (char c : s.toLowerCase(Locale.ROOT).toCharArray()) {

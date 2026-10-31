@@ -36,7 +36,7 @@ export function TransactionActions({
   const [bulk, setBulk] = useState(PICK)
   const [isPerson, setIsPerson] = useState(t.personId !== null)
   const [name, setName] = useState(
-    t.personName ?? t.normalizedDescription ?? t.description,
+    t.personName ?? t.payeeName ?? t.normalizedDescription ?? t.description,
   )
 
   const holder = t.personId ? t.personName : t.merchantName

@@ -10,6 +10,7 @@ import com.expenseanalyzer.merchant.model.Merchant;
 import com.expenseanalyzer.merchant.model.Person;
 import com.expenseanalyzer.merchant.model.UserMerchantAlias;
 import com.expenseanalyzer.merchant.repository.MerchantRepository;
+import com.expenseanalyzer.merchant.repository.UserMerchantAliasRepository;
 import com.expenseanalyzer.merchant.service.MerchantMatch;
 import com.expenseanalyzer.merchant.service.MerchantNameService;
 import com.expenseanalyzer.merchant.service.MerchantNormalizer;
@@ -65,6 +66,7 @@ public class TransactionService {
     private final MerchantNormalizer merchantNormalizer;
     private final MerchantService merchantService;
     private final MerchantNameService merchantNameService;
+    private final UserMerchantAliasRepository aliasRepository;
 
     @Transactional // not readOnly: first access seeds the user's default categories
     public Page<TransactionResponse> list(String email, TransactionFilter f, Pageable pageable) {
@@ -183,7 +185,8 @@ public class TransactionService {
      * Names the merchant of an unmatched payment: finds or creates the merchant, remembers it for the payee, and
      * applies it (dropping any person) to all of the caller's transactions with the same payee key. Whether the name
      * is shared follows the account setting and {@code share} (see {@link MerchantNameService#afterNaming}). Raw data
-     * is untouched.
+     * is untouched. A category the user set on this row moves to the merchant when they have none for it yet, so it
+     * applies to all of the merchant's transactions.
      */
     @Transactional
     public TransactionResponse setMerchant(String email, UUID id, String name, Boolean share) {
@@ -195,6 +198,39 @@ public class TransactionService {
         if (key == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Transaction has no payee");
         }
+        UUID merchantId = applyMerchant(userId, key, clean, share);
+        if (t.getCategoryId() != null && categoryService.adoptMerchantCategory(userId, merchantId, t.getCategoryId(),
+                "CREDIT".equals(t.getType()))) {
+            t.setCategoryId(null);
+            transactionRepository.save(t);
+        }
+        return response(t, userId);
+    }
+
+    /**
+     * Renames one of the caller's merchant names: the payee moves to the (found or created) merchant with the new
+     * name, as if named on a transaction, keeping the name's share opt-out. The user's category for the old merchant
+     * carries over when they have none for the new one. Not the caller's name: 404.
+     */
+    @Transactional
+    public void renameMerchant(String email, UUID aliasId, String name) {
+        UUID userId = currentUser(email).getId();
+        UserMerchantAlias alias = aliasRepository.findByUserIdAndPublicId(userId, aliasId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
+        UUID previous = alias.getMerchantId();
+        UUID merchantId = applyMerchant(userId, alias.getPayeeKey(), PersonService.validName(name), !alias.isShareOptOut());
+        categoryService.merchantCategory(userId, previous).ifPresent(old -> {
+            if (old.getCategoryId() != null) {
+                categoryService.adoptMerchantCategory(userId, merchantId, old.getCategoryId(), false);
+            }
+            if (old.getCreditCategoryId() != null) {
+                categoryService.adoptMerchantCategory(userId, merchantId, old.getCreditCategoryId(), true);
+            }
+        });
+    }
+
+    /** Points the payee at the merchant named {@code clean} for the user and all their payments to it; its id. */
+    private UUID applyMerchant(UUID userId, String key, String clean, Boolean share) {
         Merchant merchant = merchantService.resolve(new MerchantMatch(clean, clean, null, null));
         UUID merchantId = merchant.getId();
         merchantService.saveAlias(userId, key, merchantId, clean);
@@ -209,7 +245,7 @@ public class TransactionService {
         }
         transactionRepository.saveAll(rows);
         merchantNameService.afterNaming(userId, key, share);
-        return response(t, userId);
+        return merchantId;
     }
 
     /**
@@ -305,7 +341,7 @@ public class TransactionService {
     /**
      * Filters by effective category name (case-insensitive). This is the SQL form of {@link Resolution#resolve}; keep
      * them in sync. Order: own category (only if it is one of the user's), else the person's category, else the
-     * merchant mapping, else a merchant categoryHint naming one of the user's categories, else Uncategorized.
+     * merchant mapping (person and mapping: their money-in or money-out category by the row's type), else a merchant categoryHint naming one of the user's categories, else Uncategorized.
      * A categoryId (or mapping, or person category) that is not one of the user's categories counts as not set.
      * Everything is matched through subqueries; no id lists are bound.
      */
@@ -319,14 +355,17 @@ public class TransactionService {
         String lowerName = uncategorized ? null : category.getName().toLowerCase(Locale.ROOT);
         return (root, q, cb) -> {
             Predicate ownValid = in(cb, root.get("categoryId"), userCategories(q, cb, userId));
-            Predicate personValid = in(cb, root.get("personId"), people(q, cb, userId, null));
-            Predicate mappedValid = in(cb, root.get("merchantId"), mappings(q, cb, userId, null));
+            Predicate credit = cb.equal(root.get("type"), "CREDIT");
+            Predicate personValid = byDirection(cb, credit, root.get("personId"), f -> people(q, cb, userId, null, f));
+            Predicate mappedValid = byDirection(cb, credit, root.get("merchantId"), f -> mappings(q, cb, userId, null, f));
             if (uncategorized) {
                 return cb.and(cb.not(ownValid), cb.not(personValid), cb.not(mappedValid),
                         cb.not(in(cb, root.get("merchantId"), hinted(q, cb, userId, null))));
             }
-            Predicate viaPerson = in(cb, root.get("personId"), people(q, cb, userId, categoryId));
-            Predicate viaMapping = in(cb, root.get("merchantId"), mappings(q, cb, userId, categoryId));
+            Predicate viaPerson = byDirection(cb, credit, root.get("personId"),
+                    f -> people(q, cb, userId, categoryId, f));
+            Predicate viaMapping = byDirection(cb, credit, root.get("merchantId"),
+                    f -> mappings(q, cb, userId, categoryId, f));
             Predicate viaHint = cb.and(in(cb, root.get("merchantId"), hinted(q, cb, userId, lowerName)),
                     cb.not(mappedValid));
             return cb.or(cb.equal(root.get("categoryId"), categoryId),
@@ -345,22 +384,31 @@ public class TransactionService {
         return sq.select(c.get("id")).where(cb.equal(c.get("userId"), userId));
     }
 
-    /** The user's people whose category is {@code categoryId}, or any of the user's categories when null. */
-    private static Subquery<UUID> people(AbstractQuery<?> q, CriteriaBuilder cb, UUID userId, UUID categoryId) {
+    /** {@code column} IN the subquery for the row's direction: the creditCategoryId field for money in. */
+    private static Predicate byDirection(CriteriaBuilder cb, Predicate credit, Path<UUID> column,
+                                         Function<String, Subquery<UUID>> ids) {
+        return cb.or(cb.and(credit, in(cb, column, ids.apply("creditCategoryId"))),
+                cb.and(cb.not(credit), in(cb, column, ids.apply("categoryId"))));
+    }
+
+    /** The user's people whose {@code field} is {@code categoryId}, or any of the user's categories when null. */
+    private static Subquery<UUID> people(AbstractQuery<?> q, CriteriaBuilder cb, UUID userId, UUID categoryId,
+                                         String field) {
         Subquery<UUID> sq = q.subquery(UUID.class);
         Root<Person> p = sq.from(Person.class);
         return sq.select(p.get("id")).where(cb.equal(p.get("userId"), userId),
-                categoryId == null ? p.<UUID>get("categoryId").in(userCategories(sq, cb, userId))
-                        : cb.equal(p.get("categoryId"), categoryId));
+                categoryId == null ? p.<UUID>get(field).in(userCategories(sq, cb, userId))
+                        : cb.equal(p.get(field), categoryId));
     }
 
-    /** Merchants the user mapped to {@code categoryId}, or to any of the user's categories when null. */
-    private static Subquery<UUID> mappings(AbstractQuery<?> q, CriteriaBuilder cb, UUID userId, UUID categoryId) {
+    /** Merchants whose mapping {@code field} is {@code categoryId}, or any of the user's categories when null. */
+    private static Subquery<UUID> mappings(AbstractQuery<?> q, CriteriaBuilder cb, UUID userId, UUID categoryId,
+                                           String field) {
         Subquery<UUID> sq = q.subquery(UUID.class);
         Root<UserMerchantCategory> m = sq.from(UserMerchantCategory.class);
         return sq.select(m.get("merchantId")).where(cb.equal(m.get("userId"), userId),
-                categoryId == null ? m.<UUID>get("categoryId").in(userCategories(sq, cb, userId))
-                        : cb.equal(m.get("categoryId"), categoryId));
+                categoryId == null ? m.<UUID>get(field).in(userCategories(sq, cb, userId))
+                        : cb.equal(m.get(field), categoryId));
     }
 
     /** Merchants whose categoryHint equals {@code lowerName}, or names any of the user's categories when null. */

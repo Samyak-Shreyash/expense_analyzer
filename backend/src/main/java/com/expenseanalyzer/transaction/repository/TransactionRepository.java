@@ -55,6 +55,13 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
     @Query("UPDATE Transaction t SET t.categoryId = NULL WHERE t.categoryId = :categoryId")
     void clearCategory(UUID categoryId);
 
+    /** Moves all of the user's transactions with one person to another (merging people). */
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE Transaction t SET t.personId = :to WHERE t.userId = :userId AND t.personId = :from")
+    void reassignPerson(UUID userId, UUID from, UUID to);
+
+    List<Transaction> findByUserIdAndPersonId(UUID userId, UUID personId);
+
     /** Removes a statement's transactions before the statement itself is deleted. */
     @Modifying
     @Query("DELETE FROM Transaction t WHERE t.statementId = :statementId")

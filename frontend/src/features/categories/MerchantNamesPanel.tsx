@@ -3,13 +3,18 @@ import { flushSync } from 'react-dom'
 import shared from '../../components/shared.module.css'
 import {
   listMerchantNames,
+  renameMerchantName,
+  setMerchantCategory,
   setMerchantNameShared,
   setMerchantNameSharing,
+  type Category,
   type MerchantName,
   type MerchantNames,
   type NotShareableReason,
 } from '../../services/finance'
 import styles from './CategoriesPage.module.css'
+import { DirectionDefaults } from './DirectionDefaults'
+import { EditableName } from './EditableName'
 
 export const SHARING_WARNING =
   'Shared names must be real merchant names. Offensive names are reported and can lose you the ability to share.'
@@ -24,8 +29,8 @@ const REASONS: Record<NotShareableReason, string> = {
 const message = (e: unknown) =>
   e instanceof Error ? e.message : 'Could not save that.'
 
-/** The user's own merchant names, the account-level sharing switch and a per-name share opt-out. */
-export function MerchantNamesPanel() {
+/** The user's own merchant names, the account-level sharing switch, a per-name share opt-out and default category. */
+export function MerchantNamesPanel({ categories }: { categories: Category[] }) {
   const [data, setData] = useState<MerchantNames | null>(null)
   const [loadError, setLoadError] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -80,6 +85,17 @@ export function MerchantNamesPanel() {
   const on = data.shareMerchantNames
   const revoked = data.sharingRevoked
   const toShare = data.items.filter((i) => i.shareable && !i.optedOut).length
+  // Payees of one merchant sit together; each merchant is listed under its first name.
+  const merchants = new Map<string, string>()
+  data.items.forEach((i) => {
+    if (!merchants.has(i.merchantId)) merchants.set(i.merchantId, i.name)
+  })
+  const order = [...merchants.keys()]
+  const grouped = [...data.items].sort(
+    (a, b) => order.indexOf(a.merchantId) - order.indexOf(b.merchantId),
+  )
+  const groupSize = (merchantId: string) =>
+    data.items.filter((x) => x.merchantId === merchantId).length
 
   return (
     <>
@@ -157,23 +173,100 @@ export function MerchantNamesPanel() {
               <tr>
                 <th>Name</th>
                 <th>Payee</th>
+                <th>Move to</th>
                 <th>Transactions</th>
+                <th>Default categories</th>
                 <th>Share</th>
               </tr>
             </thead>
             <tbody>
-              {data.items.map((i) => (
+              {grouped.map((i) => (
                 <tr key={i.id}>
                   <td>
                     <span className={styles.name}>
-                      {i.name}
+                      <EditableName
+                        id={i.id}
+                        name={i.name}
+                        label="merchant"
+                        onSave={async (name) => {
+                          setError(null)
+                          try {
+                            setData(await renameMerchantName(i.id, name))
+                          } catch (e) {
+                            setError(message(e))
+                            throw e
+                          }
+                        }}
+                      />
                       {i.reported && (
                         <span className={shared.error}>Reported</span>
                       )}
                     </span>
                   </td>
-                  <td>{i.payee}</td>
+                  <td>
+                    {i.payee}
+                    {groupSize(i.merchantId) > 1 && (
+                      <span className={shared.muted}>
+                        {' '}
+                        · one of {groupSize(i.merchantId)} payees of this
+                        merchant
+                      </span>
+                    )}
+                  </td>
+                  <td>
+                    <select
+                      className={shared.input}
+                      aria-label={`Move ${i.payee} to merchant`}
+                      value=""
+                      disabled={merchants.size < 2}
+                      onChange={(e) =>
+                        run(async () =>
+                          setData(
+                            await renameMerchantName(i.id, e.target.value),
+                          ),
+                        )
+                      }
+                    >
+                      <option value="">Move to…</option>
+                      {[...merchants]
+                        .filter(([id]) => id !== i.merchantId)
+                        .map(([id, name]) => (
+                          <option key={id} value={name}>
+                            {name}
+                          </option>
+                        ))}
+                    </select>
+                  </td>
                   <td>{i.transactionCount}</td>
+                  <td>
+                    <DirectionDefaults
+                      name={i.name}
+                      out={i.categoryId}
+                      into={i.creditCategoryId}
+                      categories={categories}
+                      onChange={(credit, categoryId) =>
+                        run(async () => {
+                          await setMerchantCategory(
+                            i.merchantId,
+                            categoryId,
+                            credit,
+                          )
+                          const field = credit
+                            ? 'creditCategoryId'
+                            : 'categoryId'
+                          // Names sharing a merchant share its categories.
+                          setData((d) => ({
+                            ...d!,
+                            items: d!.items.map((x) =>
+                              x.merchantId === i.merchantId
+                                ? { ...x, [field]: categoryId }
+                                : x,
+                            ),
+                          }))
+                        })
+                      }
+                    />
+                  </td>
                   <td>
                     <ShareCell
                       item={i}

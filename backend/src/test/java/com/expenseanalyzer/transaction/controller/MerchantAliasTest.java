@@ -8,8 +8,12 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.expenseanalyzer.auth.dto.JwtTokenProvider;
+import com.expenseanalyzer.category.model.Category;
+import com.expenseanalyzer.category.repository.CategoryRepository;
+import com.expenseanalyzer.category.repository.UserMerchantCategoryRepository;
 import com.expenseanalyzer.merchant.model.Person;
 import com.expenseanalyzer.merchant.repository.MerchantRepository;
+import com.expenseanalyzer.merchant.repository.PersonPayeeRepository;
 import com.expenseanalyzer.merchant.repository.PersonRepository;
 import com.expenseanalyzer.merchant.repository.UserMerchantAliasRepository;
 import com.expenseanalyzer.processing.repository.ProcessedEventRepository;
@@ -61,6 +65,8 @@ class MerchantAliasTest {
     @Autowired
     private PersonRepository personRepository;
     @Autowired
+    private PersonPayeeRepository personPayeeRepository;
+    @Autowired
     private UserMerchantAliasRepository aliasRepository;
     @Autowired
     private StatementRepository statementRepository;
@@ -68,6 +74,11 @@ class MerchantAliasTest {
     private ProcessedEventRepository processedEventRepository;
     @Autowired
     private StatementProcessor processor;
+
+    @Autowired
+    private CategoryRepository categoryRepository;
+    @Autowired
+    private UserMerchantCategoryRepository merchantCategoryRepository;
 
     @MockitoBean
     private UserRepository userRepository;
@@ -88,9 +99,12 @@ class MerchantAliasTest {
     @AfterEach
     void cleanUp() {
         transactionRepository.deleteAll();
+        merchantCategoryRepository.deleteAll();
+        categoryRepository.deleteAll();
         statementRepository.deleteAll();
         processedEventRepository.deleteAll();
         aliasRepository.deleteAll();
+        personPayeeRepository.deleteAll();
         personRepository.deleteAll();
         merchantRepository.deleteAll();
     }
@@ -155,6 +169,34 @@ class MerchantAliasTest {
         assertThat(reload(a).getRawDescription()).isEqualTo(ACME + "lunch");
         assertThat(aliasRepository.findByUserId(alice.getId())).hasSize(1);
         assertThat(aliasRepository.findByUserId(bob.getId())).isEmpty();
+    }
+
+    @Test
+    void namingMovesTheRowsOwnCategoryToTheMerchantUnlessItHasOne() throws Exception {
+        UUID food = categoryRepository.saveAndFlush(new Category(alice.getId(), "Food", true)).getId();
+        UUID shops = categoryRepository.saveAndFlush(new Category(alice.getId(), "Shops", true)).getId();
+        UUID a = transaction(alice, ACME + "lunch", "P2M ACME STORE LUNCH");
+        UUID b = transaction(alice, ACME + "dinner", "P2M ACME STORE DINNER");
+        Transaction row = reload(a);
+        row.setCategoryId(food);
+        transactionRepository.saveAndFlush(row);
+
+        name(ALICE, a, "{\"name\":\"Acme Store\"}", 200);
+
+        UUID merchant = merchantRepository.findByCanonicalName("Acme Store").orElseThrow().getId();
+        assertThat(merchantCategoryRepository.findByUserIdAndMerchantId(alice.getId(), merchant).orElseThrow()
+                .getCategoryId()).isEqualTo(food);
+        assertThat(reload(a).getCategoryId()).isNull();
+        assertThat(reload(b).getCategoryId()).isNull();
+
+        // The merchant already has a category: the row keeps its own.
+        Transaction other = reload(b);
+        other.setCategoryId(shops);
+        transactionRepository.saveAndFlush(other);
+        name(ALICE, b, "{\"name\":\"Acme Store\"}", 200);
+        assertThat(merchantCategoryRepository.findByUserIdAndMerchantId(alice.getId(), merchant).orElseThrow()
+                .getCategoryId()).isEqualTo(food);
+        assertThat(reload(b).getCategoryId()).isEqualTo(shops);
     }
 
     @Test

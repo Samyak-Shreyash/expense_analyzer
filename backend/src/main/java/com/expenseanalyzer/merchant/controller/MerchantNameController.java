@@ -4,8 +4,10 @@ import com.expenseanalyzer.merchant.dto.AccountSharingRequest;
 import com.expenseanalyzer.merchant.dto.AliasSharingRequest;
 import com.expenseanalyzer.merchant.dto.MerchantNameItem;
 import com.expenseanalyzer.merchant.dto.MerchantNamesResponse;
+import com.expenseanalyzer.merchant.dto.MerchantRenameRequest;
 import com.expenseanalyzer.merchant.dto.SharingSettingsResponse;
 import com.expenseanalyzer.merchant.service.MerchantNameService;
+import com.expenseanalyzer.transaction.service.TransactionService;
 import jakarta.validation.Valid;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +29,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class MerchantNameController {
 
     private final MerchantNameService merchantNameService;
+    private final TransactionService transactionService;
 
     @GetMapping
     public MerchantNamesResponse list(@AuthenticationPrincipal Jwt jwt) {
@@ -41,6 +44,14 @@ public class MerchantNameController {
     @PutMapping("/sharing")
     public MerchantNamesResponse setSharing(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody AccountSharingRequest body) {
         return merchantNameService.setSharing(jwt.getSubject(), body.enabled());
+    }
+
+    /** Renames one of the caller's names; every payment to its payee follows. Returns the updated list. */
+    @PutMapping("/{id}")
+    public MerchantNamesResponse rename(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
+                                        @RequestBody MerchantRenameRequest body) {
+        transactionService.renameMerchant(jwt.getSubject(), id, body == null ? null : body.name());
+        return merchantNameService.list(jwt.getSubject());
     }
 
     @PutMapping("/{id}/sharing")

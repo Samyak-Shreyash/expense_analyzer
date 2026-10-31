@@ -14,6 +14,7 @@ import com.expenseanalyzer.user.model.User;
 import com.expenseanalyzer.user.repository.UserRepository;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
@@ -100,8 +101,11 @@ public class CategoryService {
     public void delete(String email, UUID id) {
         Category category = owned(userId(email), id);
         transactionRepository.clearCategory(id);
-        merchantCategoryRepository.deleteByCategoryId(id);
+        merchantCategoryRepository.clearCategory(id);
+        merchantCategoryRepository.clearCreditCategory(id);
+        merchantCategoryRepository.deleteEmpty();
         personRepository.clearCategory(id);
+        personRepository.clearCreditCategory(id);
         categoryRepository.delete(category);
     }
 
@@ -111,20 +115,48 @@ public class CategoryService {
         }
     }
 
-    /** Sets (or, with a null categoryId, clears) the caller's category for a merchant. Unknown merchant or category: 404. */
+    /**
+     * Sets (or, with a null categoryId, clears) the caller's money-in ({@code credit}) or money-out category for a
+     * merchant. Unknown merchant or category: 404.
+     */
     @Transactional
-    public void setMerchantCategory(String email, UUID merchantId, UUID categoryId) {
+    public void setMerchantCategory(String email, UUID merchantId, UUID categoryId, boolean credit) {
         UUID userId = userId(email);
         if (!merchantRepository.existsById(merchantId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND);
         }
-        if (categoryId == null) {
-            merchantCategoryRepository.findByUserIdAndMerchantId(userId, merchantId)
-                    .ifPresent(merchantCategoryRepository::delete);
-            return;
+        if (categoryId != null) {
+            owned(userId, categoryId);
         }
-        owned(userId, categoryId);
-        merchantCategoryRepository.save(new UserMerchantCategory(userId, merchantId, categoryId));
+        Optional<UserMerchantCategory> existing = merchantCategoryRepository.findByUserIdAndMerchantId(userId, merchantId);
+        UserMerchantCategory row = existing.orElseGet(() -> new UserMerchantCategory(userId, merchantId));
+        row.setCategoryFor(credit, categoryId);
+        if (row.getCategoryId() != null || row.getCreditCategoryId() != null) {
+            merchantCategoryRepository.save(row);
+        } else if (existing.isPresent()) {
+            merchantCategoryRepository.delete(row);
+        }
+    }
+
+    /** The user's categories for the merchant, if they chose any. */
+    public Optional<UserMerchantCategory> merchantCategory(UUID userId, UUID merchantId) {
+        return merchantCategoryRepository.findByUserIdAndMerchantId(userId, merchantId);
+    }
+
+    /**
+     * Makes {@code categoryId} the user's money-in ({@code credit}) or money-out category for the merchant unless they
+     * already chose one for that direction; true when it did.
+     */
+    @Transactional
+    public boolean adoptMerchantCategory(UUID userId, UUID merchantId, UUID categoryId, boolean credit) {
+        UserMerchantCategory row = merchantCategoryRepository.findByUserIdAndMerchantId(userId, merchantId)
+                .orElseGet(() -> new UserMerchantCategory(userId, merchantId));
+        if (row.categoryFor(credit) != null) {
+            return false;
+        }
+        row.setCategoryFor(credit, categoryId);
+        merchantCategoryRepository.save(row);
+        return true;
     }
 
     public Category owned(UUID userId, UUID id) {

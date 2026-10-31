@@ -26,7 +26,8 @@ public class MerchantController {
     @PutMapping("/{merchantId}/category")
     public ResponseEntity<Void> setCategory(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID merchantId,
                                             @RequestBody CategoryAssignment body) {
-        categoryService.setMerchantCategory(jwt.getSubject(), merchantId, body.categoryId());
+        categoryService.setMerchantCategory(jwt.getSubject(), merchantId, body.categoryId(),
+                Boolean.TRUE.equals(body.credit()));
         return ResponseEntity.noContent().build();
     }
 }

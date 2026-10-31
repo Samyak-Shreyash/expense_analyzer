@@ -15,6 +15,11 @@ vi.mock('../../services/finance', async (orig) => ({
   listMerchantNames: vi.fn(),
   setMerchantNameSharing: vi.fn(),
   setMerchantNameShared: vi.fn(),
+  setMerchantCategory: vi.fn(),
+  setPersonCategory: vi.fn(),
+  renameMerchantName: vi.fn(),
+  mergePerson: vi.fn(),
+  movePayee: vi.fn(),
 }))
 
 function Location() {
@@ -40,12 +45,16 @@ const acme: finance.MerchantName = {
   shareable: true,
   notShareableReason: null,
   reported: false,
+  merchantId: 'm1',
+  categoryId: null,
+  creditCategoryId: null,
 }
 const rahul: finance.MerchantName = {
   ...acme,
   id: 'a2',
   name: 'Rahul Shop',
   payee: 'RAHUL KUMAR',
+  merchantId: 'm2',
   shareable: false,
   notShareableReason: 'TRANSFER',
 }
@@ -54,6 +63,8 @@ const beta: finance.MerchantName = {
   id: 'a3',
   name: 'Beta Mart',
   payee: 'BETA MART',
+  merchantId: 'm3',
+  categoryId: 'c2',
 }
 const names = (
   over: Partial<finance.MerchantNames> = {},
@@ -71,7 +82,13 @@ beforeEach(() => {
   vi.resetAllMocks()
   vi.mocked(finance.listCategories).mockResolvedValue([food, loan])
   vi.mocked(finance.listPeople).mockResolvedValue([
-    { id: 'p1', name: 'Ravi', categoryId: null },
+    {
+      id: 'p1',
+      name: 'Ravi',
+      categoryId: null,
+      creditCategoryId: null,
+      payees: ['RAVI'],
+    },
   ])
 })
 
@@ -210,23 +227,68 @@ describe('CategoriesPage', () => {
     )
   })
 
-  it('sets a person default category', async () => {
-    vi.mocked(finance.updatePerson).mockResolvedValue({
+  it('sets a person default category for money in and money out', async () => {
+    vi.mocked(finance.setPersonCategory).mockResolvedValue({
       id: 'p1',
       name: 'Ravi',
       categoryId: 'c2',
+      creditCategoryId: null,
+      payees: ['RAVI'],
     })
     renderPage()
     fireEvent.click(await screen.findByRole('tab', { name: 'People' }))
     fireEvent.change(
-      await screen.findByLabelText('Default category for Ravi'),
+      await screen.findByLabelText('Money out default for Ravi'),
       {
         target: { value: 'c2' },
       },
     )
     await waitFor(() =>
-      expect(finance.updatePerson).toHaveBeenCalledWith('p1', 'Ravi', 'c2'),
+      expect(finance.setPersonCategory).toHaveBeenCalledWith('p1', 'c2', false),
     )
+    fireEvent.change(screen.getByLabelText('Money in default for Ravi'), {
+      target: { value: 'c1' },
+    })
+    await waitFor(() =>
+      expect(finance.setPersonCategory).toHaveBeenCalledWith('p1', 'c1', true),
+    )
+  })
+
+  it('merges people and moves a UPI name back out', async () => {
+    const ravi = {
+      id: 'p1',
+      name: 'Ravi',
+      categoryId: null,
+      creditCategoryId: null,
+      payees: ['RAVI'],
+    }
+    const raviK = {
+      id: 'p2',
+      name: 'Ravi K',
+      categoryId: null,
+      creditCategoryId: null,
+      payees: ['RAVI K'],
+    }
+    vi.mocked(finance.listPeople).mockResolvedValue([ravi, raviK])
+    vi.mocked(finance.mergePerson).mockResolvedValue([
+      { ...ravi, creditCategoryId: null, payees: ['RAVI', 'RAVI K'] },
+    ])
+    vi.mocked(finance.movePayee).mockResolvedValue([ravi, raviK])
+    renderPage('/categories?tab=people')
+    fireEvent.change(
+      await screen.findByRole('combobox', { name: 'Merge Ravi K into' }),
+      { target: { value: 'p1' } },
+    )
+    const move = await screen.findByRole('combobox', { name: 'Move RAVI K to' })
+    expect(finance.mergePerson).toHaveBeenCalledWith('p2', 'p1')
+
+    fireEvent.change(move, { target: { value: 'new' } })
+    await waitFor(() =>
+      expect(finance.movePayee).toHaveBeenCalledWith('p1', 'RAVI K', null),
+    )
+    expect(
+      await screen.findByRole('combobox', { name: 'Merge Ravi K into' }),
+    ).toBeTruthy()
   })
 
   it('switches tabs with the arrow keys and keeps the URL in sync', async () => {
@@ -257,6 +319,82 @@ describe('CategoriesPage', () => {
       screen.findByRole('switch', {
         name: 'Share my merchant names to improve suggestions for other users',
       }) as Promise<HTMLInputElement>
+
+    it('renames a merchant name inline', async () => {
+      vi.mocked(finance.listMerchantNames).mockResolvedValue(names())
+      vi.mocked(finance.renameMerchantName).mockResolvedValue(
+        names({ items: [{ ...acme, name: 'Acme Mart' }, beta, rahul] }),
+      )
+      open()
+      fireEvent.click(
+        await screen.findByRole('button', {
+          name: 'Rename merchant Acme Store',
+        }),
+      )
+      fireEvent.change(screen.getByLabelText('New name for Acme Store'), {
+        target: { value: ' Acme Mart ' },
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+      expect(
+        await screen.findByRole('button', {
+          name: 'Rename merchant Acme Mart',
+        }),
+      ).toBeTruthy()
+      expect(finance.renameMerchantName).toHaveBeenCalledWith('a1', 'Acme Mart')
+    })
+
+    it('moves a payee to another merchant', async () => {
+      vi.mocked(finance.listMerchantNames).mockResolvedValue(names())
+      vi.mocked(finance.renameMerchantName).mockResolvedValue(
+        names({
+          items: [
+            acme,
+            { ...beta, name: 'Acme Store', merchantId: 'm1' },
+            rahul,
+          ],
+        }),
+      )
+      open()
+      fireEvent.change(
+        await screen.findByRole('combobox', {
+          name: 'Move BETA MART to merchant',
+        }),
+        { target: { value: 'Acme Store' } },
+      )
+      await waitFor(() =>
+        expect(finance.renameMerchantName).toHaveBeenCalledWith(
+          'a3',
+          'Acme Store',
+        ),
+      )
+      expect(
+        (await screen.findAllByText(/one of 2 payees of this merchant/)).length,
+      ).toBe(2)
+    })
+
+    it('shows and sets a merchant default category', async () => {
+      vi.mocked(finance.listMerchantNames).mockResolvedValue(names())
+      vi.mocked(finance.setMerchantCategory).mockResolvedValue(null)
+      open()
+      const select = (await screen.findByRole('combobox', {
+        name: 'Money out default for Acme Store',
+      })) as HTMLSelectElement
+      expect(select.value).toBe('')
+      expect(
+        (
+          screen.getByRole('combobox', {
+            name: 'Money out default for Beta Mart',
+          }) as HTMLSelectElement
+        ).value,
+      ).toBe('c2')
+      fireEvent.change(select, { target: { value: 'c1' } })
+      await waitFor(() => expect(select.value).toBe('c1'))
+      expect(finance.setMerchantCategory).toHaveBeenCalledWith(
+        'm1',
+        'c1',
+        false,
+      )
+    })
 
     it('is off by default with every row disabled', async () => {
       vi.mocked(finance.listMerchantNames).mockResolvedValue(names())

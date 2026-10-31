@@ -56,6 +56,16 @@ class MerchantNormalizerTest {
     }
 
     @Test
+    void aBrandThatNamesABankIsNotItsMerchant() {
+        assertThat(normalizer.normalize("UPI/P2M/412345678902/BOTTLE LAB/AIRTEL PAYMENTS BANK/pay").canonicalName())
+                .isNull();
+        assertThat(normalizer.normalize("UPI/P2A/412345678901/RAHUL/Jio Payments Bank Ltd").canonicalName()).isNull();
+        assertThat(normalizer.normalize("NEFT AIRTEL BANK TRANSFER").canonicalName()).isNull();
+        assertThat(normalizer.normalize("UPI/P2M/412345678902/AIRTEL PREPAID/AIRTEL PAYMENTS BANK").canonicalName())
+                .isEqualTo("Airtel");
+    }
+
+    @Test
     void aliasMustMatchAWholeToken() {
         assertThat(normalizer.normalize("AMAZONIA RESTAURANT").canonicalName()).isNull();
         assertThat(normalizer.normalize("OLAF STORE").canonicalName()).isNull();
