@@ -11,5 +11,5 @@ import java.util.UUID;
  */
 public record TransactionFilter(String q, UUID statementId, LocalDate from, LocalDate to, UUID merchantId,
                                 TransactionDirection direction, BigDecimal minAmount, BigDecimal maxAmount,
-                                String category, Boolean transfer) {
+                                String category, Boolean transfer, UUID personId) {
 }

@@ -16,6 +16,7 @@ vi.mock('../../services/finance', async (orig) => ({
   setTransfer: vi.fn(),
   setPersonCategory: vi.fn(),
   updatePerson: vi.fn(),
+  listPeople: vi.fn(),
   setTransactionMerchant: vi.fn(),
   getMerchantNameSettings: vi.fn(),
   reportSuggestion: vi.fn(),
@@ -105,6 +106,118 @@ describe('TransactionsPage', () => {
     expect(
       screen.getByRole('columnheader', { name: 'Merchant / Person' }),
     ).toBeTruthy()
+  })
+
+  it('links a UPI merchant payee to its transactions and offers to rename it', async () => {
+    vi.mocked(finance.listTransactions).mockResolvedValue({
+      items: [
+        {
+          ...swiggy,
+          merchantId: null,
+          merchantName: null,
+          payeeName: 'Parampara',
+          payeeType: 'MERCHANT',
+        },
+      ],
+      page: 0,
+      size: 50,
+      totalItems: 1,
+      totalPages: 1,
+    })
+    renderPage()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Rename merchant Parampara' }),
+    )
+    expect(
+      (screen.getByLabelText('New name for Parampara') as HTMLInputElement)
+        .value,
+    ).toBe('Parampara')
+    expect(screen.queryByText('Add merchant')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Show all transactions with Parampara',
+      }),
+    )
+    await waitFor(() =>
+      expect(finance.listTransactions).toHaveBeenLastCalledWith(
+        expect.objectContaining({ q: 'Parampara' }),
+      ),
+    )
+  })
+
+  it('renames a matched merchant for this payee without sharing it', async () => {
+    vi.mocked(finance.listTransactions).mockResolvedValue({
+      items: [swiggy],
+      page: 0,
+      size: 50,
+      totalItems: 1,
+      totalPages: 1,
+    })
+    vi.mocked(finance.setTransactionMerchant).mockResolvedValue(swiggy)
+    renderPage()
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: `Rename merchant ${swiggy.merchantName}`,
+      }),
+    )
+    fireEvent.change(
+      screen.getByLabelText(`New name for ${swiggy.merchantName}`),
+      { target: { value: 'Swiggy Instamart' } },
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() =>
+      expect(finance.setTransactionMerchant).toHaveBeenCalledWith(
+        swiggy.id,
+        'Swiggy Instamart',
+        undefined,
+      ),
+    )
+  })
+
+  it('renames a person, keeping their category', async () => {
+    const paid = {
+      ...swiggy,
+      merchantId: null,
+      merchantName: null,
+      personId: 'p1',
+      personName: 'Miss Trisha',
+    }
+    vi.mocked(finance.listTransactions).mockResolvedValue({
+      items: [paid],
+      page: 0,
+      size: 50,
+      totalItems: 1,
+      totalPages: 1,
+    })
+    vi.mocked(finance.listPeople).mockResolvedValue([
+      {
+        id: 'p1',
+        name: 'Miss Trisha',
+        categoryId: 'c2',
+        creditCategoryId: null,
+        payees: ['MISS TRISHA'],
+      },
+    ])
+    vi.mocked(finance.updatePerson).mockResolvedValue({
+      id: 'p1',
+      name: 'Trisha',
+      categoryId: 'c2',
+      creditCategoryId: null,
+      payees: ['MISS TRISHA'],
+    })
+    renderPage()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Rename person Miss Trisha' }),
+    )
+    fireEvent.change(screen.getByLabelText('New name for Miss Trisha'), {
+      target: { value: 'Trisha' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() =>
+      expect(finance.updatePerson).toHaveBeenCalledWith('p1', 'Trisha', 'c2'),
+    )
   })
 
   it('prefills the person editor with the UPI payee, not the description', async () => {
