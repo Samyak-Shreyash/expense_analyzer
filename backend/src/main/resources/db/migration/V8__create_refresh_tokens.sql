@@ -1,3 +1,6 @@
+-- Migration: V8__create_refresh_tokens.sql
+-- Description: Refresh tokens, stored as hashes.
+
 CREATE TABLE IF NOT EXISTS refresh_tokens (
     id UUID PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,

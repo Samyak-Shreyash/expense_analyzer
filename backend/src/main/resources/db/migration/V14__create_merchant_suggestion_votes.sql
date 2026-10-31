@@ -1,8 +1,8 @@
--- Migration: V19__create_merchant_suggestion_votes.sql
--- Description: Opt-in votes that a payee key is a given merchant. Holds no amounts, dates, categories or descriptions.
+-- Migration: V14__create_merchant_suggestion_votes.sql
+-- Description: Users' shared merchant-name suggestions for a payee.
 
 CREATE TABLE IF NOT EXISTS merchant_suggestion_votes (
-    user_id UUID NOT NULL REFERENCES users(id),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     payee_key VARCHAR(255) NOT NULL,
     merchant_id UUID NOT NULL REFERENCES merchants(id),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

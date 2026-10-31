@@ -1,5 +1,5 @@
--- Migration: V10__create_outbox_events.sql
--- Description: Transactional outbox for domain events published to Kafka (LLD section 23).
+-- Migration: V9__create_outbox_events.sql
+-- Description: Transactional outbox for domain events.
 
 CREATE TABLE IF NOT EXISTS outbox_events (
     id UUID PRIMARY KEY,
@@ -13,5 +13,4 @@ CREATE TABLE IF NOT EXISTS outbox_events (
     last_error VARCHAR(255)
 );
 
--- The publisher polls unpublished rows in creation order.
 CREATE INDEX IF NOT EXISTS idx_outbox_events_unpublished ON outbox_events(created_at) WHERE published_at IS NULL;

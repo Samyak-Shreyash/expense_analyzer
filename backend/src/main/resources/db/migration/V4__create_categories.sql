@@ -1,5 +1,5 @@
--- Migration: V14__create_categories.sql
--- Description: User-managed spending categories. Defaults are seeded per user on first access, not here.
+-- Migration: V4__create_categories.sql
+-- Description: A user's categories.
 
 CREATE TABLE IF NOT EXISTS categories (
     id UUID PRIMARY KEY,
@@ -11,6 +11,3 @@ CREATE TABLE IF NOT EXISTS categories (
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS uq_categories_user_lower_name ON categories(user_id, lower(name));
-
-ALTER TABLE transactions ADD CONSTRAINT fk_transactions_category_id
-    FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL;
