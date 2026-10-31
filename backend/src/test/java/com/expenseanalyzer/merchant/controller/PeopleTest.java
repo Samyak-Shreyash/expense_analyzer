@@ -348,6 +348,21 @@ class PeopleTest {
     }
 
     @Test
+    void twoPeopleCanShareANameAndImportsGoToTheOldest() throws Exception {
+        Person rahul = personService.findOrCreate(alice.getId(), "Rahul Sharma");
+        Person rahulS = personService.findOrCreate(alice.getId(), "Rahul S");
+
+        mockMvc.perform(put("/api/people/" + rahulS.getId()).header("Authorization", bearer(ALICE))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"rahul sharma\"}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/people").header("Authorization", bearer(ALICE)))
+                .andExpect(jsonPath("$.length()").value(2));
+        // Each payee stays with its own person; a new payee spelled like the shared name goes to the oldest.
+        assertThat(personService.findOrCreate(alice.getId(), "Rahul S").getId()).isEqualTo(rahulS.getId());
+        assertThat(personService.findOrCreate(alice.getId(), "RAHUL  SHARMA").getId()).isEqualTo(rahul.getId());
+    }
+
+    @Test
     void mergeAndMoveAreOwnerScoped() throws Exception {
         Person rahul = personService.findOrCreate(alice.getId(), "Rahul Sharma");
         Person bobs = personService.findOrCreate(bob.getId(), "Rahul S");
