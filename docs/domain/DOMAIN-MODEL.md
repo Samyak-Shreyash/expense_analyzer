@@ -1,7 +1,7 @@
 # Domain Model
 
 **Document ID:** ARCH-002  
-**Version:** 0.2
+**Version:** 1.0
 
 ## 1. Entity Overview
 
@@ -17,6 +17,10 @@ User
 
 Transaction --> Merchant
 Transaction --> Category
+Transaction --> Person
+Transaction --> Transaction (transfer pair)
+Person --> Category (money-out / money-in defaults)
+UserMerchantCategory --> Merchant, Category (money-out / money-in defaults)
 RecurringExpense --> Merchant
 RecurringExpense --> Category
 Category --> Category (parent)
@@ -32,17 +36,43 @@ Statement --> User
 ### Account
 `id, user_id, type, institution_name, masked_identifier, currency, status, created_at`
 
+Not yet persisted. Until it is, an account is identified by its statements' `(account_number, bank_name)`; transfer detection (section 4.3) uses that pair.
+
 ### Statement
 `id, user_id, account_id, file_name, storage_key, file_hash, format, period_start, period_end, status, processing_error, created_at, completed_at`
 
 ### Transaction
-`id, user_id, account_id, statement_id, transaction_date, posting_date, amount, currency, direction, raw_description, normalized_description, merchant_id, category_id, category_confidence, merchant_confidence, transaction_fingerprint, created_at, updated_at`
+Target: `id, user_id, account_id, statement_id, transaction_date, posting_date, amount, currency, direction, raw_description, normalized_description, merchant_id, person_id, category_id, transfer_pair_id, category_confidence, merchant_confidence, transaction_fingerprint, created_at, updated_at`
+
+Implemented today (`transactions`): `id, user_id, statement_id, date, amount_cents, currency, type, raw_description, normalized_description, merchant_id, merchant_confidence, person_id, category_id, transaction_fingerprint, created_at, updated_at`.
+
+- `amount_cents` holds the amount in currency units (despite the name), always positive. `type` is the direction: `DEBIT` (money out) or `CREDIT` (money in).
+- `merchant_id` and `person_id` are mutually exclusive: a counterparty is a merchant or a person, never both.
+- `category_id` is the transaction's own category, set only by the user. The effective category is derived (section 4.1); it is not stored.
+- `transfer_pair_id` (planned, #327) links the two halves of a transfer between the user's own accounts.
+
+### Person
+`id, user_id, name, category_id, credit_category_id, created_at`
+
+Someone the user transfers money to or receives it from, detected from UPI P2A/P2P transfers or set by the user. Private to the user. `category_id` / `credit_category_id` are the money-out / money-in default categories. Several payee names can belong to one person (`person_payees`: `user_id, payee_key, person_id`); grouping is always undoable.
 
 ### Merchant
 `id, canonical_name, parent_merchant_id, category_hint, created_at, updated_at`
 
 ### Category
-`id, parent_id, name, type, is_system_defined`
+Target: `id, parent_id, name, type, is_system_defined`
+
+Implemented today (`categories`): `id, user_id, name, counts_as_spending, created_at, updated_at`. Categories are per user (seeded with defaults once), unique by name ignoring case. `counts_as_spending = false` keeps a category's money out of spending (e.g. Repayment, Loan).
+
+### UserMerchantCategory
+`user_id, merchant_id, category_id, credit_category_id`
+
+The user's money-out / money-in default categories for a shared merchant. Either may be null; a row with neither is removed.
+
+### UserMerchantAlias
+`user_id, payee_key, merchant_id, display_name, public_id, share_opt_out, created_at`
+
+The user's own merchant name for a payee key, applied to every payment to that payee.
 
 ### RecurringExpense
 `id, user_id, merchant_id, category_id, expected_amount, frequency, confidence, last_occurrence, next_expected_date, status`
@@ -63,13 +93,29 @@ Statement --> User
 - A transaction must not reference a category or merchant belonging to another tenant/context.
 - Fingerprints are stable enough for duplicate detection.
 - Insight evidence must correspond to data available for the referenced period.
+- A transaction has at most one counterparty: a merchant or a person.
+- People, user categories, merchant defaults and aliases are visible only to their owner; another user's record behaves as missing (404).
+- A transfer pair joins exactly two transactions of the same user: one `DEBIT` and one `CREDIT` of equal amount and currency, in different accounts. A transaction is in at most one pair.
 
 ## 4. Financial Semantics
-The model must eventually make explicit decisions for:
-- transfers between own accounts
+
+### 4.1 Direction and effective category
+- Direction comes from the statement: `DEBIT` is money out, `CREDIT` is money in. Amounts are stored positive.
+- Effective category, in order: the transaction's own category; else its person's default for the transaction's direction; else its merchant mapping's default for that direction; else the user's category named like the merchant's `category_hint`; else Uncategorized. A reference to a category that is not the user's counts as not set.
+- Spending counts `DEBIT`s whose effective category counts as spending (Uncategorized does). Inflow counts every `CREDIT`.
+
+### 4.2 Refunds and reversals
+A `CREDIT` from a matched merchant nets against that merchant's (and its category's) spend. A `CREDIT` with no merchant is treated as income, not a refund.
+
+### 4.3 Transfers between own accounts (decided; implementation #327)
+- Automatic pairing: a `DEBIT` in one account and a `CREDIT` of the same amount and currency in a different account of the same user, with transaction dates at most 3 days apart. Each transaction joins at most one pair; when several candidates match, the closest date wins (ties: earliest created).
+- A description naming the user, "SELF" or "OWN A/C" may support a match but is never sufficient on its own.
+- Manual marking: the user can mark a single transaction as a transfer to or from their own account even when the other half is not imported, and can unmark any pair or single transfer.
+- Transfers are excluded from spending, from inflow and from merchant/category breakdowns, and are reported separately. Both halves of a pair are excluded together, so net cash flow is unchanged.
+- Marking never alters raw transaction data and is fully reversible.
+
+### 4.4 Still to decide
 - credit-card payments
-- refunds/reversals
-- income vs expense direction
 - investment contributions
 - cash withdrawals
 - EMI principal/interest representation
@@ -86,43 +132,42 @@ The database migration baseline implements the approved domain model in dependen
 
 ### 6.1 Migration Ordering
 
-1. `users`
-2. `accounts`
-3. `merchants`
-4. `categories`
-5. `statements`
-6. `transactions`
-7. `recurring_expenses`
-8. `insights`
-9. `ai_queries`
-10. `audit_logs`
+Implemented (one `create_<table>` migration per table, V1-V18): `users`, `statements`, `merchants`, `categories`, `people`, `transactions`, `preferences`, `refresh_tokens`, `outbox_events`, `processed_events`, `audit_logs`, `user_merchant_categories`, `user_merchant_aliases`, `merchant_suggestion_votes`, `merchant_suggestion_reports`, `hidden_merchant_suggestions`, `sharing_strikes`, `person_payees`.
+
+Not yet created: `accounts`, `recurring_expenses`, `insights`, `ai_queries`.
 
 ### 6.2 Table-to-Domain Mapping
 
-| Domain entity | Database table | Primary key | Required relationships |
+Implemented:
+
+| Domain entity | Database table | Primary key | Relationships |
 |---|---|---|---|
 | User | `users` | `id` | Root ownership entity |
-| Account | `accounts` | `id` | `user_id → users.id` |
-| Statement | `statements` | `id` | `user_id → users.id`; `account_id → accounts.id` |
-| Transaction | `transactions` | `id` | `user_id → users.id`; `account_id → accounts.id`; `statement_id → statements.id`; `merchant_id → merchants.id`; `category_id → categories.id` |
-| Merchant | `merchants` | `id` | `parent_merchant_id → merchants.id` |
-| Category | `categories` | `id` | `parent_id → categories.id` |
-| RecurringExpense | `recurring_expenses` | `id` | `user_id → users.id`; `merchant_id → merchants.id`; `category_id → categories.id` |
-| Insight | `insights` | `id` | `user_id → users.id` |
-| AIQuery | `ai_queries` | `id` | `user_id → users.id` |
-| AuditLog | `audit_logs` | `id` | `user_id → users.id` |
+| Statement | `statements` | `id` | `user_id → users.id` |
+| Merchant | `merchants` | `id` | `parent_merchant_id → merchants.id` (shared, not user-owned) |
+| Category | `categories` | `id` | `user_id → users.id` |
+| Person | `people` | `id` | `user_id → users.id`; `category_id`, `credit_category_id → categories.id` (SET NULL) |
+| Transaction | `transactions` | `id` | `user_id → users.id`; `statement_id → statements.id`; `merchant_id → merchants.id`; `person_id → people.id` (SET NULL); `category_id → categories.id` (SET NULL) |
+| UserMerchantCategory | `user_merchant_categories` | `(user_id, merchant_id)` | `merchant_id → merchants.id`; `category_id`, `credit_category_id → categories.id` (SET NULL) |
+| UserMerchantAlias | `user_merchant_aliases` | `(user_id, payee_key)` | `user_id → users.id` (CASCADE); `merchant_id → merchants.id` |
+| PersonPayee | `person_payees` | `(user_id, payee_key)` | `person_id → people.id` (CASCADE) |
+| AuditLog | `audit_logs` | `id` | `user_id` (no foreign key) |
+
+Merchant-name sharing (`merchant_suggestion_votes`, `merchant_suggestion_reports`, `hidden_merchant_suggestions`, `sharing_strikes`) and infrastructure tables (`preferences`, `refresh_tokens`, `outbox_events`, `processed_events`) are outside the financial domain.
+
+Planned (not yet created): `accounts` (`user_id → users.id`; then `statements.account_id` and `transactions.account_id → accounts.id`), `recurring_expenses`, `insights`, `ai_queries`, and `transactions.transfer_pair_id → transactions.id` (#327).
 
 ### 6.3 Constraints
 
-The baseline enforces the confirmed model invariants: primary keys; unique user email; ownership foreign keys; transaction/account/statement/merchant/category relationships; self-referencing merchant/category relationships; exact decimal/numeric transaction amounts; preservation of raw descriptions; statement checksum uniqueness scoped appropriately; and transaction fingerprints for duplicate detection/idempotency. Finite status/type/frequency domains are constrained where the approved model defines them.
+Enforced today: primary keys; unique user email; ownership foreign keys; exact decimal transaction amounts (`DECIMAL(12, 2)`); non-null raw descriptions; unique `(user_id, file_hash)` on statements; unique `(user_id, transaction_fingerprint)` on transactions; category names unique per user ignoring case; merchant names unique ignoring case; person names unique per user ignoring case. Direction is a free-text `type` (`DEBIT`/`CREDIT`) without a database check; the application writes only those two values.
 
 ### 6.4 Index Baseline
 
-The baseline indexes user/account/date/category/merchant query paths, including `accounts(user_id)`, `statements(user_id)`, `statements(account_id)`, scoped statement checksum uniqueness, transaction indexes on user/date, account/date, statement, category/date, merchant/date, and fingerprint, plus recurring-expense user/date, insight user/period, AI-query user/created-at, and audit-log user/timestamp and request-id indexes.
+Implemented: transactions on `(user_id, date)`, `(user_id, merchant_id, date)`, `merchant_id`, `statement_id`, `person_id`; statements on `(user_id, created_at)` and `status`; every category foreign key on `people` and `user_merchant_categories`; `person_payees(person_id)`; `user_merchant_aliases(merchant_id)` and unique `public_id`; audit logs on `(user_id, occurred_at)` and `(resource_type, resource_id)`. Account/date and category/date transaction indexes wait for the `accounts` table and are not needed while the effective category is derived.
 
 ### 6.5 Ownership and Tenant-Safety Boundary
 
-The approved model requires transactions not to reference merchants or categories from another tenant/context, but Merchant and Category currently have no `user_id`. Ordinary foreign keys therefore cannot independently enforce that invariant. The baseline must not silently change the domain model by adding tenant ownership columns. The ownership-enforcement design remains a follow-up schema/domain decision.
+Every user-owned table carries `user_id`. Categories are per user; the application treats a reference to another user's category as not set, because a foreign key cannot check that both rows share an owner. Merchants are shared by design; per-user merchant data lives in `user_merchant_categories` and `user_merchant_aliases`. Reads and writes are always scoped by the caller's `user_id`; another user's record behaves as missing (404).
 
 ### 6.6 Migration and Schema Tests
 
@@ -134,4 +179,4 @@ Migration validation covers clean creation from an empty PostgreSQL database, mi
 
 ### 6.8 Explicitly Deferred Financial Semantics
 
-The baseline does not encode unresolved rules for transfers between own accounts, credit-card payments, refunds/reversals, income versus expense direction, investment contributions, cash withdrawals, or EMI principal/interest representation. These remain product/domain decisions.
+Direction, refunds and own-account transfers are decided in section 4. The baseline does not encode rules for credit-card payments, investment contributions, cash withdrawals, or EMI principal/interest representation; these remain product/domain decisions.
