@@ -215,6 +215,7 @@ export type TransactionQuery = {
   to?: string
   direction?: string
   merchantId?: string
+  personId?: string
   statementId?: string
   category?: string
   /** 'true' keeps only transfers between your accounts. */

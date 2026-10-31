@@ -89,6 +89,9 @@ public class TransactionService {
         if (f.merchantId() != null) {
             spec = spec.and((root, q, cb) -> cb.equal(root.get("merchantId"), f.merchantId()));
         }
+        if (f.personId() != null) {
+            spec = spec.and((root, q, cb) -> cb.equal(root.get("personId"), f.personId()));
+        }
         if (f.category() != null && !f.category().isBlank()) {
             spec = spec.and(categoryIs(f.category().trim(), resolution, userId));
         }
@@ -259,7 +262,11 @@ public class TransactionService {
         if (key == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Transaction has no payee");
         }
+        UUID previous = t.getMerchantId();
         UUID merchantId = applyMerchant(userId, key, clean, share);
+        if (previous != null && !previous.equals(merchantId)) { // a rename: keep the user's category for it
+            carryCategory(userId, previous, merchantId);
+        }
         if (t.getCategoryId() != null && categoryService.adoptMerchantCategory(userId, merchantId, t.getCategoryId(),
                 "CREDIT".equals(t.getType()))) {
             t.setCategoryId(null);
@@ -280,12 +287,17 @@ public class TransactionService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         UUID previous = alias.getMerchantId();
         UUID merchantId = applyMerchant(userId, alias.getPayeeKey(), PersonService.validName(name), !alias.isShareOptOut());
-        categoryService.merchantCategory(userId, previous).ifPresent(old -> {
+        carryCategory(userId, previous, merchantId);
+    }
+
+    /** The user's money-out and money-in categories for {@code from} apply to {@code to} when it has none. */
+    private void carryCategory(UUID userId, UUID from, UUID to) {
+        categoryService.merchantCategory(userId, from).ifPresent(old -> {
             if (old.getCategoryId() != null) {
-                categoryService.adoptMerchantCategory(userId, merchantId, old.getCategoryId(), false);
+                categoryService.adoptMerchantCategory(userId, to, old.getCategoryId(), false);
             }
             if (old.getCreditCategoryId() != null) {
-                categoryService.adoptMerchantCategory(userId, merchantId, old.getCreditCategoryId(), true);
+                categoryService.adoptMerchantCategory(userId, to, old.getCreditCategoryId(), true);
             }
         });
     }

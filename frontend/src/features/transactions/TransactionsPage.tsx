@@ -6,19 +6,30 @@ import { dayLabel, rupees } from '../../lib/format'
 import {
   listCategories,
   getMerchantNameSettings,
+  listPeople,
   listTransactions,
+  setCounterparty,
+  setTransactionMerchant,
+  updatePerson,
   type Category,
   type Page,
   type Transaction,
 } from '../../services/finance'
 import { CategoryCell } from './CategoryCell'
 import { MerchantCell } from './MerchantCell'
+import { RenameOnHover } from './RenameOnHover'
 import { TransactionActions } from './TransactionActions'
 import styles from './TransactionsPage.module.css'
 
-// Filters edited in the form; merchantId, statementId, category and transfer are set by links elsewhere.
+// Filters edited in the form; merchantId, personId, statementId, category and transfer are set by links.
 const FORM_KEYS = ['q', 'from', 'to', 'direction'] as const
-const LINK_KEYS = ['merchantId', 'statementId', 'category', 'transfer'] as const
+const LINK_KEYS = [
+  'merchantId',
+  'personId',
+  'statementId',
+  'category',
+  'transfer',
+] as const
 
 /** The day `days` from an ISO date (YYYY-MM-DD). */
 const shift = (date: string, days: number) => {
@@ -111,6 +122,25 @@ export function TransactionsPage() {
     setParams(next)
   }
 
+  /** Refetch after a rename: it changes every row with that payee or person. */
+  function renamed(t: Transaction) {
+    focusRow.current = t.id
+    setVersion((v) => v + 1)
+  }
+
+  // Names this payee for the user only; a hover rename never shares the name.
+  async function renameMerchant(t: Transaction, name: string) {
+    await setTransactionMerchant(t.id, name, sharing ? false : undefined)
+    renamed(t)
+  }
+
+  async function renamePerson(t: Transaction, name: string) {
+    // The person endpoint sets name and money-out category together; keep the current category.
+    const person = (await listPeople()).find((p) => p.id === t.personId)
+    await updatePerson(t.personId!, name, person?.categoryId ?? null)
+    renamed(t)
+  }
+
   function submit(e: FormEvent) {
     e.preventDefault()
     update(draft)
@@ -176,6 +206,7 @@ export function TransactionsPage() {
       </form>
 
       {(params.get('merchantId') ||
+        params.get('personId') ||
         params.get('statementId') ||
         params.get('category') ||
         params.get('transfer')) && (
@@ -189,6 +220,18 @@ export function TransactionsPage() {
                 onClick={() => update({ merchantId: '' })}
               >
                 Show all merchants
+              </button>
+            </span>
+          )}
+          {params.get('personId') && (
+            <span>
+              Showing one person.{' '}
+              <button
+                type="button"
+                className={shared.quiet}
+                onClick={() => update({ personId: '' })}
+              >
+                Show everyone
               </button>
             </span>
           )}
@@ -288,28 +331,74 @@ export function TransactionsPage() {
                       </td>
                       <td>
                         {t.personId ? (
-                          <span className={styles.person}>
-                            {t.personName}
-                            <span className={styles.tag}>Person</span>
-                          </span>
-                        ) : t.merchantId ? (
-                          <span className={styles.merchant}>
+                          <RenameOnHover
+                            name={t.personName!}
+                            label="person"
+                            onSave={(name) => renamePerson(t, name)}
+                          >
+                            {/* Same id as the merchant link: the row's focus target after a change. */}
                             <button
                               type="button"
                               id={`merchant-${t.id}`}
-                              className={shared.quiet}
+                              className={`${shared.quiet} ${styles.person}`}
+                              aria-label={`Show all payments with ${t.personName}`}
+                              onClick={() => update({ personId: t.personId! })}
+                            >
+                              {t.personName}
+                              <span className={styles.tag}>Person</span>
+                            </button>
+                          </RenameOnHover>
+                        ) : t.merchantId ? (
+                          <RenameOnHover
+                            name={t.merchantName!}
+                            label="merchant"
+                            onSave={(name) => renameMerchant(t, name)}
+                          >
+                            <button
+                              type="button"
+                              id={`merchant-${t.id}`}
+                              className={`${shared.quiet} ${styles.merchant}`}
+                              aria-label={`Show all payments with ${t.merchantName}`}
                               onClick={() =>
                                 update({ merchantId: t.merchantId! })
                               }
                             >
                               {t.merchantName}
+                              <span className={styles.tag}>Merchant</span>
                             </button>
-                            <span className={styles.tag}>Merchant</span>
-                          </span>
+                          </RenameOnHover>
                         ) : (
                           <>
                             {t.payeeName ? (
-                              t.payeeName
+                              <RenameOnHover
+                                name={t.payeeName}
+                                label={
+                                  t.payeeType === 'PERSON'
+                                    ? 'person'
+                                    : 'merchant'
+                                }
+                                onSave={(name) =>
+                                  t.payeeType === 'PERSON'
+                                    ? setCounterparty(
+                                        t.id,
+                                        'PERSON',
+                                        name,
+                                      ).then(() => renamed(t))
+                                    : renameMerchant(t, name)
+                                }
+                              >
+                                <button
+                                  type="button"
+                                  className={shared.quiet}
+                                  aria-label={`Show all transactions with ${t.payeeName}`}
+                                  onClick={() => {
+                                    setDraft({ ...draft, q: t.payeeName! })
+                                    update({ q: t.payeeName! })
+                                  }}
+                                >
+                                  {t.payeeName}
+                                </button>
+                              </RenameOnHover>
                             ) : (
                               <span className={shared.muted}>Not matched</span>
                             )}

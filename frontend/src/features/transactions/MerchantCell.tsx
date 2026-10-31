@@ -133,15 +133,18 @@ export function MerchantCell({ t, reload, sharing }: Props) {
             )}
           </span>
         )}
-        <button
-          ref={trigger}
-          type="button"
-          className={shared.quiet}
-          aria-label={`Add merchant for ${t.description}`}
-          onClick={open}
-        >
-          Add merchant
-        </button>
+        {/* A payee name read from the description is renamed from its hover Rename instead. */}
+        {!t.payeeName && (
+          <button
+            ref={trigger}
+            type="button"
+            className={shared.quiet}
+            aria-label={`Add merchant for ${t.description}`}
+            onClick={open}
+          >
+            Add merchant
+          </button>
+        )}
         {error && (
           <p className={shared.error} role="alert">
             {error}

@@ -348,6 +348,24 @@ class PeopleTest {
     }
 
     @Test
+    void transactionsCanBeFilteredByPersonWithinTheOwnersRows() throws Exception {
+        Person rahul = person(alice, "Rahul Sharma", null);
+        Person bobsRahul = person(bob, "Rahul Sharma", null);
+        UUID paid = transaction(alice, RAHUL_1, "RAHUL SHARMA HDFC", null, rahul.getId());
+        transaction(alice, SWIGGY_RAW, "SWIGGY ORDER", swiggy, null);
+        transaction(bob, RAHUL_1, "RAHUL SHARMA HDFC", null, bobsRahul.getId());
+
+        mockMvc.perform(get("/api/transactions").param("personId", rahul.getId().toString())
+                        .header("Authorization", bearer(ALICE)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].id").value(paid.toString()));
+        mockMvc.perform(get("/api/transactions").param("personId", bobsRahul.getId().toString())
+                        .header("Authorization", bearer(ALICE)))
+                .andExpect(jsonPath("$.items.length()").value(0));
+    }
+
+    @Test
     void twoPeopleCanShareANameAndImportsGoToTheOldest() throws Exception {
         Person rahul = personService.findOrCreate(alice.getId(), "Rahul Sharma");
         Person rahulS = personService.findOrCreate(alice.getId(), "Rahul S");

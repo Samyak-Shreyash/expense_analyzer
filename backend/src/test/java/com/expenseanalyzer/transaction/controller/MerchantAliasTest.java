@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.expenseanalyzer.category.model.UserMerchantCategory;
 import com.expenseanalyzer.auth.dto.JwtTokenProvider;
 import com.expenseanalyzer.category.model.Category;
 import com.expenseanalyzer.category.repository.CategoryRepository;
@@ -197,6 +198,22 @@ class MerchantAliasTest {
         assertThat(merchantCategoryRepository.findByUserIdAndMerchantId(alice.getId(), merchant).orElseThrow()
                 .getCategoryId()).isEqualTo(food);
         assertThat(reload(b).getCategoryId()).isEqualTo(shops);
+    }
+
+    @Test
+    void renamingAMerchantKeepsTheUsersCategoryForIt() throws Exception {
+        UUID food = categoryRepository.saveAndFlush(new Category(alice.getId(), "Food", true)).getId();
+        UUID a = transaction(alice, ACME + "lunch", "P2M ACME STORE LUNCH");
+        name(ALICE, a, "{\"name\":\"Acme\"}", 200);
+        UUID acme = merchantRepository.findByCanonicalName("Acme").orElseThrow().getId();
+        merchantCategoryRepository.saveAndFlush(new UserMerchantCategory(alice.getId(), acme, food));
+
+        name(ALICE, a, "{\"name\":\"Acme Store\"}", 200);
+
+        UUID renamed = merchantRepository.findByCanonicalName("Acme Store").orElseThrow().getId();
+        assertThat(reload(a).getMerchantId()).isEqualTo(renamed);
+        assertThat(merchantCategoryRepository.findByUserIdAndMerchantId(alice.getId(), renamed).orElseThrow()
+                .getCategoryId()).isEqualTo(food);
     }
 
     @Test
