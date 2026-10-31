@@ -16,8 +16,18 @@ public interface UserMerchantCategoryRepository extends JpaRepository<UserMercha
 
     Optional<UserMerchantCategory> findByUserIdAndMerchantId(UUID userId, UUID merchantId);
 
-    /** Drops the mapping rows for a category (the FK also cascades on Postgres; H2 tests have no FK). */
+    /** Clears a category from the money-out side of every mapping (the FK does this on Postgres; H2 has no FK). */
     @Modifying(clearAutomatically = true)
-    @Query("DELETE FROM UserMerchantCategory u WHERE u.categoryId = :categoryId")
-    void deleteByCategoryId(UUID categoryId);
+    @Query("UPDATE UserMerchantCategory u SET u.categoryId = NULL WHERE u.categoryId = :categoryId")
+    void clearCategory(UUID categoryId);
+
+    /** Clears a category from the money-in side of every mapping. */
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE UserMerchantCategory u SET u.creditCategoryId = NULL WHERE u.creditCategoryId = :categoryId")
+    void clearCreditCategory(UUID categoryId);
+
+    /** Drops mappings with neither category left. */
+    @Modifying(clearAutomatically = true)
+    @Query("DELETE FROM UserMerchantCategory u WHERE u.categoryId IS NULL AND u.creditCategoryId IS NULL")
+    void deleteEmpty();
 }

@@ -1,5 +1,7 @@
 package com.expenseanalyzer.merchant.service;
 
+import com.expenseanalyzer.category.model.UserMerchantCategory;
+import com.expenseanalyzer.category.repository.UserMerchantCategoryRepository;
 import com.expenseanalyzer.merchant.dto.MerchantNameItem;
 import com.expenseanalyzer.merchant.dto.MerchantNamesResponse;
 import com.expenseanalyzer.merchant.dto.SharingSettingsResponse;
@@ -62,6 +64,7 @@ public class MerchantNameService {
     private final HiddenMerchantSuggestionRepository hiddenRepository;
     private final SharingStrikeRepository strikeRepository;
     private final MerchantService merchantService;
+    private final UserMerchantCategoryRepository merchantCategoryRepository;
 
     /** One alias with what eligibility needs; {@code reason} is null when it may be shared. */
     private record View(UserMerchantAlias alias, Merchant merchant, long transactionCount, NotShareableReason reason) {
@@ -197,15 +200,24 @@ public class MerchantNameService {
                         views.stream().map(v -> v.alias().getPayeeKey()).toList()).stream()
                 .map(r -> pair(r.getPayeeKey(), r.getMerchantId())).filter(involved::contains)
                 .collect(Collectors.toSet());
+        Map<UUID, UserMerchantCategory> categories = merchantCategoryRepository.findByUserId(userId).stream()
+                .collect(Collectors.toMap(UserMerchantCategory::getMerchantId, Function.identity()));
         List<MerchantNameItem> items = views.stream().map(v -> {
             UserMerchantAlias a = v.alias();
             NotShareableReason reason = v.reason();
             return new MerchantNameItem(a.getPublicId(), a.getDisplayName(), a.getPayeeKey(), v.transactionCount(),
                     a.getMerchantId().equals(votes.get(a.getPayeeKey())), a.isShareOptOut(), reason == null,
-                    reason == null ? null : reason.name(), reported.contains(pair(a.getPayeeKey(), a.getMerchantId())));
+                    reason == null ? null : reason.name(), reported.contains(pair(a.getPayeeKey(), a.getMerchantId())),
+                    a.getMerchantId(), category(categories, a.getMerchantId(), false),
+                    category(categories, a.getMerchantId(), true));
         }).sorted(Comparator.comparing((MerchantNameItem i) -> i.name().toLowerCase(Locale.ROOT))
                 .thenComparing(MerchantNameItem::payee)).toList();
         return new MerchantNamesResponse(settings.shareMerchantNames(), settings.sharingRevoked(), items);
+    }
+
+    private static UUID category(Map<UUID, UserMerchantCategory> categories, UUID merchantId, boolean credit) {
+        UserMerchantCategory c = categories.get(merchantId);
+        return c == null ? null : c.categoryFor(credit);
     }
 
     /**

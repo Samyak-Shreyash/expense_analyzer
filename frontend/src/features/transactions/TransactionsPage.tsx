@@ -33,6 +33,7 @@ export function TransactionsPage() {
   // Row whose merchant was just named: its trigger unmounts, so focus moves on after the refetch.
   const focusRow = useRef<string | null>(null)
   const tableWrap = useRef<HTMLDivElement>(null)
+  const detail = useRef<HTMLTableRowElement>(null)
   const [draft, setDraft] = useState(() =>
     Object.fromEntries(FORM_KEYS.map((k) => [k, params.get(k) ?? ''])),
   )
@@ -79,6 +80,19 @@ export function TransactionsPage() {
     const button = document.getElementById(`merchant-${row}`)
     ;(button ?? tableWrap.current)?.focus()
   }, [result])
+
+  // A press outside the open details (and outside its own toggle) closes them.
+  useEffect(() => {
+    if (!open) return
+    function onPointerDown(e: PointerEvent) {
+      const target = e.target as Node
+      const toggle = document.getElementById(`describe-${open}`)
+      if (detail.current?.contains(target) || toggle?.contains(target)) return
+      setOpen(null)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => document.removeEventListener('pointerdown', onPointerDown)
+  }, [open])
 
   function update(changes: Record<string, string>) {
     const next = new URLSearchParams(params)
@@ -231,7 +245,7 @@ export function TransactionsPage() {
                 <tr>
                   <th>Date</th>
                   <th>Description</th>
-                  <th>Merchant</th>
+                  <th>Merchant / Person</th>
                   <th>Category</th>
                   <th className={shared.num}>Amount</th>
                 </tr>
@@ -244,6 +258,7 @@ export function TransactionsPage() {
                       <td>
                         <button
                           type="button"
+                          id={`describe-${t.id}`}
                           className={styles.describe}
                           aria-expanded={open === t.id}
                           onClick={() => setOpen(open === t.id ? null : t.id)}
@@ -253,24 +268,31 @@ export function TransactionsPage() {
                       </td>
                       <td>
                         {t.personId ? (
-                          <>
+                          <span className={styles.person}>
                             {t.personName}
                             <span className={styles.tag}>Person</span>
-                          </>
+                          </span>
                         ) : t.merchantId ? (
-                          <button
-                            type="button"
-                            id={`merchant-${t.id}`}
-                            className={shared.quiet}
-                            onClick={() =>
-                              update({ merchantId: t.merchantId! })
-                            }
-                          >
-                            {t.merchantName}
-                          </button>
+                          <span className={styles.merchant}>
+                            <button
+                              type="button"
+                              id={`merchant-${t.id}`}
+                              className={shared.quiet}
+                              onClick={() =>
+                                update({ merchantId: t.merchantId! })
+                              }
+                            >
+                              {t.merchantName}
+                            </button>
+                            <span className={styles.tag}>Merchant</span>
+                          </span>
                         ) : (
                           <>
-                            <span className={shared.muted}>Not matched</span>
+                            {t.payeeName ? (
+                              t.payeeName
+                            ) : (
+                              <span className={shared.muted}>Not matched</span>
+                            )}
                             <MerchantCell
                               t={t}
                               sharing={sharing}
@@ -315,7 +337,7 @@ export function TransactionsPage() {
                       </td>
                     </tr>
                     {open === t.id && (
-                      <tr className={styles.detailRow}>
+                      <tr className={styles.detailRow} ref={detail}>
                         <td colSpan={5}>
                           <dl className={styles.detail}>
                             <dt>As shown on your statement</dt>

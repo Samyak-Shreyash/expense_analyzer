@@ -13,6 +13,7 @@ vi.mock('../../services/finance', async (orig) => ({
   createCategory: vi.fn(),
   setCounterparty: vi.fn(),
   setMerchantCategory: vi.fn(),
+  setPersonCategory: vi.fn(),
   updatePerson: vi.fn(),
   setTransactionMerchant: vi.fn(),
   getMerchantNameSettings: vi.fn(),
@@ -36,6 +37,8 @@ const swiggy: Transaction = {
   personName: null,
   statementId: 's1',
   suggestedMerchantName: null,
+  payeeName: null,
+  payeeType: null,
 }
 
 const categories: finance.Category[] = [
@@ -76,6 +79,71 @@ describe('TransactionsPage', () => {
     renderPage()
     expect(await screen.findByText('Swiggy')).toBeTruthy()
     expect(screen.getByText('-₹450.00')).toBeTruthy()
+  })
+
+  it('shows the UPI payee for an unmatched row under Merchant / Person', async () => {
+    vi.mocked(finance.listTransactions).mockResolvedValue({
+      items: [
+        {
+          ...swiggy,
+          merchantId: null,
+          merchantName: null,
+          payeeName: 'Acme Store',
+        },
+      ],
+      page: 0,
+      size: 50,
+      totalItems: 1,
+      totalPages: 1,
+    })
+    renderPage()
+    expect(await screen.findByText('Acme Store')).toBeTruthy()
+    expect(screen.queryByText('Not matched')).toBeNull()
+    expect(
+      screen.getByRole('columnheader', { name: 'Merchant / Person' }),
+    ).toBeTruthy()
+  })
+
+  it('prefills the person editor with the UPI payee, not the description', async () => {
+    vi.mocked(finance.listTransactions).mockResolvedValue({
+      items: [
+        {
+          ...swiggy,
+          normalizedDescription: 'UPI P2A 412345678901 RAHUL SHARMA HDFC',
+          merchantId: null,
+          merchantName: null,
+          payeeName: 'Rahul Sharma',
+          payeeType: 'PERSON',
+        },
+      ],
+      page: 0,
+      size: 50,
+      totalItems: 1,
+      totalPages: 1,
+    })
+    renderPage()
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'UPI P2A 412345678901 RAHUL SHARMA HDFC',
+      }),
+    )
+    fireEvent.click(screen.getByLabelText('This is a person'))
+    expect(
+      (screen.getByLabelText("Person's name") as HTMLInputElement).value,
+    ).toBe('Rahul Sharma')
+  })
+
+  it('closes the details when pressing outside them', async () => {
+    renderPage()
+    const toggle = await screen.findByRole('button', {
+      name: 'SWIGGY ORDER',
+    })
+    fireEvent.click(toggle)
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    fireEvent.pointerDown(screen.getByText('As shown on your statement'))
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    fireEvent.pointerDown(document.body)
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
   })
 
   it('puts filters in the URL and sends them to the API', async () => {
@@ -183,6 +251,92 @@ describe('TransactionsPage', () => {
     expect(document.activeElement).toBe(updated)
   })
 
+  it('links an unlinked UPI payee as a merchant, then sets the category for all of it', async () => {
+    const acme = {
+      ...swiggy,
+      merchantId: null,
+      merchantName: null,
+      payeeName: 'Acme Store',
+      payeeType: 'MERCHANT' as const,
+    }
+    vi.mocked(finance.listTransactions).mockResolvedValue({
+      items: [acme],
+      page: 0,
+      size: 50,
+      totalItems: 1,
+      totalPages: 1,
+    })
+    vi.mocked(finance.setTransactionMerchant).mockResolvedValue({
+      ...acme,
+      merchantId: 'm9',
+      merchantName: 'Acme Store',
+      payeeName: null,
+      payeeType: null,
+    })
+    vi.mocked(finance.setMerchantCategory).mockResolvedValue(null)
+    vi.mocked(finance.setTransactionCategory).mockResolvedValue(acme)
+    renderPage()
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Change category, now Food & Dining',
+      }),
+    )
+    fireEvent.change(screen.getByLabelText('Category for this transaction'), {
+      target: { value: 'Repayment' },
+    })
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Save for all Acme Store' }),
+    )
+
+    await waitFor(() =>
+      expect(finance.setMerchantCategory).toHaveBeenCalledWith(
+        'm9',
+        'c2',
+        false,
+      ),
+    )
+    expect(finance.setTransactionMerchant).toHaveBeenCalledWith(
+      't1',
+      'Acme Store',
+      false,
+    )
+  })
+
+  it('does not offer counts-as-spending for money in', async () => {
+    vi.mocked(finance.listTransactions).mockResolvedValue({
+      items: [{ ...swiggy, direction: 'CREDIT' }],
+      page: 0,
+      size: 50,
+      totalItems: 1,
+      totalPages: 1,
+    })
+    vi.mocked(finance.createCategory).mockResolvedValue({
+      id: 'c9',
+      name: 'Salary',
+      countsAsSpending: false,
+    })
+    vi.mocked(finance.setTransactionCategory).mockResolvedValue(swiggy)
+    renderPage()
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Change category, now Food & Dining',
+      }),
+    )
+    fireEvent.change(screen.getByLabelText('Category for this transaction'), {
+      target: { value: 'Salary' },
+    })
+    expect(
+      screen.queryByLabelText('New category counts as spending'),
+    ).toBeNull()
+    fireEvent.click(screen.getByLabelText('Only this transaction'))
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Create "Salary" and use it' }),
+    )
+    await waitFor(() =>
+      expect(finance.createCategory).toHaveBeenCalledWith('Salary', false),
+    )
+  })
+
   it('creates a new category when the typed name is not in the list', async () => {
     vi.mocked(finance.createCategory).mockResolvedValue({
       id: 'c9',
@@ -251,7 +405,11 @@ describe('TransactionsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save for all Swiggy' }))
 
     await waitFor(() =>
-      expect(finance.setMerchantCategory).toHaveBeenCalledWith('m1', 'c2'),
+      expect(finance.setMerchantCategory).toHaveBeenCalledWith(
+        'm1',
+        'c2',
+        false,
+      ),
     )
     await waitFor(() =>
       expect(finance.setTransactionCategory).toHaveBeenCalledWith('t1', null),
@@ -306,7 +464,11 @@ describe('TransactionsPage', () => {
       }),
     )
     await waitFor(() =>
-      expect(finance.setMerchantCategory).toHaveBeenCalledWith('m1', 'c9'),
+      expect(finance.setMerchantCategory).toHaveBeenCalledWith(
+        'm1',
+        'c9',
+        false,
+      ),
     )
   })
 
@@ -347,10 +509,12 @@ describe('TransactionsPage', () => {
       totalItems: 1,
       totalPages: 1,
     })
-    vi.mocked(finance.updatePerson).mockResolvedValue({
+    vi.mocked(finance.setPersonCategory).mockResolvedValue({
       id: 'p1',
       name: 'Ravi Kumar',
       categoryId: 'c2',
+      creditCategoryId: null,
+      payees: ['RAVI KUMAR'],
     })
     vi.mocked(finance.setTransactionCategory).mockResolvedValue(swiggy)
     renderPage()
@@ -363,11 +527,7 @@ describe('TransactionsPage', () => {
     )
 
     await waitFor(() =>
-      expect(finance.updatePerson).toHaveBeenCalledWith(
-        'p1',
-        'Ravi Kumar',
-        'c2',
-      ),
+      expect(finance.setPersonCategory).toHaveBeenCalledWith('p1', 'c2', false),
     )
     expect(finance.setMerchantCategory).not.toHaveBeenCalled()
   })
@@ -753,6 +913,8 @@ describe('TransactionsPage', () => {
         id: 'p1',
         name: 'Ravi Kumar',
         categoryId: 'c2',
+        creditCategoryId: null,
+        payees: ['RAVI KUMAR'],
       })
       renderPage()
       fireEvent.click(

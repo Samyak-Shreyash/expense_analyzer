@@ -11,7 +11,10 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-/** The user's own category for a merchant. At most one row per (user, merchant); clearing deletes the row. */
+/**
+ * The user's own categories for a merchant: one for money out, one for money in. At most one row per (user, merchant);
+ * clearing both deletes the row.
+ */
 @Entity
 @Table(name = "user_merchant_categories")
 @IdClass(UserMerchantCategory.Key.class)
@@ -31,12 +34,35 @@ public class UserMerchantCategory {
     @Column(name = "merchant_id", nullable = false, updatable = false)
     private UUID merchantId;
 
-    @Column(name = "category_id", nullable = false)
+    /** Money out. */
+    @Column(name = "category_id")
     private UUID categoryId;
 
-    public UserMerchantCategory(UUID userId, UUID merchantId, UUID categoryId) {
+    /** Money in. */
+    @Column(name = "credit_category_id")
+    private UUID creditCategoryId;
+
+    public UserMerchantCategory(UUID userId, UUID merchantId) {
         this.userId = userId;
         this.merchantId = merchantId;
+    }
+
+    /** A mapping with only a money-out category. */
+    public UserMerchantCategory(UUID userId, UUID merchantId, UUID categoryId) {
+        this(userId, merchantId);
         this.categoryId = categoryId;
+    }
+
+    /** The category for money in ({@code credit}) or out. */
+    public UUID categoryFor(boolean credit) {
+        return credit ? creditCategoryId : categoryId;
+    }
+
+    public void setCategoryFor(boolean credit, UUID id) {
+        if (credit) {
+            creditCategoryId = id;
+        } else {
+            categoryId = id;
+        }
     }
 }

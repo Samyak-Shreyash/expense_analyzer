@@ -18,7 +18,9 @@ import com.expenseanalyzer.category.repository.UserMerchantCategoryRepository;
 import com.expenseanalyzer.merchant.model.Merchant;
 import com.expenseanalyzer.merchant.model.Person;
 import com.expenseanalyzer.merchant.repository.MerchantRepository;
+import com.expenseanalyzer.merchant.repository.PersonPayeeRepository;
 import com.expenseanalyzer.merchant.repository.PersonRepository;
+import com.expenseanalyzer.merchant.service.PersonService;
 import com.expenseanalyzer.transaction.model.Transaction;
 import com.expenseanalyzer.transaction.repository.TransactionRepository;
 import com.expenseanalyzer.user.model.User;
@@ -63,6 +65,11 @@ class PeopleTest {
     private MerchantRepository merchantRepository;
     @Autowired
     private PersonRepository personRepository;
+    @Autowired
+    private PersonPayeeRepository personPayeeRepository;
+
+    @Autowired
+    private PersonService personService;
 
     @MockitoBean
     private UserRepository userRepository;
@@ -83,6 +90,7 @@ class PeopleTest {
     @AfterEach
     void cleanUp() {
         transactionRepository.deleteAll();
+        personPayeeRepository.deleteAll();
         personRepository.deleteAll();
         mappingRepository.deleteAll();
         categoryRepository.deleteAll();
@@ -303,5 +311,84 @@ class PeopleTest {
         Transaction other = transactionRepository.findById(sibling).orElseThrow();
         assertThat(other.getPersonId()).isNull();
         assertThat(other.getMerchantId()).isEqualTo(swiggy);
+    }
+
+    private static final String RAHUL_1 = "UPI/P2A/412345678901/RAHUL SHARMA/HDFC";
+    private static final String RAHUL_2 = "UPI/P2A/412345678902/RAHUL S/SBI";
+
+    @Test
+    void mergingGroupsPayeesAndFutureTransfersFollowThenMovingAPayeeOutUndoesIt() throws Exception {
+        String food = createCategory(ALICE, "Food");
+        Person rahul = personService.findOrCreate(alice.getId(), "Rahul Sharma");
+        Person rahulS = personService.findOrCreate(alice.getId(), "Rahul S");
+        rahulS.setCategoryId(UUID.fromString(food));
+        personRepository.saveAndFlush(rahulS);
+        UUID first = transaction(alice, RAHUL_1, "RAHUL SHARMA HDFC", null, rahul.getId());
+        UUID second = transaction(alice, RAHUL_2, "RAHUL S SBI", null, rahulS.getId());
+
+        mockMvc.perform(post("/api/people/" + rahulS.getId() + "/merge").header("Authorization", bearer(ALICE))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"intoId\":\"" + rahul.getId() + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].payees[0]").value("RAHUL S"))
+                .andExpect(jsonPath("$[0].payees[1]").value("RAHUL SHARMA"))
+                .andExpect(jsonPath("$[0].categoryId").value(food));
+        assertThat(transactionRepository.findById(second).orElseThrow().getPersonId()).isEqualTo(rahul.getId());
+        // A later import of the merged payee name goes to the merged person.
+        assertThat(personService.findOrCreate(alice.getId(), "Rahul S").getId()).isEqualTo(rahul.getId());
+
+        mockMvc.perform(put("/api/people/" + rahul.getId() + "/payees").header("Authorization", bearer(ALICE))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"payee\":\"RAHUL S\",\"personId\":null}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2));
+        UUID own = transactionRepository.findById(second).orElseThrow().getPersonId();
+        assertThat(own).isNotEqualTo(rahul.getId());
+        assertThat(personRepository.findById(own).orElseThrow().getName()).isEqualTo("Rahul S");
+        assertThat(transactionRepository.findById(first).orElseThrow().getPersonId()).isEqualTo(rahul.getId());
+    }
+
+    @Test
+    void mergeAndMoveAreOwnerScoped() throws Exception {
+        Person rahul = personService.findOrCreate(alice.getId(), "Rahul Sharma");
+        Person bobs = personService.findOrCreate(bob.getId(), "Rahul S");
+        mockMvc.perform(post("/api/people/" + rahul.getId() + "/merge").header("Authorization", bearer(ALICE))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"intoId\":\"" + bobs.getId() + "\"}"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(post("/api/people/" + rahul.getId() + "/merge").header("Authorization", bearer(ALICE))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"intoId\":\"" + rahul.getId() + "\"}"))
+                .andExpect(status().isBadRequest());
+        mockMvc.perform(put("/api/people/" + rahul.getId() + "/payees").header("Authorization", bearer(ALICE))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"payee\":\"RAHUL S\"}"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void moneyInAndMoneyOutUseTheirOwnDefaults() throws Exception {
+        String loan = createCategory(ALICE, "Loan given");
+        String repaid = createCategory(ALICE, "Loan repaid");
+        Person ravi = person(alice, "Ravi", null);
+        UUID out = transaction(alice, "out", "OUT", null, ravi.getId());
+        UUID in = transaction(alice, "in", "IN", null, ravi.getId());
+        Transaction credit = transactionRepository.findById(in).orElseThrow();
+        credit.setType("CREDIT");
+        transactionRepository.saveAndFlush(credit);
+
+        for (String[] body : new String[][] {{loan, "false"}, {repaid, "true"}}) {
+            mockMvc.perform(put("/api/people/" + ravi.getId() + "/category").header("Authorization", bearer(ALICE))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("{\"categoryId\":\"" + body[0] + "\",\"credit\":" + body[1] + "}"))
+                    .andExpect(status().isOk());
+        }
+
+        mockMvc.perform(get("/api/transactions/" + out).header("Authorization", bearer(ALICE)))
+                .andExpect(jsonPath("$.category").value("Loan given"));
+        mockMvc.perform(get("/api/transactions/" + in).header("Authorization", bearer(ALICE)))
+                .andExpect(jsonPath("$.category").value("Loan repaid"));
+        mockMvc.perform(get("/api/transactions").param("category", "Loan repaid").header("Authorization", bearer(ALICE)))
+                .andExpect(jsonPath("$.totalItems").value(1))
+                .andExpect(jsonPath("$.items[0].id").value(in.toString()));
+        mockMvc.perform(get("/api/people").header("Authorization", bearer(ALICE)))
+                .andExpect(jsonPath("$[0].categoryId").value(loan))
+                .andExpect(jsonPath("$[0].creditCategoryId").value(repaid));
     }
 }

@@ -219,7 +219,8 @@ public class SpendingAnalyticsService {
         Map<UUID, Merchant> merchants = merchants(rows.stream().map(r -> (UUID) r[4]).toList());
         Map<YearMonth, BigDecimal> spend = new HashMap<>();
         for (Object[] r : rows) {
-            Category c = resolution.resolve((UUID) r[2], (UUID) r[3], (UUID) r[4], merchants.get((UUID) r[4]));
+            Category c = resolution.resolve((UUID) r[2], (UUID) r[3], (UUID) r[4], merchants.get((UUID) r[4]),
+                    "CREDIT".equals(r[5]));
             if ("DEBIT".equals(r[5]) && (c == null || c.isCountsAsSpending())) {
                 spend.merge(YearMonth.of(((Number) r[0]).intValue(), ((Number) r[1]).intValue()), (BigDecimal) r[6],
                         BigDecimal::add);
@@ -264,7 +265,8 @@ public class SpendingAnalyticsService {
         List<Group> groups = new ArrayList<>(rows.size());
         for (Object[] r : rows) {
             UUID merchantId = (UUID) r[2];
-            groups.add(new Group(resolution.resolve((UUID) r[0], (UUID) r[1], merchantId, merchants.get(merchantId)),
+            groups.add(new Group(resolution.resolve((UUID) r[0], (UUID) r[1], merchantId, merchants.get(merchantId),
+                            "CREDIT".equals(r[3])),
                     (UUID) r[1], merchantId, "CREDIT".equals(r[3]), (BigDecimal) r[4], (Long) r[5]));
         }
         return groups;

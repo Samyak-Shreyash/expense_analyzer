@@ -14,7 +14,7 @@ import lombok.Setter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
-/** A person the user transfers money to. Private to the user; may carry a default category. */
+/** A person the user transfers money to. Private to the user; may carry a default category for money out and in. */
 @Entity
 @Table(name = "people")
 @Getter
@@ -33,8 +33,13 @@ public class Person {
     @Column(name = "name", nullable = false, length = 100)
     private String name;
 
+    /** Default category for money out to this person. */
     @Column(name = "category_id")
     private UUID categoryId;
+
+    /** Default category for money in from this person. */
+    @Column(name = "credit_category_id")
+    private UUID creditCategoryId;
 
     @JdbcTypeCode(SqlTypes.TIMESTAMP)
     @Column(name = "created_at", nullable = false, updatable = false)

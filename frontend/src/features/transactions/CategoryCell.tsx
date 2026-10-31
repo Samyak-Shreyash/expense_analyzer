@@ -4,9 +4,11 @@ import shared from '../../components/shared.module.css'
 import {
   ApiError,
   createCategory,
+  setCounterparty,
   setMerchantCategory,
+  setPersonCategory,
   setTransactionCategory,
-  updatePerson,
+  setTransactionMerchant,
   type Category,
   type Transaction,
 } from '../../services/finance'
@@ -41,9 +43,15 @@ export function CategoryCell({
   const listId = useId()
 
   const label = t.category ?? 'Uncategorized'
-  // A matched merchant or person keeps the category for all its transactions.
-  const holder = t.personId ? t.personName : t.merchantName
-  const hasHolder = t.personId !== null || t.merchantId !== null
+  // A matched merchant or person keeps the category for all its transactions. An unlinked UPI payee is linked
+  // first (as the merchant or person its description names), then gets the category the same way.
+  const holder = t.personId
+    ? t.personName
+    : t.merchantId
+      ? t.merchantName
+      : t.payeeName
+  const hasHolder =
+    t.personId !== null || t.merchantId !== null || t.payeeName !== null
   const wide = hasHolder && !only
   const existing = categories.find(
     (c) => c.name.toLowerCase() === name.trim().toLowerCase(),
@@ -67,9 +75,19 @@ export function CategoryCell({
     setError(null)
     try {
       if (forAll) {
-        if (t.personId)
-          await updatePerson(t.personId, t.personName!, categoryId)
-        else await setMerchantCategory(t.merchantId!, categoryId)
+        let linked = t
+        if (!t.personId && !t.merchantId) {
+          // Not shared: the user picked a category, not this name.
+          linked =
+            t.payeeType === 'PERSON'
+              ? await setCounterparty(t.id, 'PERSON', t.payeeName!)
+              : await setTransactionMerchant(t.id, t.payeeName!, false)
+        }
+        // Money in and money out keep separate defaults.
+        const credit = t.direction === 'CREDIT'
+        if (linked.personId)
+          await setPersonCategory(linked.personId, categoryId, credit)
+        else await setMerchantCategory(linked.merchantId!, categoryId, credit)
         try {
           await setTransactionCategory(t.id, null)
         } catch {
@@ -91,7 +109,11 @@ export function CategoryCell({
   async function submit() {
     if (existing) return save(existing.id)
     try {
-      const created = await createCategory(name.trim(), countsAsSpending)
+      // Money in is never spending, so a category made from it does not count as spending.
+      const created = await createCategory(
+        name.trim(),
+        t.direction === 'DEBIT' && countsAsSpending,
+      )
       onCreated(created)
       return save(created.id)
     } catch (e) {
@@ -155,7 +177,7 @@ export function CategoryCell({
           Only this transaction
         </label>
       )}
-      {isNew && (
+      {isNew && t.direction === 'DEBIT' && (
         <label className={styles.inline}>
           <input
             type="checkbox"

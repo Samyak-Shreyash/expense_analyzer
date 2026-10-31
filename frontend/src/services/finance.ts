@@ -43,6 +43,9 @@ export type Transaction = {
   statementId: string | null
   /** Name other users suggest for this unmatched payee, or null. */
   suggestedMerchantName: string | null
+  /** UPI payee (merchant or person) from the description, set only while there is no merchant or person. */
+  payeeName: string | null
+  payeeType: 'MERCHANT' | 'PERSON' | null
 }
 
 type Totals = {
@@ -234,7 +237,16 @@ export const getNonSpending = (from: string, to: string) =>
 // ---- categories and people ----
 
 export type Category = { id: string; name: string; countsAsSpending: boolean }
-export type Person = { id: string; name: string; categoryId: string | null }
+export type Person = {
+  id: string
+  name: string
+  /** Default category for money out. */
+  categoryId: string | null
+  /** Default category for money in. */
+  creditCategoryId: string | null
+  /** UPI payee names grouped under this person (upper-cased, as matched). */
+  payees: string[]
+}
 
 /** Write call: returns the parsed body (null when empty) or throws with a message safe to show. */
 async function write<T>(
@@ -296,6 +308,29 @@ export const updatePerson = (
   name: string,
   categoryId: string | null,
 ) => write<Person>('PUT', `/people/${id}`, { name, categoryId }, PERSON_ERRORS)
+/** Sets a person's money-in (credit) or money-out default category; null clears it. */
+export const setPersonCategory = (
+  id: string,
+  categoryId: string | null,
+  credit: boolean,
+) =>
+  write<Person>(
+    'PUT',
+    `/people/${id}/category`,
+    { categoryId, credit },
+    PERSON_ERRORS,
+  )
+/** Merges a person into another; returns all your people. */
+export const mergePerson = (id: string, intoId: string) =>
+  write<Person[]>('POST', `/people/${id}/merge`, { intoId }, PERSON_ERRORS)
+/** Moves one payee name to another person, or (personId null) to a person of its own; returns all your people. */
+export const movePayee = (id: string, payee: string, personId: string | null) =>
+  write<Person[]>(
+    'PUT',
+    `/people/${id}/payees`,
+    { payee, personId },
+    PERSON_ERRORS,
+  )
 
 /** categoryId null clears the assignment. */
 export const setTransactionCategory = (id: string, categoryId: string | null) =>
@@ -308,11 +343,16 @@ export const setTransactionCategory = (id: string, categoryId: string | null) =>
       404: 'That transaction or category no longer exists. Reload the page.',
     },
   )
-export const setMerchantCategory = (id: string, categoryId: string | null) =>
+/** credit picks the money-in default instead of the money-out one. */
+export const setMerchantCategory = (
+  id: string,
+  categoryId: string | null,
+  credit = false,
+) =>
   write<null>(
     'PUT',
     `/merchants/${id}/category`,
-    { categoryId },
+    { categoryId, credit },
     {
       400: 'Could not use that category. Reload the page.',
       404: 'That merchant or category no longer exists. Reload the page.',
@@ -369,6 +409,11 @@ export type MerchantName = {
   notShareableReason: NotShareableReason | null
   /** Someone reported this name as offensive or wrong. */
   reported: boolean
+  merchantId: string
+  /** Your default category for money out to this merchant. */
+  categoryId: string | null
+  /** Your default category for money in from this merchant. */
+  creditCategoryId: string | null
 }
 
 export type MerchantNames = {
@@ -391,6 +436,17 @@ export const setMerchantNameSharing = (enabled: boolean) =>
     '/merchant-names/sharing',
     { enabled },
     SHARING_ERRORS,
+  )
+/** Renames one of your merchant names; every payment to its payee follows. */
+export const renameMerchantName = (id: string, name: string) =>
+  write<MerchantNames>(
+    'PUT',
+    `/merchant-names/${id}`,
+    { name },
+    {
+      400: 'Use a merchant name of 1 to 100 characters.',
+      404: 'That merchant name no longer exists. Reload the page.',
+    },
   )
 export const setMerchantNameShared = (id: string, shared: boolean) =>
   write<MerchantName>(

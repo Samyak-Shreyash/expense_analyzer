@@ -104,6 +104,8 @@ class MerchantNameSharingTest {
     @AfterEach
     void cleanUp() {
         transactionRepository.deleteAll();
+        users.forEach(id -> jdbcTemplate.update("DELETE FROM user_merchant_categories WHERE user_id = ?", id));
+        users.forEach(id -> jdbcTemplate.update("DELETE FROM categories WHERE user_id = ?", id));
         strikeRepository.deleteAll();
         hiddenRepository.deleteAll();
         reportRepository.deleteAll();
@@ -216,6 +218,68 @@ class MerchantNameSharingTest {
         assertThat(acme.get("shareable").asBoolean()).isTrue();
         assertThat(acme.get("transactionCount").asLong()).isEqualTo(1);
         assertThat(acme.get("payee").asText()).isEqualTo("ACME STORE");
+    }
+
+    @Test
+    void listsTheCallersDefaultCategoryForEachName() throws Exception {
+        User a = user("a@example.com", false);
+        name(a, tx(a, ACME + "x"), "Acme Store", null);
+        JsonNode acme = names(a).get("items").get(0);
+        assertThat(acme.get("categoryId").isNull()).isTrue();
+
+        String category = objectMapper.readTree(mockMvc.perform(post("/api/categories")
+                        .header("Authorization", bearer(a)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Shops\",\"countsAsSpending\":true}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString()).get("id").asText();
+        mockMvc.perform(put("/api/merchants/" + acme.get("merchantId").asText() + "/category")
+                        .header("Authorization", bearer(a)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"categoryId\":\"" + category + "\"}"))
+                .andExpect(status().is2xxSuccessful());
+
+        assertThat(names(a).get("items").get(0).get("categoryId").asText()).isEqualTo(category);
+    }
+
+    @Test
+    void renamingMovesEveryPaymentAndKeepsTheCategory() throws Exception {
+        User a = user("a@example.com", false);
+        UUID first = tx(a, ACME + "x");
+        UUID second = tx(a, ACME + "y");
+        name(a, first, "Acme Store", null);
+        JsonNode acme = names(a).get("items").get(0);
+        String category = objectMapper.readTree(mockMvc.perform(post("/api/categories")
+                        .header("Authorization", bearer(a)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Shops\",\"countsAsSpending\":true}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString()).get("id").asText();
+        mockMvc.perform(put("/api/merchants/" + acme.get("merchantId").asText() + "/category")
+                        .header("Authorization", bearer(a)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"categoryId\":\"" + category + "\"}"))
+                .andExpect(status().is2xxSuccessful());
+
+        mockMvc.perform(put("/api/merchant-names/" + acme.get("id").asText()).header("Authorization", bearer(a))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Acme Mart\"}"))
+                .andExpect(status().isOk());
+
+        JsonNode renamed = names(a).get("items").get(0);
+        assertThat(renamed.get("id").asText()).isEqualTo(acme.get("id").asText());
+        assertThat(renamed.get("name").asText()).isEqualTo("Acme Mart");
+        assertThat(renamed.get("categoryId").asText()).isEqualTo(category);
+        UUID merchant = UUID.fromString(renamed.get("merchantId").asText());
+        assertThat(transactionRepository.findById(first).orElseThrow().getMerchantId()).isEqualTo(merchant);
+        assertThat(transactionRepository.findById(second).orElseThrow().getMerchantId()).isEqualTo(merchant);
+    }
+
+    @Test
+    void renamingAnotherUsersNameIs404AndABlankNameIs400() throws Exception {
+        User a = user("a@example.com", false);
+        User b = user("b@example.com", false);
+        name(a, tx(a, ACME + "x"), "Acme Store", null);
+        String id = names(a).get("items").get(0).get("id").asText();
+        mockMvc.perform(put("/api/merchant-names/" + id).header("Authorization", bearer(b))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Mine\"}"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(put("/api/merchant-names/" + id).header("Authorization", bearer(a))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"  \"}"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -450,7 +514,8 @@ class MerchantNameSharingTest {
         assertThat(raw).doesNotContain(c.getId().toString(), b.getId().toString(), "c@example.com", "b@example.com",
                 "reporters", "voters");
         assertThat(acme.properties().stream().map(p -> p.getKey()).toList()).containsExactlyInAnyOrder("id", "name",
-                "payee", "transactionCount", "shared", "optedOut", "shareable", "notShareableReason", "reported");
+                "payee", "transactionCount", "shared", "optedOut", "shareable", "notShareableReason", "reported",
+                "merchantId", "categoryId", "creditCategoryId");
     }
 
     private UUID merchantNamed(String name) {

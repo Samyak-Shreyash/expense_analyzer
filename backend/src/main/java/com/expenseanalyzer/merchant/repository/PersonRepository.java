@@ -22,4 +22,8 @@ public interface PersonRepository extends JpaRepository<Person, UUID> {
     @Modifying(clearAutomatically = true)
     @Query("UPDATE Person p SET p.categoryId = NULL WHERE p.categoryId = :categoryId")
     void clearCategory(UUID categoryId);
+
+    @Modifying(clearAutomatically = true)
+    @Query("UPDATE Person p SET p.creditCategoryId = NULL WHERE p.creditCategoryId = :categoryId")
+    void clearCreditCategory(UUID categoryId);
 }

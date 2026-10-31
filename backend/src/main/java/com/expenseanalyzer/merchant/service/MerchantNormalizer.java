@@ -3,7 +3,6 @@ package com.expenseanalyzer.merchant.service;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -18,7 +17,7 @@ import org.springframework.stereotype.Component;
 @Component
 public class MerchantNormalizer {
 
-    public static final int RULES_VERSION = 1;
+    public static final int RULES_VERSION = 2;
     public static final BigDecimal RULE_CONFIDENCE = new BigDecimal("0.95");
 
     private static final Pattern UPI_HANDLE = Pattern.compile("[A-Z0-9._-]+@[A-Z]+");
@@ -30,6 +29,9 @@ public class MerchantNormalizer {
     private static final Set<String> NOISE = Set.of(
             "UPI", "POS", "NEFT", "IMPS", "RTGS", "ACH", "ECS", "NACH", "D", "CR", "DR", "REF", "TXN",
             "INB", "MB", "IB", "VPS", "PAYTM", "OKAXIS", "OKHDFCBANK", "OKICICI", "OKSBI", "YBL", "IBL", "AXL");
+
+    /** "<brand> PAYMENTS BANK" (or "<brand> BANK") is a bank, not the brand's merchant. */
+    private static final Set<String> PAYMENTS = Set.of("PAYMENTS", "PAYMENT");
 
     private record Rule(List<String> tokens, String canonicalName, String categoryHint) {
         Rule(String alias, String canonicalName, String categoryHint) {
@@ -71,11 +73,26 @@ public class MerchantNormalizer {
                 ? rawDescription.trim().replaceAll("\\s+", " ").toUpperCase(Locale.ROOT)
                 : String.join(" ", tokens);
         for (Rule rule : RULES) {
-            if (Collections.indexOfSubList(tokens, rule.tokens()) >= 0) { // whole tokens only
+            if (matches(tokens, rule.tokens())) {
                 return new MerchantMatch(normalized, rule.canonicalName(), RULE_CONFIDENCE, rule.categoryHint());
             }
         }
         return new MerchantMatch(normalized, null, null, null);
+    }
+
+    /** Whole-token match, skipping a brand that names a bank ("AIRTEL PAYMENTS BANK" is the bank, not Airtel). */
+    private static boolean matches(List<String> tokens, List<String> alias) {
+        for (int i = 0; i + alias.size() <= tokens.size(); i++) {
+            if (tokens.subList(i, i + alias.size()).equals(alias) && !namesABank(tokens, i + alias.size())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean namesABank(List<String> tokens, int next) {
+        return tokens.size() > next + 1 && PAYMENTS.contains(tokens.get(next)) && "BANK".equals(tokens.get(next + 1))
+                || tokens.size() > next && "BANK".equals(tokens.get(next));
     }
 
     private static List<String> tokens(String raw) {

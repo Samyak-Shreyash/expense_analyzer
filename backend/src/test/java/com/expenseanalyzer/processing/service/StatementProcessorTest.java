@@ -2,6 +2,7 @@ package com.expenseanalyzer.processing.service;
 
 import com.expenseanalyzer.merchant.model.Person;
 import com.expenseanalyzer.merchant.repository.MerchantRepository;
+import com.expenseanalyzer.merchant.repository.PersonPayeeRepository;
 import com.expenseanalyzer.merchant.repository.PersonRepository;
 import com.expenseanalyzer.processing.repository.ProcessedEventRepository;
 import com.expenseanalyzer.statement.model.Statement;
@@ -60,6 +61,8 @@ class StatementProcessorTest {
     private MerchantRepository merchantRepository;
     @Autowired
     private PersonRepository personRepository;
+    @Autowired
+    private PersonPayeeRepository personPayeeRepository;
 
     @MockitoBean
     private StatementStorage storage;
@@ -70,6 +73,7 @@ class StatementProcessorTest {
         statementRepository.deleteAll();
         processedEventRepository.deleteAll();
         merchantRepository.deleteAll();
+        personPayeeRepository.deleteAll();
         personRepository.deleteAll();
     }
 
