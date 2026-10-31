@@ -66,6 +66,72 @@ class PdfStatementParserTest {
     }
 
     @Test
+    void multiLineRowsWithBranchCodeAreParsed() throws IOException {
+        ParsedStatement r = parse(pdf(
+                "Tran Date Chq No Particulars Debit Credit Balance Init.",
+                "Br",
+                "OPENING BALANCE 5000.00",
+                "02-11-2025",
+                "UPI/P2M/111111111111/Some Shop",
+                "/Reques/TEST BANK",
+                "",
+                "100.00 4900.00 300",
+                "02-11-2025",
+                "UPI/P2M/222222222222/Grocer",
+                "/UPIInt/OTHER BANK 50.00 4850.00 300",
+                "03-11-2025",
+                "NEFT/REF0001/EMPLOYER",
+                "LIMITED/SALARY",
+                "",
+                "2000.00 6850.00 24"));
+        assertThat(r.errors()).isEmpty();
+        assertThat(r.transactions()).extracting(t -> t.rawDescription(), t -> t.type())
+                .containsExactly(
+                        tuple("UPI/P2M/111111111111/Some Shop/Reques/TEST BANK", "DEBIT"),
+                        tuple("UPI/P2M/222222222222/Grocer/UPIInt/OTHER BANK", "DEBIT"),
+                        tuple("NEFT/REF0001/EMPLOYER LIMITED/SALARY", "CREDIT"));
+        assertThat(r.transactions().get(2).amount()).isEqualByComparingTo("2000.00");
+    }
+
+    @Test
+    void wrappedUpiDescriptionsKeepEverySegment() throws IOException {
+        ParsedStatement r = parse(pdf(
+                "OPENING BALANCE 126494.14",
+                "27-10-2026",
+                "",
+                "UPI/P2M/630067215224/CheQ Credit Card",
+                "Repa/Pay/HDFC BANK LTD",
+                "",
+                "56066.97 70427.17 300",
+                "",
+                "28-10-2026",
+                "",
+                "UPI/P2A/630101997383/KUMAR SAURAV",
+                "/UPI/ICICI Bank",
+                "",
+                "5000.00 65427.17 300",
+                "",
+                "28-10-2026",
+                "",
+                "UPI/P2M/666700503667/HYPERAPPS",
+                "/RESTAU/AIRTEL PAYMENTS BANK 421.72 65005.45 300"));
+        assertThat(r.errors()).isEmpty();
+        assertThat(r.transactions()).extracting(t -> t.rawDescription()).containsExactly(
+                "UPI/P2M/630067215224/CheQ Credit Card Repa/Pay/HDFC BANK LTD",
+                "UPI/P2A/630101997383/KUMAR SAURAV/UPI/ICICI Bank",
+                "UPI/P2M/666700503667/HYPERAPPS/RESTAU/AIRTEL PAYMENTS BANK");
+    }
+
+    @Test
+    void singleLineRowWithBranchCodeIsParsed() throws IOException {
+        ParsedStatement r = parse(pdf(
+                "Opening Balance 1,000.00",
+                "01-10-2026 UPI/SHOP 100.00 900.00 300"));
+        assertThat(r.errors()).isEmpty();
+        assertThat(r.transactions()).extracting(t -> t.rawDescription()).containsExactly("UPI/SHOP");
+    }
+
+    @Test
     void pdfWithoutTransactionsIsUnreadable() throws IOException {
         ParsedStatement r = parse(pdf("Hello world"));
         assertThat(r.transactions()).isEmpty();
