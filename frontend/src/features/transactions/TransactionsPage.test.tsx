@@ -176,6 +176,36 @@ describe('TransactionsPage', () => {
     )
   })
 
+  it('shows all payments with a person from their label', async () => {
+    vi.mocked(finance.listTransactions).mockResolvedValue({
+      items: [
+        {
+          ...swiggy,
+          merchantId: null,
+          merchantName: null,
+          personId: 'p1',
+          personName: 'Miss Trisha',
+        },
+      ],
+      page: 0,
+      size: 50,
+      totalItems: 1,
+      totalPages: 1,
+    })
+    renderPage()
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Show all payments with Miss Trisha',
+      }),
+    )
+    await waitFor(() =>
+      expect(finance.listTransactions).toHaveBeenLastCalledWith(
+        expect.objectContaining({ personId: 'p1' }),
+      ),
+    )
+    expect(screen.getByText(/Showing one person/)).toBeTruthy()
+  })
+
   it('renames a person, keeping their category', async () => {
     const paid = {
       ...swiggy,
@@ -743,7 +773,9 @@ describe('TransactionsPage', () => {
       })
       fireEvent.change(search, { target: { value: 'acme' } })
       fireEvent.submit(screen.getByRole('search'))
-      await screen.findByRole('button', { name: 'Acme Store' })
+      await screen.findByRole('button', {
+        name: 'Show all payments with Acme Store',
+      })
       expect(document.activeElement).toBe(search)
     })
 
