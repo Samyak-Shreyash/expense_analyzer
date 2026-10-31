@@ -39,6 +39,8 @@ const summary = (count = 5): finance.Summary => ({
   },
   inflowChangePercent: null,
   outflowChangePercent: 180,
+  transfersIn: 5000,
+  transfersOut: 4500,
 })
 
 function renderPage(url = '/dashboard?from=2026-01-01&to=2026-01-31') {
@@ -116,6 +118,8 @@ describe('DashboardPage', () => {
     expect(totals.getByText('Not counted as spending')).toBeTruthy()
     expect(totals.getByText('₹1,000.00')).toBeTruthy()
     expect(totals.getByText('180% more than the previous period')).toBeTruthy()
+    expect(totals.getByText('Moved between your accounts')).toBeTruthy()
+    expect(totals.getByText('₹4,500.00 out')).toBeTruthy()
   })
 
   it('lists non-spending categories with the people under each', async () => {

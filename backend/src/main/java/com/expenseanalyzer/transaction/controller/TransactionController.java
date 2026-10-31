@@ -5,6 +5,7 @@ import com.expenseanalyzer.common.dto.PageResponse;
 import com.expenseanalyzer.transaction.dto.CounterpartyRequest;
 import com.expenseanalyzer.transaction.dto.MerchantNameRequest;
 import com.expenseanalyzer.transaction.dto.TransactionFilter;
+import com.expenseanalyzer.transaction.dto.TransferRequest;
 import com.expenseanalyzer.transaction.dto.TransactionResponse;
 import com.expenseanalyzer.transaction.model.TransactionDirection;
 import com.expenseanalyzer.transaction.service.TransactionService;
@@ -52,10 +53,11 @@ public class TransactionController {
             @RequestParam(required = false) BigDecimal minAmount,
             @RequestParam(required = false) BigDecimal maxAmount,
             @RequestParam(required = false) String category,
+            @RequestParam(required = false) Boolean transfer,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
         TransactionFilter filter = new TransactionFilter(q, statementId, from, to, merchantId, direction, minAmount, maxAmount,
-                category);
+                category, transfer);
         PageRequest pageable = PageRequest.of(Math.max(page, 0), Math.clamp(size, 1, MAX_PAGE_SIZE), NEWEST_FIRST);
         return PageResponse.of(transactionService.list(jwt.getSubject(), filter, pageable), r -> r);
     }
@@ -63,6 +65,13 @@ public class TransactionController {
     @GetMapping("/{id}")
     public ResponseEntity<TransactionResponse> get(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
         return ResponseEntity.of(transactionService.find(jwt.getSubject(), id));
+    }
+
+    /** Marks or unmarks the transaction (optionally with its other half) as a transfer between the caller's accounts. */
+    @PutMapping("/{id}/transfer")
+    public TransactionResponse setTransfer(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
+                                           @RequestBody TransferRequest body) {
+        return transactionService.setTransfer(jwt.getSubject(), id, body);
     }
 
     @PutMapping("/{id}/category")

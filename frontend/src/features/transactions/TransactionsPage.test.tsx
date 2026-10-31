@@ -13,6 +13,7 @@ vi.mock('../../services/finance', async (orig) => ({
   createCategory: vi.fn(),
   setCounterparty: vi.fn(),
   setMerchantCategory: vi.fn(),
+  setTransfer: vi.fn(),
   setPersonCategory: vi.fn(),
   updatePerson: vi.fn(),
   setTransactionMerchant: vi.fn(),
@@ -39,6 +40,8 @@ const swiggy: Transaction = {
   suggestedMerchantName: null,
   payeeName: null,
   payeeType: null,
+  transfer: false,
+  transferPairId: null,
 }
 
 const categories: finance.Category[] = [
@@ -881,6 +884,47 @@ describe('TransactionsPage', () => {
         totalPages: 1,
       })
 
+    it('marks and unmarks a transfer between own accounts', async () => {
+      vi.mocked(finance.setTransfer).mockResolvedValue({
+        ...swiggy,
+        transfer: true,
+      })
+      renderPage()
+      fireEvent.click(
+        await screen.findByRole('button', { name: /SWIGGY ORDER/ }),
+      )
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: 'Mark as a transfer between my accounts',
+        }),
+      )
+      await waitFor(() =>
+        expect(finance.setTransfer).toHaveBeenCalledWith('t1', true),
+      )
+      expect(
+        await screen.findByText('Marked as a transfer between your accounts.'),
+      ).toBeTruthy()
+    })
+
+    it('labels a transfer and shows both halves around its date', async () => {
+      only({ ...swiggy, transfer: true, transferPairId: 't2' })
+      renderPage()
+      expect(await screen.findByText('Transfer')).toBeTruthy()
+      fireEvent.click(screen.getByRole('button', { name: 'Show both halves' }))
+      await waitFor(() =>
+        expect(finance.listTransactions).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            transfer: 'true',
+            from: '2025-12-30',
+            to: '2026-01-05',
+          }),
+        ),
+      )
+      expect(
+        screen.getByText(/Showing transfers between your accounts/),
+      ).toBeTruthy()
+    })
+
     it('sets the category for all of a merchant and refetches', async () => {
       vi.mocked(finance.setMerchantCategory).mockResolvedValue(null)
       renderPage()
@@ -896,7 +940,11 @@ describe('TransactionsPage', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Apply to all' }))
 
       await waitFor(() =>
-        expect(finance.setMerchantCategory).toHaveBeenCalledWith('m1', 'c2'),
+        expect(finance.setMerchantCategory).toHaveBeenCalledWith(
+          'm1',
+          'c2',
+          false,
+        ),
       )
       await waitFor(() =>
         expect(finance.listTransactions).toHaveBeenCalledTimes(2),
@@ -909,7 +957,7 @@ describe('TransactionsPage', () => {
 
     it('sets the category for all of a person', async () => {
       only(person)
-      vi.mocked(finance.updatePerson).mockResolvedValue({
+      vi.mocked(finance.setPersonCategory).mockResolvedValue({
         id: 'p1',
         name: 'Ravi Kumar',
         categoryId: 'c2',
@@ -927,10 +975,10 @@ describe('TransactionsPage', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Apply to all' }))
 
       await waitFor(() =>
-        expect(finance.updatePerson).toHaveBeenCalledWith(
+        expect(finance.setPersonCategory).toHaveBeenCalledWith(
           'p1',
-          'Ravi Kumar',
           'c2',
+          false,
         ),
       )
       await waitFor(() =>

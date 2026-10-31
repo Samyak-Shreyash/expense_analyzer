@@ -197,6 +197,13 @@ export function DashboardPage() {
               </dd>
             </div>
             <div>
+              <dt>Moved between your accounts</dt>
+              <dd>{rupees(s.transfersOut)} out</dd>
+              <dd className={styles.compare}>
+                {rupees(s.transfersIn)} in; not counted above
+              </dd>
+            </div>
+            <div>
               <dt>Net</dt>
               <dd className={styles.figureNet}>{rupees(s.net)}</dd>
               <dd className={styles.compare}>
