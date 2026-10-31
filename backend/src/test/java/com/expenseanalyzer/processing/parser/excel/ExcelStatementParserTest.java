@@ -92,6 +92,29 @@ class ExcelStatementParserTest {
     }
 
     @Test
+    void parsesHdfcXlsWithStarSeparatorsAndSummaryFooter() throws IOException {
+        byte[] xls;
+        try (HSSFWorkbook wb = new HSSFWorkbook(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+            fill(wb.createSheet("S0"), new Object[][] {
+                {"HDFC BANK Ltd."},
+                {"Date", "Narration", "Chq./Ref.No.", "Value Dt", "Withdrawal Amt.", "Deposit Amt.", "Closing Balance"},
+                {"********", "********", "********", "********", "********", "********", "********"},
+                {"27/10/26", "UPI-SHOP-1", "0000630067215224", "27/10/26", 100.0, "", 900.0},
+                {"28/10/26", "SALARY", "0000630067215225", "28/10/26", "", 2000.0, 2900.0},
+                {"********", "********", "********", "********", "********", "********", "********"},
+                {"STATEMENT SUMMARY :-"},
+                {"Opening Balance", "Dr Count", "Cr Count", "Debits", "Credits", "Closing Bal"},
+                {1000.0, 1, 1, 100.0, 2000.0, 2900.0}}, wb.createCellStyle());
+            wb.write(out);
+            xls = out.toByteArray();
+        }
+        ParsedStatement r = parse(xls);
+        assertThat(r.errors()).isEmpty();
+        assertThat(r.transactions()).extracting(t -> t.date().toString(), t -> t.type())
+                .containsExactly(tuple("2026-10-27", "DEBIT"), tuple("2026-10-28", "CREDIT"));
+    }
+
+    @Test
     void parsesDateFormattedCellsAndNumericAmounts() throws IOException {
         ParsedStatement r = parse(workbook(new Object[][] {
             {"Date", "Description", "Debit", "Credit"},

@@ -42,6 +42,13 @@ public class ExcelStatementParser {
                 if (cells.stream().allMatch(String::isEmpty)) {
                     continue;
                 }
+                if (mapper != null && cells.stream().allMatch(c -> c.isEmpty() || c.matches("\\*+"))) {
+                    // HDFC rules "****" rows under the header and after the last transaction; a summary follows.
+                    if (txns.isEmpty() && errors.isEmpty()) {
+                        continue;
+                    }
+                    break;
+                }
                 if (mapper == null) {
                     // Bank exports put account details above the header; skip rows until it appears.
                     StatementRowMapper candidate = new StatementRowMapper(cells);

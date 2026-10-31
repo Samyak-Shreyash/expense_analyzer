@@ -23,7 +23,8 @@ import org.springframework.stereotype.Component;
  * Parses text-based PDF bank statements. A transaction is a line that starts with a date and ends
  * with the amount and the running balance; the balance moving up or down gives credit or debit.
  * Also handles layouts where the date sits on its own line and the description wraps until a line
- * ending in amount + balance (e.g. Axis Bank). A trailing branch-code column is ignored.
+ * ending in amount + balance, and layouts where a wrapped row's first lines come before the line with
+ * date + amounts (Axis Bank as PDFBox reads it). A trailing branch-code column is ignored.
  * Caller owns the stream. Expects an unencrypted PDF (uploads are unlocked first). Never logs text.
  */
 @Component
@@ -71,19 +72,23 @@ public class PdfStatementParser {
             String pendingDate = null; // set while inside a multi-line row
             StringBuilder pendingDesc = new StringBuilder();
             int pendingLine = 0;
+            StringBuilder lead = new StringBuilder(); // undated lines since the last row: the next row's first lines
             for (int i = 0; i < lines.length; i++) {
                 String line = lines[i].trim();
                 Matcher t = TXN.matcher(line);
                 if (t.matches()) {
                     pendingDate = null;
+                    appendWrapped(lead, t.group(2));
                     budget.checkRow(4);
-                    previous = row(i + 1, t.group(1), t.group(2), t.group(3), t.group(4), previous, txns, errors);
+                    previous = row(i + 1, t.group(1), lead.toString(), t.group(3), t.group(4), previous, txns, errors);
+                    lead.setLength(0);
                     continue;
                 }
                 Matcher d = DATE_ONLY.matcher(line);
                 if (d.matches()) {
                     pendingDate = d.group(1);
                     pendingDesc.setLength(0);
+                    lead.setLength(0);
                     pendingLine = i + 1;
                     continue;
                 }
@@ -103,8 +108,10 @@ public class PdfStatementParser {
                 Matcher o = OPENING.matcher(line);
                 if (previous == null && o.find()) {
                     previous = amount(o.group(1));
+                    lead.setLength(0); // the account details and column header above it are not a description
+                } else {
+                    appendWrapped(lead, line);
                 }
-                // ponytail: wrapped description lines of single-line rows are dropped; join them if banks need it
             }
             if (txns.isEmpty() && errors.isEmpty()) {
                 // No text layer (scanned) or a layout without amount + balance columns.
