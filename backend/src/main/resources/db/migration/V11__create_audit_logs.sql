@@ -1,6 +1,5 @@
--- Migration: V13__create_audit_logs.sql
--- Description: Append-only security audit trail (LLD section 5.10). Holds ids and action codes only:
--- no emails, file names, amounts, descriptions or tokens.
+-- Migration: V11__create_audit_logs.sql
+-- Description: Audit trail of user actions.
 
 CREATE TABLE IF NOT EXISTS audit_logs (
     id UUID PRIMARY KEY,
