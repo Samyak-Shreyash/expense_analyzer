@@ -11,8 +11,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.expenseanalyzer.auth.dto.JwtTokenProvider;
 import com.expenseanalyzer.statement.model.Statement;
 import com.expenseanalyzer.statement.repository.StatementRepository;
+import com.expenseanalyzer.statement.service.StatementService;
 import com.expenseanalyzer.transaction.model.Transaction;
 import com.expenseanalyzer.transaction.repository.TransactionRepository;
+import com.expenseanalyzer.transaction.service.TransferService;
 import com.expenseanalyzer.user.model.User;
 import com.expenseanalyzer.user.model.UserRole;
 import com.expenseanalyzer.user.repository.UserRepository;
@@ -33,7 +35,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
-/** Transfers between a user's own accounts: manual marking and their effect on analytics. */
+/** Transfers between a user's own accounts: automatic pairing, manual marking and their effect on analytics. */
 @SpringBootTest
 class TransferTest {
 
@@ -49,6 +51,10 @@ class TransferTest {
     private TransactionRepository transactionRepository;
     @Autowired
     private StatementRepository statementRepository;
+    @Autowired
+    private TransferService transferService;
+    @Autowired
+    private StatementService statementService;
 
     @MockitoBean
     private UserRepository userRepository;
@@ -117,6 +123,86 @@ class TransferTest {
     }
 
     @Test
+    void pairsMoneyOutAndInAcrossAccountsUpToThreeDaysApart() {
+        UUID out = tx(alice, savings, "DEBIT", "5000.00", JAN_10);
+        UUID in = tx(alice, current, "CREDIT", "5000.00", JAN_10.plus(Duration.ofDays(3)));
+        UUID lateOut = tx(alice, savings, "DEBIT", "700.00", JAN_10);
+        UUID lateIn = tx(alice, current, "CREDIT", "700.00", JAN_10.plus(Duration.ofDays(4)));
+
+        transferService.match(alice.getId());
+
+        assertThat(reload(out).isTransfer()).isTrue();
+        assertThat(reload(out).getTransferPairId()).isEqualTo(in);
+        assertThat(reload(in).getTransferPairId()).isEqualTo(out);
+        assertThat(reload(lateOut).isTransfer()).isFalse();
+        assertThat(reload(lateIn).isTransfer()).isFalse();
+    }
+
+    @Test
+    void neverPairsARowWithAMerchantOrPerson() {
+        UUID out = tx(alice, savings, "DEBIT", "500.00", JAN_10);
+        UUID in = tx(alice, current, "CREDIT", "500.00", JAN_10);
+        Transaction paid = reload(out);
+        paid.setMerchantId(UUID.randomUUID());
+        transactionRepository.saveAndFlush(paid);
+
+        transferService.match(alice.getId());
+
+        assertThat(reload(out).isTransfer()).isFalse();
+        assertThat(reload(in).isTransfer()).isFalse();
+    }
+
+    @Test
+    void deletingAStatementReopensTheOtherHalfOfAnAutomaticPair() {
+        UUID out = tx(alice, savings, "DEBIT", "500.00", JAN_10);
+        UUID in = tx(alice, current, "CREDIT", "500.00", JAN_10);
+        transferService.match(alice.getId());
+        assertThat(reload(in).isTransfer()).isTrue();
+
+        assertThat(statementService.delete(ALICE, current)).isTrue();
+
+        assertThat(transactionRepository.findById(in)).isEmpty();
+        assertThat(reload(out).isTransfer()).isFalse();
+        assertThat(reload(out).getTransferPairId()).isNull();
+    }
+
+    @Test
+    void neverPairsWithinOneAccountOrAcrossUsersOrDifferentAmounts() {
+        UUID out = tx(alice, savings, "DEBIT", "5000.00", JAN_10);
+        UUID sameAccount = tx(alice, savings, "CREDIT", "5000.00", JAN_10);
+        UUID otherAmount = tx(alice, current, "CREDIT", "4999.00", JAN_10);
+        UUID bobs = tx(bob, statement(bob, "3333", "ICICI"), "CREDIT", "5000.00", JAN_10);
+
+        transferService.match(alice.getId());
+        transferService.match(bob.getId());
+
+        for (UUID id : new UUID[] {out, sameAccount, otherAmount, bobs}) {
+            assertThat(reload(id).isTransfer()).isFalse();
+        }
+    }
+
+    @Test
+    void closestDateWinsThenEarliestCreatedAndPairedRowsAreKept() {
+        UUID out = tx(alice, savings, "DEBIT", "100.00", JAN_10);
+        UUID far = tx(alice, current, "CREDIT", "100.00", JAN_10.plus(Duration.ofDays(2)));
+        UUID near = tx(alice, current, "CREDIT", "100.00", JAN_10.plus(Duration.ofDays(1)));
+        UUID tieFirst = tx(alice, savings, "DEBIT", "200.00", JAN_10);
+        UUID creditA = tx(alice, current, "CREDIT", "200.00", JAN_10.plus(Duration.ofDays(1)));
+        UUID creditB = tx(alice, current, "CREDIT", "200.00", JAN_10.minus(Duration.ofDays(1)));
+
+        transferService.match(alice.getId());
+        assertThat(reload(out).getTransferPairId()).isEqualTo(near);
+        assertThat(reload(far).isTransfer()).isFalse();
+        assertThat(reload(tieFirst).getTransferPairId()).isEqualTo(creditA); // equal gap: created first
+
+        // A new candidate does not steal an existing pair.
+        tx(alice, current, "CREDIT", "100.00", JAN_10);
+        transferService.match(alice.getId());
+        assertThat(reload(out).getTransferPairId()).isEqualTo(near);
+        assertThat(reload(creditB).isTransfer()).isFalse();
+    }
+
+    @Test
     void manualMarkingIsKeptAndUnmarkingAPairUnmarksBothForGood() throws Exception {
         UUID single = tx(alice, savings, "DEBIT", "900.00", JAN_10);
         mark(ALICE, single, "{\"transfer\":true}", 200);
@@ -125,8 +211,9 @@ class TransferTest {
 
         UUID out = tx(alice, savings, "DEBIT", "5000.00", JAN_10);
         UUID in = tx(alice, current, "CREDIT", "5000.00", JAN_10);
-        mark(ALICE, out, "{\"transfer\":true,\"pairWithId\":\"" + in + "\"}", 200);
+        transferService.match(alice.getId());
         mark(ALICE, out, "{\"transfer\":false}", 200);
+        transferService.match(alice.getId());
         assertThat(reload(out).isTransfer()).isFalse();
         assertThat(reload(in).isTransfer()).isFalse();
 
@@ -156,10 +243,10 @@ class TransferTest {
     @Test
     void transfersAreLeftOutOfAnalyticsAndReportedSeparately() throws Exception {
         UUID out = tx(alice, savings, "DEBIT", "5000.00", JAN_10);
-        UUID in = tx(alice, current, "CREDIT", "5000.00", JAN_10);
+        tx(alice, current, "CREDIT", "5000.00", JAN_10);
         tx(alice, savings, "DEBIT", "300.00", JAN_10);
         tx(alice, current, "CREDIT", "1000.00", JAN_10.plus(Duration.ofDays(10)));
-        mark(ALICE, out, "{\"transfer\":true,\"pairWithId\":\"" + in + "\"}", 200);
+        transferService.match(alice.getId());
 
         mockMvc.perform(get("/api/analytics/summary").param("from", "2026-01-01").param("to", "2026-01-31")
                         .header("Authorization", bearer(ALICE)))
