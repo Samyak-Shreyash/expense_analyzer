@@ -1,12 +1,18 @@
 package com.expenseanalyzer.auth.config;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 /**
@@ -14,6 +20,7 @@ import java.util.UUID;
  * {@value #WINDOW_SECONDS} seconds per purpose and user. Every call to {@link #check} counts as an attempt.
  * Fails closed: if Redis is unreachable the caller gets 503, never a free pass.
  */
+@Slf4j
 @Component
 public class RateLimiter {
 
@@ -54,6 +61,42 @@ public class RateLimiter {
             redis.delete(key(purpose, userId));
         } catch (RuntimeException ignored) {
             // the window expires by itself
+        }
+    }
+
+    /**
+     * Counts one login attempt for this email from this address; throws 429 above the limit. Fails open: login must
+     * keep working when Redis is down, unlike the password endpoints.
+     */
+    public void checkLogin(String email, String ip) {
+        Long count;
+        try {
+            count = redis.execute(INCREMENT, List.of(loginKey(email, ip)), String.valueOf(WINDOW_SECONDS));
+        } catch (RuntimeException e) {
+            log.warn("Login rate limit skipped: error={}", e.getClass().getSimpleName());
+            return;
+        }
+        if (count != null && count > MAX_ATTEMPTS) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Too many attempts, try again later");
+        }
+    }
+
+    /** Clears the login counter after a success. */
+    public void resetLogin(String email, String ip) {
+        try {
+            redis.delete(loginKey(email, ip));
+        } catch (RuntimeException ignored) {
+            // the window expires by itself
+        }
+    }
+
+    // Hashed so Redis never holds an email or address.
+    private static String loginKey(String email, String ip) {
+        byte[] input = (email.toLowerCase(Locale.ROOT) + "|" + ip).getBytes(StandardCharsets.UTF_8);
+        try {
+            return "rate:login:" + HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(input));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e); // every JVM ships SHA-256
         }
     }
 

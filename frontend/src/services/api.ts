@@ -43,6 +43,8 @@ export function refresh(): Promise<boolean> {
 
 export async function login(email: string, password: string) {
   const res = await post('/auth/login', { email, password })
+  if (res.status === 429)
+    throw new Error('Too many attempts. Try again in a few minutes.')
   if (!res.ok) return false
   accessToken = (await res.json()).token
   return true

@@ -27,6 +27,7 @@ Example error:
 Create a user.
 
 ### POST `/auth/login`
+At most 5 attempts per 5 minutes for one email from one address, then `429`. A success clears the count. If the limiter is unavailable, login still works.
 Authenticate a user.
 
 ### POST `/auth/logout`

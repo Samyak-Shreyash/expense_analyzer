@@ -6,6 +6,7 @@ import com.expenseanalyzer.statement.service.S3StatementStorage;
 import com.expenseanalyzer.user.model.User;
 import com.expenseanalyzer.user.model.UserRole;
 import com.expenseanalyzer.user.repository.UserRepository;
+import com.expenseanalyzer.user.service.AccountDeletionService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,11 +18,15 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.context.WebApplicationContext;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
+import java.util.concurrent.CompletableFuture;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -50,6 +55,10 @@ class DeletedUserTokenTest {
     private PasswordEncoder passwordEncoder;
     @Autowired
     private UserRepository userRepository;
+    @Autowired
+    private TransactionTemplate transaction;
+    @Autowired
+    private AccountDeletionService accountDeletionService;
     @MockitoBean
     private S3StatementStorage storage;
     @MockitoBean
@@ -58,6 +67,23 @@ class DeletedUserTokenTest {
     @AfterEach
     void cleanUp() {
         userRepository.findByEmail(EMAIL).ifPresent(userRepository::delete);
+    }
+
+    @Test
+    void writeFromARequestThatLoadedTheUserBeforeDeletionDoesNotUndoIt() {
+        User saved = new User(EMAIL, passwordEncoder.encode("correct-password-1"));
+        saved.setRole(UserRole.USER);
+        userRepository.save(saved);
+
+        transaction.executeWithoutResult(status -> {
+            User loaded = userRepository.findByEmail(EMAIL).orElseThrow();
+            CompletableFuture.runAsync(() -> accountDeletionService.delete(EMAIL, "correct-password-1")).join();
+            loaded.setFullName("Late");
+        });
+
+        User after = userRepository.findByEmail(EMAIL).orElseThrow();
+        assertThat(after.isEnabled()).isFalse();
+        assertThat(after.getDeletedAt()).isNotNull();
     }
 
     @Test

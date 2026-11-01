@@ -64,7 +64,7 @@ public class UserService {
     private UserResponse applyUpdate(User updatedUser, String callerEmail, UserRequest request) {
         // Ownership: another user's id looks like a missing one
         if (!updatedUser.getEmail().equals(callerEmail)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+            throw new IllegalArgumentException("User not found");
         }
 
         // Callers may not change their own role or status

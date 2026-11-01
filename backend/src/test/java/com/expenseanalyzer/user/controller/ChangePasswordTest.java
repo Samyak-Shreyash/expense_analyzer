@@ -31,6 +31,8 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -127,6 +129,16 @@ class ChangePasswordTest {
                 .contentType(MediaType.APPLICATION_JSON).content("{\"currentPassword\":\"" + OLD + "\"}"))
                 .andExpect(status().isBadRequest());
         login(OLD).andExpect(status().isOk());
+    }
+
+    @Test
+    void loginAboveTheLimitAnswers429AndSuccessResets() throws Exception {
+        login(OLD).andExpect(status().isOk());
+        verify(rateLimiter).resetLogin(eq(EMAIL), anyString());
+
+        doThrow(new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS))
+                .when(rateLimiter).checkLogin(eq(EMAIL), anyString());
+        login(OLD).andExpect(status().isTooManyRequests());
     }
 
     @Test

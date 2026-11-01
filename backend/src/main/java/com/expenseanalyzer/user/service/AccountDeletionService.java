@@ -41,6 +41,9 @@ public class AccountDeletionService {
             "categories", "preferences", "refresh_tokens", "user_merchant_aliases", "merchant_suggestion_votes",
             "merchant_suggestion_reports", "sharing_strikes");
 
+    /** Tokens stay accepted this long past expiry; the row must outlive them. */
+    private static final long JWT_CLOCK_SKEW_SECONDS = 300;
+
     private final UserRepository userRepository;
     private final StatementRepository statementRepository;
     private final S3StatementStorage storage;
@@ -67,7 +70,7 @@ public class AccountDeletionService {
 
     /** Removes soft-deleted users whose access tokens have expired, and anything that slipped in after deletion. */
     public void purgeExpired() {
-        Timestamp cutoff = Timestamp.from(Instant.now().minusSeconds(tokenLifetimeSeconds));
+        Timestamp cutoff = Timestamp.from(Instant.now().minusSeconds(tokenLifetimeSeconds + JWT_CLOCK_SKEW_SECONDS));
         for (UUID userId : jdbc.queryForList("SELECT id FROM users WHERE deleted_at < ?", UUID.class, cutoff)) {
             try {
                 removeData(userId, () -> jdbc.update("DELETE FROM users WHERE id = ?", userId));
@@ -81,7 +84,7 @@ public class AccountDeletionService {
         Set<String> deletedKeys = new HashSet<>();
         deleteFiles(userId, deletedKeys);
         transaction.executeWithoutResult(status -> {
-            // The row lock conflicts with foreign key checks: running uploads and imports finish first, later ones fail.
+            // The row lock makes running uploads and imports finish first; anything later is cleared by purgeExpired.
             jdbc.queryForList("SELECT id FROM users WHERE id = ? FOR UPDATE", userId);
             deleteFiles(userId, deletedKeys); // a statement uploaded since the first pass
             OWNED_TABLES.forEach(table -> jdbc.update("DELETE FROM " + table + " WHERE user_id = ?", userId));

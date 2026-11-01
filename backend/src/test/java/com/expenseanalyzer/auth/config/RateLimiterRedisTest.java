@@ -30,6 +30,34 @@ class RateLimiterRedisTest {
     }
 
     @Test
+    void loginIsLimitedPerEmailAndAddressTogether() {
+        RateLimiter limiter = new RateLimiter(template());
+        String email = UUID.randomUUID() + "@example.com";
+
+        for (int i = 0; i < RateLimiter.MAX_ATTEMPTS; i++) {
+            limiter.checkLogin(email, "10.0.0.1");
+        }
+        assertThatThrownBy(() -> limiter.checkLogin(email.toUpperCase(), "10.0.0.1"))
+                .isInstanceOf(ResponseStatusException.class);
+
+        limiter.checkLogin(email, "10.0.0.2"); // the owner elsewhere is not locked out
+        limiter.checkLogin("other-" + email, "10.0.0.1");
+
+        limiter.resetLogin(email, "10.0.0.1");
+        limiter.checkLogin(email, "10.0.0.1");
+    }
+
+    @Test
+    void loginFailsOpenWhenRedisIsDown() {
+        LettuceConnectionFactory down = new LettuceConnectionFactory("localhost", 1);
+        down.afterPropertiesSet();
+        StringRedisTemplate redis = new StringRedisTemplate(down);
+        redis.afterPropertiesSet();
+
+        new RateLimiter(redis).checkLogin("a@example.com", "10.0.0.1");
+    }
+
+    @Test
     void limitsAttemptsSetsExpiryAndResets() {
         StringRedisTemplate redis = template();
         RateLimiter limiter = new RateLimiter(redis);
