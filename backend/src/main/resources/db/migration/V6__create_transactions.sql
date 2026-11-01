@@ -16,6 +16,15 @@ CREATE TABLE IF NOT EXISTS transactions (
     user_id UUID NOT NULL,
     statement_id UUID,
     transaction_fingerprint VARCHAR(64),
+    -- Money moved between a user's own accounts. transfer_manual records that the user marked or unmarked the row,
+    -- so automatic matching leaves it alone.
+    transfer BOOLEAN NOT NULL DEFAULT FALSE,
+    transfer_manual BOOLEAN NOT NULL DEFAULT FALSE,
+    transfer_pair_id UUID REFERENCES transactions(id) ON DELETE SET NULL,
+    -- A failed payment and the refund that reversed it, paired by the user; both are left out of analytics.
+    reversal_pair_id UUID REFERENCES transactions(id) ON DELETE SET NULL,
+    -- What a failed payment cost when its refund came back smaller; this part still counts as spending.
+    reversal_charge_paise DECIMAL(12, 2),
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_transactions_user_id FOREIGN KEY (user_id) REFERENCES users(id),
@@ -31,3 +40,5 @@ CREATE INDEX IF NOT EXISTS idx_transactions_merchant_id ON transactions(merchant
 CREATE INDEX IF NOT EXISTS idx_transactions_user_merchant_date ON transactions(user_id, merchant_id, date);
 CREATE INDEX IF NOT EXISTS idx_transactions_statement_id ON transactions(statement_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_person_id ON transactions(person_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_transfer_pair_id ON transactions(transfer_pair_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_reversal_pair_id ON transactions(reversal_pair_id);
