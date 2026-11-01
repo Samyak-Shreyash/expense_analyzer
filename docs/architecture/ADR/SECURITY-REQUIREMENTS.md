@@ -1572,6 +1572,15 @@ Questions requiring explicit decisions:
 
 Do not claim immediate physical deletion if copies remain in backups.
 
+## 33.1 Account Deletion Policy (SEC-021)
+
+Decided; target, not implemented yet. Answers questions 3 and 5, and part of question 6.
+
+- **Financial data:** deleting a user deletes all their financial data, including stored statement files.
+- **Audit records:** `audit_logs` rows are kept with the user id removed. How long they are kept is still open (question 6).
+- **Shared merchant names:** the user's votes are removed. Shared merchants stay in place.
+- **Backups:** deleted data remains in backups for up to 30 days, until those backups expire. User-facing text must state this window and must not promise immediate physical deletion.
+
 ---
 
 # 34. Security Testing
@@ -1786,7 +1795,7 @@ Opaque IDs are useful but never substitute for authorization.
 | SEC-018 | P2 | Add rate limiting |
 | SEC-019 | P2 | Add malware scanning |
 | SEC-020 | P2 | Add automated dependency vulnerability scanning |
-| SEC-021 | P2 | Define and implement account/data deletion |
+| SEC-021 | P1 | Define and implement account/data deletion |
 | SEC-022 | P2 | Add automated sensitive-log detection |
 
 ---
