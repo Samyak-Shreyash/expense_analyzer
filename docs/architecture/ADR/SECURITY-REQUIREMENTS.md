@@ -1576,7 +1576,7 @@ Do not claim immediate physical deletion if copies remain in backups.
 
 Implemented by `DELETE /api/user/me`. Answers questions 3 and 5, and part of question 6.
 
-Still open: enforcing backup expiry, personal data in shared merchant names, and how long audit records are kept.
+Still open: enforcing backup expiry, personal data in shared merchant names, and how long audit records are kept. Events already in Kafka keep the user id and storage key until topic retention expires. An access token issued before deletion stays valid until it expires, and a new account with the same email could use it.
 
 - **Financial data:** deleting a user deletes all their financial data, including stored statement files.
 - **Audit records:** `audit_logs` rows are kept with the user id removed. How long they are kept is still open (question 6).

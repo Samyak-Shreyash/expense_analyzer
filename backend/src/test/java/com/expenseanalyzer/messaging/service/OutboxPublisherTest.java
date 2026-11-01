@@ -69,6 +69,19 @@ class OutboxPublisherTest {
     }
 
     @Test
+    void rowDeletedDuringSendIsNotBroughtBack() {
+        OutboxEvent e = enqueue(UUID.randomUUID(), UUID.randomUUID());
+        when(kafka.send(anyString(), anyString(), anyString())).thenAnswer(call -> {
+            repository.deleteById(e.getId());
+            return CompletableFuture.completedFuture(null);
+        });
+
+        publisher.publishPending();
+
+        assertThat(repository.findById(e.getId())).isEmpty();
+    }
+
+    @Test
     void pendingEventIsSentKeyedByAggregateAndMarkedPublished() {
         when(kafka.send(anyString(), anyString(), anyString())).thenReturn(CompletableFuture.completedFuture(null));
         UUID stmt = UUID.randomUUID();

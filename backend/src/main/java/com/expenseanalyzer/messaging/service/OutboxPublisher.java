@@ -45,7 +45,8 @@ public class OutboxPublisher {
                 log.warn("Outbox publish failed: eventId={} type={} attempt={} error={}",
                         e.getId(), e.getEventType(), e.getAttemptCount(), e.getLastError());
             }
-            repository.save(e);
+            // not save(): a merge would re-insert a row removed by account deletion during the send
+            repository.updateDeliveryState(e.getId(), e.getPublishedAt(), e.getAttemptCount(), e.getLastError());
         }
     }
 }

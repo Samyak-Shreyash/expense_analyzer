@@ -39,6 +39,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
@@ -48,9 +49,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 class AccountDeletionTest {
 
-    private static final String ALICE = "alice-delete@example.com";
+    static final String ALICE = "alice-delete@example.com";
     private static final String BOB = "bob-delete@example.com";
-    private static final String PASSWORD = "correct-password-1";
+    static final String PASSWORD = "correct-password-1";
     /** Tables with a user_id column; users itself is checked by id. */
     private static final List<String> OWNED = List.of("outbox_events", "transactions", "statements", "person_payees",
             "people", "user_merchant_categories", "categories", "refresh_tokens", "user_merchant_aliases",
@@ -63,7 +64,7 @@ class AccountDeletionTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
     @Autowired
-    private JdbcTemplate jdbc;
+    JdbcTemplate jdbc;
     @Autowired
     private StatementProcessor processor;
     @Autowired
@@ -76,7 +77,7 @@ class AccountDeletionTest {
     private RateLimiter rateLimiter;
 
     private MockMvc mockMvc;
-    private UUID alice;
+    UUID alice;
     private UUID bob;
     private UUID merchant;
     private UUID aliceStatement;
@@ -170,13 +171,13 @@ class AccountDeletionTest {
         jdbc.update("DELETE FROM merchants WHERE id = ?", merchant);
     }
 
-    private ResultActions deleteAccount(String email, String password) throws Exception {
+    ResultActions deleteAccount(String email, String password) throws Exception {
         String token = "Bearer " + jwtTokenProvider.generateToken(new UsernamePasswordAuthenticationToken(email, null));
         return mockMvc.perform(delete("/api/user/me").header("Authorization", token)
                 .contentType(MediaType.APPLICATION_JSON).content("{\"password\":\"" + password + "\"}"));
     }
 
-    private int rows(String table, UUID user) {
+    int rows(String table, UUID user) {
         return jdbc.queryForObject("SELECT COUNT(*) FROM " + table + " WHERE user_id = ?", Integer.class, user);
     }
 
@@ -207,13 +208,14 @@ class AccountDeletionTest {
 
     @Test
     void auditRowsStayWithTheUserIdRemoved() throws Exception {
+        String count = "SELECT COUNT(*) FROM audit_logs WHERE action = 'ACCOUNT_DELETED' AND user_id IS NULL";
+        int before = jdbc.queryForObject(count, Integer.class);
+
         deleteAccount(ALICE, PASSWORD).andExpect(status().isNoContent());
 
         assertThat(jdbc.queryForObject("SELECT user_id FROM audit_logs WHERE id = ?", UUID.class, aliceAudit)).isNull();
         assertThat(jdbc.queryForObject("SELECT user_id FROM audit_logs WHERE id = ?", UUID.class, bobAudit)).isEqualTo(bob);
-        assertThat(jdbc.queryForObject(
-                "SELECT COUNT(*) FROM audit_logs WHERE action = 'ACCOUNT_DELETED' AND user_id IS NULL", Integer.class))
-                .isPositive();
+        assertThat(jdbc.queryForObject(count, Integer.class)).isEqualTo(before + 1);
     }
 
     @Test
@@ -249,6 +251,7 @@ class AccountDeletionTest {
         doNothing().when(storage).delete(anyString());
         deleteAccount(ALICE, PASSWORD).andExpect(status().isNoContent());
         assertThat(userRows(alice)).isZero();
+        verify(storage, times(2)).delete("users/" + alice + "/statements/x");
     }
 
     @Test
