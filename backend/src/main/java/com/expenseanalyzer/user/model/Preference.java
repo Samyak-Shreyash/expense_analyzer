@@ -28,7 +28,7 @@ public class Preference {
     @Column(name = "user_id", nullable = false)
     private UUID userId;
 
-    @Column(name = "key", nullable = false, length = 100)
+    @Column(name = "`key`", nullable = false, length = 100)
     private String key;
 
     // Enum fields for typed preferences (compile-time safety)
@@ -46,7 +46,7 @@ public class Preference {
 
     // JSONB field for dynamic preferences (flexibility)
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "value", nullable = false, columnDefinition = "jsonb")
+    @Column(name = "`value`", nullable = false, columnDefinition = "jsonb")
     private Map<String, Object> value = Map.of();
 
     @Column(name = "created_at", nullable = false)

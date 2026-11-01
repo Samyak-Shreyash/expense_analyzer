@@ -37,11 +37,9 @@ public class UserController {
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable UUID userId,
             @RequestBody UserRequest request) {
-        logger.debug("Updating user: {}", userId);
         try {
             return ResponseEntity.ok(userService.updateUser(jwt.getSubject(), userId, request));
         } catch (IllegalArgumentException e) {
-            logger.warn("Failed to update user {}: {}", userId, e.getMessage());
             return ResponseEntity.status(404).body(null);
         }
     }
