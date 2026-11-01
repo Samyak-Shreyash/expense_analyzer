@@ -54,7 +54,7 @@ public class RefreshTokenService {
         return raw;
     }
 
-    /** Consumes a valid token and returns its owner; empty if unknown or expired. */
+    /** Consumes a valid token and returns its owner; empty if unknown, expired or the owner is inactive. */
     @Transactional
     public Optional<User> consume(String raw) {
         return refreshTokenRepository.findByTokenHash(hash(raw))
@@ -63,7 +63,7 @@ public class RefreshTokenService {
                     if (token.getExpiresAt().isBefore(Instant.now())) {
                         return Optional.empty();
                     }
-                    return userRepository.findById(token.getUserId());
+                    return userRepository.findById(token.getUserId()).filter(User::isEnabled);
                 });
     }
 
