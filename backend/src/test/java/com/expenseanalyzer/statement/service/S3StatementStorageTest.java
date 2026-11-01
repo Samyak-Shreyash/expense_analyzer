@@ -46,7 +46,7 @@ class S3StatementStorageTest {
 
     @Test
     void storedObjectCanBeReadBack() throws Exception {
-        String key = StatementStorage.keyFor(UUID.randomUUID(), UUID.randomUUID());
+        String key = S3StatementStorage.keyFor(UUID.randomUUID(), UUID.randomUUID());
         byte[] body = "Date,Description,Amount\n".getBytes(StandardCharsets.UTF_8);
 
         storage.store(key, new ByteArrayInputStream(body), body.length, "text/csv");
@@ -58,7 +58,7 @@ class S3StatementStorageTest {
 
     @Test
     void deletedObjectCannotBeRead() {
-        String key = StatementStorage.keyFor(UUID.randomUUID(), UUID.randomUUID());
+        String key = S3StatementStorage.keyFor(UUID.randomUUID(), UUID.randomUUID());
         byte[] body = "x".getBytes(StandardCharsets.UTF_8);
         storage.store(key, new ByteArrayInputStream(body), body.length, "text/csv");
 
@@ -69,7 +69,7 @@ class S3StatementStorageTest {
 
     @Test
     void deletingMissingObjectIsNoOp() {
-        storage.delete(StatementStorage.keyFor(UUID.randomUUID(), UUID.randomUUID()));
+        storage.delete(S3StatementStorage.keyFor(UUID.randomUUID(), UUID.randomUUID()));
     }
 
     @Test
@@ -77,13 +77,13 @@ class S3StatementStorageTest {
         UUID user = UUID.fromString("00000000-0000-0000-0000-000000000001");
         UUID stmt = UUID.fromString("00000000-0000-0000-0000-000000000002");
 
-        assertThat(StatementStorage.keyFor(user, stmt))
+        assertThat(S3StatementStorage.keyFor(user, stmt))
                 .isEqualTo("users/00000000-0000-0000-0000-000000000001/statements/00000000-0000-0000-0000-000000000002");
     }
 
     @Test
     void objectsAreStoredWithServerSideEncryption() {
-        String key = StatementStorage.keyFor(UUID.randomUUID(), UUID.randomUUID());
+        String key = S3StatementStorage.keyFor(UUID.randomUUID(), UUID.randomUUID());
         byte[] body = "x".getBytes(StandardCharsets.UTF_8);
 
         storage.store(key, new ByteArrayInputStream(body), body.length, "text/csv");

@@ -59,7 +59,7 @@ public class StatementService {
     private final TransferService transferService;
     private final UserRepository userRepository;
     private final StatementFileValidator validator;
-    private final StatementStorage storage;
+    private final S3StatementStorage storage;
     private final OutboxService outboxService;
     private final AuditService auditService;
 
@@ -90,7 +90,7 @@ public class StatementService {
         s.onCreate();
         s = statementRepository.saveAndFlush(s);
 
-        String key = StatementStorage.keyFor(user.getId(), s.getId());
+        String key = S3StatementStorage.keyFor(user.getId(), s.getId());
         s.setStorageKey(key);
         try (InputStream in = pdf != null ? new ByteArrayInputStream(pdf) : file.getInputStream()) {
             storage.store(key, in, pdf != null ? pdf.length : file.getSize(), file.getContentType());

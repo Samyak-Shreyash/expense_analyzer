@@ -15,7 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.expenseanalyzer.auth.dto.JwtTokenProvider;
 import com.expenseanalyzer.messaging.repository.OutboxEventRepository;
 import com.expenseanalyzer.statement.repository.StatementRepository;
-import com.expenseanalyzer.statement.service.StatementStorage;
+import com.expenseanalyzer.statement.service.S3StatementStorage;
 import com.expenseanalyzer.user.model.User;
 import com.expenseanalyzer.user.model.UserRole;
 import com.expenseanalyzer.user.repository.UserRepository;
@@ -39,7 +39,7 @@ import software.amazon.awssdk.core.exception.SdkClientException;
 
 /**
  * Failure modes that need their own setup: a tiny validator size limit (413 from the validator, which
- * sits below the multipart limit, so MockMvc can exercise it) and a failing StatementStorage (503).
+ * sits below the multipart limit, so MockMvc can exercise it) and a failing S3StatementStorage (503).
  */
 @SpringBootTest(properties = "app.statement.upload.max-size-bytes=64")
 class StatementUploadFailureModesTest {
@@ -51,7 +51,7 @@ class StatementUploadFailureModesTest {
     @Autowired private JwtTokenProvider jwtTokenProvider;
     @Autowired private StatementRepository statementRepository;
     @Autowired private OutboxEventRepository outboxEventRepository;
-    @MockitoBean private StatementStorage storage;
+    @MockitoBean private S3StatementStorage storage;
     @MockitoBean private UserRepository userRepository;
 
     private MockMvc mockMvc;

@@ -21,7 +21,7 @@ import com.expenseanalyzer.statement.model.Statement;
 import com.expenseanalyzer.statement.model.StatementStatus;
 import com.expenseanalyzer.statement.repository.StatementRepository;
 import com.expenseanalyzer.statement.service.StatementObjectNotFoundException;
-import com.expenseanalyzer.statement.service.StatementStorage;
+import com.expenseanalyzer.statement.service.S3StatementStorage;
 import com.expenseanalyzer.transaction.model.Transaction;
 import com.expenseanalyzer.transaction.repository.TransactionRepository;
 import com.expenseanalyzer.transaction.service.TransferService;
@@ -70,7 +70,7 @@ public class StatementProcessor {
     private final StatementRepository statementRepository;
     private final TransactionRepository transactionRepository;
     private final ProcessedEventRepository processedEventRepository;
-    private final StatementStorage storage;
+    private final S3StatementStorage storage;
     private final CsvStatementParser csvParser;
     private final ExcelStatementParser excelParser;
     private final PdfStatementParser pdfParser;
@@ -82,7 +82,7 @@ public class StatementProcessor {
     private final TransferService transferService;
 
     public StatementProcessor(StatementRepository statementRepository, TransactionRepository transactionRepository,
-                              ProcessedEventRepository processedEventRepository, StatementStorage storage,
+                              ProcessedEventRepository processedEventRepository, S3StatementStorage storage,
                               CsvStatementParser csvParser, ExcelStatementParser excelParser,
                               PdfStatementParser pdfParser, JsonMapper jsonMapper,
                               MerchantNormalizer merchantNormalizer, MerchantService merchantService,
