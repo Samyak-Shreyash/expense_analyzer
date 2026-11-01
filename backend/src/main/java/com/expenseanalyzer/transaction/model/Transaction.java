@@ -161,6 +161,10 @@ public class Transaction {
     @Column(name = "transfer_manual", nullable = false)
     private boolean transferManual;
 
+    /** The other half of a failed payment and its refund, paired by the user; both are left out of analytics. */
+    @Column(name = "reversal_pair_id")
+    private UUID reversalPairId;
+
     // ---- Lifecycle hooks ----
 
     /**

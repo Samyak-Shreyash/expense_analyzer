@@ -424,4 +424,59 @@ class PeopleTest {
                 .andExpect(jsonPath("$[0].categoryId").value(loan))
                 .andExpect(jsonPath("$[0].creditCategoryId").value(repaid));
     }
+
+    private UUID credit(UUID merchantId) {
+        Transaction t = transactionRepository.findById(transaction(alice, "in", "IN", merchantId, null)).orElseThrow();
+        t.setType("CREDIT");
+        return transactionRepository.saveAndFlush(t).getId();
+    }
+
+    private void expectCategory(UUID tx, String category) throws Exception {
+        mockMvc.perform(get("/api/transactions/" + tx).header("Authorization", bearer(ALICE)))
+                .andExpect(jsonPath("$.category").value(category));
+    }
+
+    private void expectOnlyInFilter(String category, UUID tx) throws Exception {
+        mockMvc.perform(get("/api/transactions").param("category", category).header("Authorization", bearer(ALICE)))
+                .andExpect(jsonPath("$.totalItems").value(1))
+                .andExpect(jsonPath("$.items[0].id").value(tx.toString()));
+    }
+
+    @Test
+    void moneyInFromAMerchantDefaultsToRefundAndMoneyOutKeepsItsHint() throws Exception {
+        createCategory(ALICE, "Refund");
+        createCategory(ALICE, "Food & Dining");
+        UUID out = transaction(alice, "out", "OUT", swiggy, null);
+        UUID in = credit(swiggy);
+
+        expectCategory(in, "Refund");
+        expectCategory(out, "Food & Dining");
+        expectOnlyInFilter("Refund", in);
+        expectOnlyInFilter("Food & Dining", out);
+    }
+
+    @Test
+    void merchantMoneyInCategoryBeatsRefund() throws Exception {
+        createCategory(ALICE, "Refund");
+        String cashback = createCategory(ALICE, "Cashback");
+        UUID in = credit(swiggy);
+        mockMvc.perform(put("/api/merchants/" + swiggy + "/category").header("Authorization", bearer(ALICE))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"categoryId\":\"" + cashback + "\",\"credit\":true}"))
+                .andExpect(status().is2xxSuccessful());
+
+        expectCategory(in, "Cashback");
+        expectOnlyInFilter("Cashback", in);
+        mockMvc.perform(get("/api/transactions").param("category", "Refund").header("Authorization", bearer(ALICE)))
+                .andExpect(jsonPath("$.totalItems").value(0));
+    }
+
+    @Test
+    void moneyInWithoutAMerchantStaysUncategorized() throws Exception {
+        createCategory(ALICE, "Refund");
+        UUID in = credit(null);
+
+        expectCategory(in, "Uncategorized");
+        expectOnlyInFilter("Uncategorized", in);
+    }
 }

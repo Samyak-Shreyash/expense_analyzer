@@ -132,19 +132,25 @@
   margin-bottom: 0.25rem;
 }
 
-/* People and merchants get their own colour; the tag repeats it in words. */
+/* People and merchants get their own colour (the column header is the legend); the tag says it in words on hover. */
 .person {
   color: var(--person);
 }
 
-.person .tag {
-  border-color: var(--person);
-  color: var(--person);
+.merchant {
+  color: var(--ledger);
 }
 
-.merchant .tag {
-  border-color: var(--ledger);
-  color: var(--ledger);
+.hoverTag {
+  composes: tag;
+  border-color: currentColor;
+  color: inherit;
+  opacity: 0;
+}
+
+.renamable:hover .hoverTag,
+.renamable:focus-within .hoverTag {
+  opacity: 1;
 }
 
 .categoryEditor {
