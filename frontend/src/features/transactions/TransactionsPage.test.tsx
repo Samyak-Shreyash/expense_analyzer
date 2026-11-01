@@ -1198,21 +1198,28 @@ describe('TransactionsPage', () => {
 
     it('switches a person back to a merchant', async () => {
       only(person)
-      vi.mocked(finance.setCounterparty).mockResolvedValue(swiggy)
+      vi.mocked(finance.setTransactionMerchant).mockResolvedValue(swiggy)
       renderPage()
       fireEvent.click(
         await screen.findByRole('button', { name: /SWIGGY ORDER/ }),
       )
       fireEvent.click(await screen.findByLabelText('This is a merchant'))
+      const merchant = screen.getByLabelText(
+        "Merchant's name",
+      ) as HTMLInputElement
+      expect(merchant.value).toBe('Ravi Kumar')
+      fireEvent.change(merchant, { target: { value: 'Indian Railways' } })
       fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
+      // Saved as a named merchant, so the payee cannot fall back to a person.
       await waitFor(() =>
-        expect(finance.setCounterparty).toHaveBeenCalledWith(
+        expect(finance.setTransactionMerchant).toHaveBeenCalledWith(
           't1',
-          'MERCHANT',
-          undefined,
+          'Indian Railways',
+          false,
         ),
       )
+      expect(finance.setCounterparty).not.toHaveBeenCalled()
     })
 
     it('prefills the person name from the cleaned-up description', async () => {
