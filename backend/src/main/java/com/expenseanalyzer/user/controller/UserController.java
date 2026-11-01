@@ -29,6 +29,21 @@ public class UserController {
 
 
     /**
+     * Update the authenticated user's own details.
+     * PUT /api/user/me
+     */
+    @PutMapping("/me")
+    public ResponseEntity<UserResponse> updateMe(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestBody UserRequest request) {
+        try {
+            return ResponseEntity.ok(userService.updateMe(jwt.getSubject(), request));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(404).body(null);
+        }
+    }
+
+    /**
      * Update user information.
      * PUT /api/user/{userId}
      */

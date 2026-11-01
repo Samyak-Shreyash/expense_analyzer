@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -47,8 +48,20 @@ public class UserService {
             throw new IllegalArgumentException("User not found");
         }
 
-        User updatedUser = optionalUser.get();
+        return applyUpdate(optionalUser.get(), callerEmail, request);
+    }
 
+    /**
+     * Update the authenticated caller's own details.
+     */
+    @Transactional
+    public UserResponse updateMe(String callerEmail, UserRequest request) {
+        User user = userRepository.findByEmail(callerEmail)
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        return applyUpdate(user, callerEmail, request);
+    }
+
+    private UserResponse applyUpdate(User updatedUser, String callerEmail, UserRequest request) {
         // Ownership: callers may only update themselves, and may not change their own role or status
         if (!updatedUser.getEmail().equals(callerEmail) || request.role() != null || request.active() != null) {
             throw new AccessDeniedException("Not allowed to update this user");
@@ -60,7 +73,10 @@ public class UserService {
         }
 
         // Update full name if provided
-        if (request.fullName() != null && !request.fullName().isEmpty()) {
+        if (request.fullName() != null) {
+            if (request.fullName().isBlank() || request.fullName().length() > 255) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid full name");
+            }
             updatedUser.setFullName(request.fullName());
         }
 
@@ -79,32 +95,42 @@ public class UserService {
         // Update preferences if provided
         if (request.preferences() != null) {
             for (Map.Entry<String, Object> entry : request.preferences().entrySet()) {
-                Preference pref = getPreference(updatedUser.getId(), entry.getKey());
+                Optional<PreferenceRepository.View> existing =
+                        preferenceRepository.findViewByUserIdAndKey(updatedUser.getId(), entry.getKey());
+                Theme theme = existing.map(PreferenceRepository.View::getTheme).orElse(null);
+                Currency currency = existing.map(PreferenceRepository.View::getCurrency).orElse(null);
+                NotificationMode mode = existing.map(PreferenceRepository.View::getNotificationMode).orElse(null);
                 Object value = entry.getValue();
                 try {
                     switch (entry.getKey()) {
-                        case "theme" -> pref.setTheme(Theme.valueOf(String.valueOf(value).toUpperCase()));
-                        case "currency" -> pref.setCurrency(Currency.valueOf(String.valueOf(value).toUpperCase()));
+                        case "theme" -> theme = Theme.valueOf(String.valueOf(value).toUpperCase());
+                        case "currency" -> currency = Currency.valueOf(String.valueOf(value).toUpperCase());
                         case "notifications" -> {
                             if (!(value instanceof Boolean on)) {
                                 throw new IllegalArgumentException();
                             }
-                            pref.setNotificationMode(on ? NotificationMode.ALL : NotificationMode.NONE);
+                            mode = on ? NotificationMode.ALL : NotificationMode.NONE;
                         }
                         default -> throw new IllegalArgumentException();
                     }
                 } catch (IllegalArgumentException e) {
                     throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid preference: " + entry.getKey());
                 }
-                preferenceRepository.save(pref);
+                if (existing.isPresent()) {
+                    preferenceRepository.updateTyped(updatedUser.getId(), entry.getKey(), theme, currency, mode);
+                } else {
+                    Preference pref = new Preference();
+                    pref.setUserId(updatedUser.getId());
+                    pref.setKey(entry.getKey());
+                    pref.setTheme(theme);
+                    pref.setCurrency(currency);
+                    pref.setNotificationMode(mode);
+                    preferenceRepository.save(pref);
+                }
             }
         }
 
-        return new UserResponse(
-            updatedUser.getEmail(),
-            updatedUser.getFullName(),
-            updatedUser.getRole()
-        );
+        return toResponse(updatedUser);
     }
 
     /**
@@ -118,23 +144,19 @@ public class UserService {
         }
         User user = optionalUser.get();
 
-        return Optional.of(new UserResponse(
-            user.getEmail(),
-            user.getFullName(),
-            user.getRole()
-        ));
+        return Optional.of(toResponse(user));
     }
 
-    /**
-     * Get preference by user ID and key.
-     */
-    private Preference getPreference(UUID userId, String key) {
-        return preferenceRepository.findByUserIdAndKey(userId, key)
-                .orElseGet(() -> {
-                    Preference pref = new Preference();
-                    pref.setUserId(userId);
-                    pref.setKey(key);
-                    return pref;
-                });
+    private UserResponse toResponse(User user) {
+        Map<String, Object> prefs = new LinkedHashMap<>();
+        for (PreferenceRepository.View p : preferenceRepository.findViewsByUserId(user.getId())) {
+            switch (p.getKey()) {
+                case "theme" -> prefs.put("theme", p.getTheme().name().toLowerCase());
+                case "currency" -> prefs.put("currency", p.getCurrency().name().toLowerCase());
+                case "notifications" -> prefs.put("notifications", p.getNotificationMode() != NotificationMode.NONE);
+                default -> { }
+            }
+        }
+        return new UserResponse(user.getEmail(), user.getFullName(), user.getRole(), prefs);
     }
 }

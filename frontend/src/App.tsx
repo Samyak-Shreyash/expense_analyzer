@@ -7,6 +7,7 @@ import { RegisterPage } from './features/auth/RegisterPage'
 import { RequireAuth } from './features/auth/RequireAuth'
 import { CategoriesPage } from './features/categories/CategoriesPage'
 import { DashboardPage } from './features/dashboard/DashboardPage'
+import { ProfilePage } from './features/profile/ProfilePage'
 import { StatementsPage } from './features/statements/StatementsPage'
 import { TransactionsPage } from './features/transactions/TransactionsPage'
 
@@ -22,6 +23,7 @@ function App() {
             { path: '/statements', page: <StatementsPage /> },
             { path: '/transactions', page: <TransactionsPage /> },
             { path: '/categories', page: <CategoriesPage /> },
+            { path: '/profile', page: <ProfilePage /> },
           ].map(({ path, page }) => (
             <Route
               key={path}

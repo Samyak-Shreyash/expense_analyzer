@@ -10,6 +10,7 @@ const LINKS = [
   { to: '/statements', label: 'Statements' },
   { to: '/transactions', label: 'Transactions' },
   { to: '/categories', label: 'Categories' },
+  { to: '/profile', label: 'Profile' },
 ]
 
 /** Signed-in page frame: header with navigation and account, then the page. */

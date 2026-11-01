@@ -32,8 +32,11 @@ Authenticate a user.
 ### POST `/auth/logout`
 Invalidate the current session.
 
-### GET `/users/me`
-Return the authenticated user.
+### GET `/user/me`
+Return the authenticated user: `email`, `fullName`, `role` and `preferences` (`theme` `light|dark`, `currency` `inr|usd|eur`, `notifications` boolean; only saved keys are present).
+
+### PUT `/user/me`
+Update the caller's own `fullName` (1 to 255 characters) and `preferences`. Returns the same body as `GET /user/me`. `400` for a blank or too long name, an unknown preference value, or an `email` in the body; `403` if `role` or `active` is sent; `401` without a token. Also available as `PUT /user/{userId}` for the caller's own id.
 
 ## 3. Accounts
 

@@ -2,7 +2,7 @@ package com.expenseanalyzer.user.dto;
 
 import com.expenseanalyzer.user.model.UserRole;
 
-import java.util.UUID;
+import java.util.Map;
 
 /**
  * DTO for user information in authentication responses.
@@ -11,5 +11,6 @@ import java.util.UUID;
 public record UserResponse(
     String email,
     String fullName,
-    UserRole role
+    UserRole role,
+    Map<String, Object> preferences
 ) {}

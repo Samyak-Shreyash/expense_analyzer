@@ -497,3 +497,26 @@ export const setMerchantNameShared = (id: string, shared: boolean) =>
     { shared },
     SHARING_ERRORS,
   )
+
+// ---- profile ----
+
+export type Profile = {
+  email: string
+  fullName: string | null
+  role: string
+  preferences: { theme?: string; currency?: string; notifications?: boolean }
+}
+
+export const getProfile = () => getJson<Profile>('/user/me')
+export const updateProfile = (
+  fullName: string,
+  preferences: Profile['preferences'],
+) =>
+  write<Profile>(
+    'PUT',
+    '/user/me',
+    { fullName, preferences },
+    {
+      400: 'Use a name of 1 to 255 characters.',
+    },
+  )
