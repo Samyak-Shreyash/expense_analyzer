@@ -520,3 +520,15 @@ export const updateProfile = (
       400: 'Use a name of 1 to 255 characters.',
     },
   )
+
+export const deleteAccount = (password: string) =>
+  write<null>(
+    'DELETE',
+    '/user/me',
+    { password },
+    {
+      400: 'That password is not correct.',
+      429: 'Too many attempts. Try again in a few minutes.',
+      503: 'Could not delete your account right now. Try again in a moment.',
+    },
+  )

@@ -79,7 +79,7 @@ Table `audit_logs` (V13), written by `AuditService`, append-only (`@Immutable` e
 | `occurred_at` | server time |
 
 **Audited actions:** `AUTH_REGISTERED`, `AUTH_LOGIN_SUCCEEDED`, `AUTH_LOGIN_FAILED`, `AUTH_PASSWORD_CHANGED`, `STATEMENT_UPLOADED`,
-`STATEMENT_ACCESSED` (detail/status view of an owned statement), `STATEMENT_DELETED`. Transaction edits,
+`STATEMENT_ACCESSED` (detail/status view of an owned statement), `STATEMENT_DELETED`, `ACCOUNT_DELETED` (recorded with no user id). Transaction edits,
 AI actions and admin actions are added when those features exist.
 
 **Sensitive-data exclusions:** no emails, passwords, tokens, file names, file hashes, amounts,

@@ -1574,7 +1574,9 @@ Do not claim immediate physical deletion if copies remain in backups.
 
 ## 33.1 Account Deletion Policy (SEC-021)
 
-Decided; target, not implemented yet. Answers questions 3 and 5, and part of question 6.
+Implemented by `DELETE /api/user/me`. Answers questions 3 and 5, and part of question 6.
+
+Still open: enforcing backup expiry, personal data in shared merchant names, and how long audit records are kept.
 
 - **Financial data:** deleting a user deletes all their financial data, including stored statement files.
 - **Audit records:** `audit_logs` rows are kept with the user id removed. How long they are kept is still open (question 6).
