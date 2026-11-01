@@ -24,7 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
  * Pairs money moved between a user's own accounts (DOMAIN-MODEL 4.3): a DEBIT in one account and a CREDIT of the same
  * amount and currency in a different account, at most {@link #WINDOW} apart. An account is a statement's
  * (account_number, bank_name) until an accounts table exists, so rows without one are never paired automatically.
- * Rows the user marked or unmarked, and rows already paired, are left alone. Raw data is untouched; nothing is logged.
+ * Rows the user marked or unmarked, rows already paired, and rows with a merchant or person are left alone. Raw data is untouched; nothing is logged.
  */
 @Service
 @RequiredArgsConstructor
@@ -38,7 +38,8 @@ public class TransferService {
     /** Pairs the user's open rows; debits in date order take the credit with the closest date (ties: earliest created). */
     @Transactional
     public void match(UUID userId) {
-        List<Transaction> open = transactionRepository.findByUserIdAndTransferFalseAndTransferManualFalse(userId);
+        List<Transaction> open = transactionRepository.findByUserIdAndTransferFalseAndTransferManualFalse(userId).stream()
+                .filter(t -> t.getMerchantId() == null && t.getPersonId() == null).toList();
         Map<UUID, String> accounts = statementRepository.findAllById(open.stream().map(Transaction::getStatementId)
                         .filter(id -> id != null).collect(Collectors.toSet())).stream()
                 .filter(s -> s.getAccountNumber() != null && !s.getAccountNumber().isBlank())
@@ -68,6 +69,22 @@ public class TransferService {
             });
         }
         transactionRepository.saveAll(paired);
+    }
+
+    /** Reopens the automatic pairs' other halves before a statement's rows are deleted; manual marks are kept. */
+    @Transactional
+    public void releasePartners(UUID userId, UUID statementId) {
+        Set<UUID> partners = transactionRepository.findByUserIdAndStatementId(userId, statementId).stream()
+                .map(Transaction::getTransferPairId).filter(id -> id != null).collect(Collectors.toSet());
+        List<Transaction> released = transactionRepository.findAllById(partners).stream()
+                .filter(t -> !statementId.equals(t.getStatementId()) && !t.isTransferManual()).toList();
+        Instant now = Instant.now();
+        released.forEach(t -> {
+            t.setTransfer(false);
+            t.setTransferPairId(null);
+            t.setUpdatedAt(now);
+        });
+        transactionRepository.saveAll(released);
     }
 
     /** Links two transactions as the halves of one transfer. */

@@ -111,6 +111,14 @@ class CategoryControllerTest {
     }
 
     @Test
+    void refundCannotBeRenamed() throws Exception {
+        String id = createAs(ALICE, "Refund");
+        mockMvc.perform(put("/api/categories/" + id).header("Authorization", bearer(ALICE))
+                        .contentType(MediaType.APPLICATION_JSON).content(body("Reimbursement", true)))
+                .andExpect(status().isConflict());
+    }
+
+    @Test
     void createRenameToggleAndDelete() throws Exception {
         String id = createAs(ALICE, "  Pets ");
         mockMvc.perform(put("/api/categories/" + id).header("Authorization", bearer(ALICE))

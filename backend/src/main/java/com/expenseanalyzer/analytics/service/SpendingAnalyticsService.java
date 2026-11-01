@@ -91,13 +91,13 @@ public class SpendingAnalyticsService {
             return category == null ? UNCATEGORIZED : category.getName();
         }
 
-        /** The category this group nets in: a refund reduces its merchant's money-out category. */
+        /** The category this group nets in: a refund reduces its merchant's top spending category. */
         String netCategoryName() {
             return netCategory == null ? UNCATEGORIZED : netCategory.getName();
         }
 
         boolean spending() {
-            return category == null || category.isCountsAsSpending();
+            return netCategory == null || netCategory.isCountsAsSpending();
         }
     }
 
@@ -275,19 +275,34 @@ public class SpendingAnalyticsService {
     private List<Group> groups(UUID userId, LocalDate from, LocalDate to, Resolution resolution) {
         List<Object[]> rows = transactionRepository.sumByCategoryGroup(userId, start(from), endExclusive(to));
         Map<UUID, Merchant> merchants = merchants(rows.stream().map(r -> (UUID) r[2]).toList());
+        Map<UUID, Map<Category, BigDecimal>> spentAt = new HashMap<>();
+        for (Object[] r : rows) {
+            UUID merchantId = (UUID) r[2];
+            Category c = resolution.resolve((UUID) r[0], (UUID) r[1], merchantId, merchants.get(merchantId), false);
+            if (merchantId != null && "DEBIT".equals(r[3]) && c != null && c.isCountsAsSpending()) {
+                spentAt.computeIfAbsent(merchantId, k -> new HashMap<>()).merge(c, (BigDecimal) r[4], BigDecimal::add);
+            }
+        }
         List<Group> groups = new ArrayList<>(rows.size());
         for (Object[] r : rows) {
             UUID merchantId = (UUID) r[2];
-            Category category = resolution.resolve((UUID) r[0], (UUID) r[1], merchantId, merchants.get(merchantId),
-                    "CREDIT".equals(r[3]));
-            boolean refund = merchantId != null && category != null && "CREDIT".equals(r[3])
+            boolean credit = "CREDIT".equals(r[3]);
+            Category category = resolution.resolve((UUID) r[0], (UUID) r[1], merchantId, merchants.get(merchantId), credit);
+            boolean refund = merchantId != null && credit && category != null
                     && category == resolution.named(CategoryService.REFUND);
-            Category netCategory = refund
-                    ? resolution.resolve(null, (UUID) r[1], merchantId, merchants.get(merchantId), false) : category;
-            groups.add(new Group(category, netCategory, (UUID) r[1], merchantId, "CREDIT".equals(r[3]),
-                    (BigDecimal) r[4], (Long) r[5]));
+            Category netCategory = !refund ? category : spentAt.containsKey(merchantId) ? top(spentAt.get(merchantId))
+                    : resolution.resolve(null, (UUID) r[1], merchantId, merchants.get(merchantId), false);
+            groups.add(new Group(category, netCategory, (UUID) r[1], merchantId, credit, (BigDecimal) r[4], (Long) r[5]));
         }
         return groups;
+    }
+
+    /** The category with the most spending (ties: first by name). */
+    private static Category top(Map<Category, BigDecimal> spent) {
+        return spent.entrySet().stream()
+                .max(Map.Entry.<Category, BigDecimal>comparingByValue()
+                        .thenComparing(e -> e.getKey().getName(), Comparator.reverseOrder()))
+                .orElseThrow().getKey();
     }
 
     /**

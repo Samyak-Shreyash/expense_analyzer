@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.expenseanalyzer.auth.dto.JwtTokenProvider;
 import com.expenseanalyzer.statement.model.Statement;
 import com.expenseanalyzer.statement.repository.StatementRepository;
+import com.expenseanalyzer.statement.service.StatementService;
 import com.expenseanalyzer.transaction.model.Transaction;
 import com.expenseanalyzer.transaction.repository.TransactionRepository;
 import com.expenseanalyzer.transaction.service.TransferService;
@@ -52,6 +53,8 @@ class TransferTest {
     private StatementRepository statementRepository;
     @Autowired
     private TransferService transferService;
+    @Autowired
+    private StatementService statementService;
 
     @MockitoBean
     private UserRepository userRepository;
@@ -133,6 +136,34 @@ class TransferTest {
         assertThat(reload(in).getTransferPairId()).isEqualTo(out);
         assertThat(reload(lateOut).isTransfer()).isFalse();
         assertThat(reload(lateIn).isTransfer()).isFalse();
+    }
+
+    @Test
+    void neverPairsARowWithAMerchantOrPerson() {
+        UUID out = tx(alice, savings, "DEBIT", "500.00", JAN_10);
+        UUID in = tx(alice, current, "CREDIT", "500.00", JAN_10);
+        Transaction paid = reload(out);
+        paid.setMerchantId(UUID.randomUUID());
+        transactionRepository.saveAndFlush(paid);
+
+        transferService.match(alice.getId());
+
+        assertThat(reload(out).isTransfer()).isFalse();
+        assertThat(reload(in).isTransfer()).isFalse();
+    }
+
+    @Test
+    void deletingAStatementReopensTheOtherHalfOfAnAutomaticPair() {
+        UUID out = tx(alice, savings, "DEBIT", "500.00", JAN_10);
+        UUID in = tx(alice, current, "CREDIT", "500.00", JAN_10);
+        transferService.match(alice.getId());
+        assertThat(reload(in).isTransfer()).isTrue();
+
+        assertThat(statementService.delete(ALICE, current)).isTrue();
+
+        assertThat(transactionRepository.findById(in)).isEmpty();
+        assertThat(reload(out).isTransfer()).isFalse();
+        assertThat(reload(out).getTransferPairId()).isNull();
     }
 
     @Test

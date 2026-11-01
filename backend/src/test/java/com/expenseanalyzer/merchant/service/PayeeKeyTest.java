@@ -39,6 +39,13 @@ class PayeeKeyTest {
     }
 
     @Test
+    void personTransferIsKeyedByPayeeSoRemarksDoNotMatter() {
+        assertThat(PayeeKey.of("UPI/P2A/412345678901/INDIAN RAILWAYS/ticket one", "UPI P2A INDIAN RAILWAYS TICKET ONE"))
+                .isEqualTo("INDIAN RAILWAYS")
+                .isEqualTo(PayeeKey.of("UPI/P2A/412345678999/INDIAN RAILWAYS/refund two", "UPI P2A INDIAN RAILWAYS REFUND TWO"));
+    }
+
+    @Test
     void ofP2mOnlyForMerchantPayeeSegments() {
         assertThat(PayeeKey.ofP2m("UPI/P2M/412345678902/ACME STORE/HDFC/pay")).contains("ACME STORE");
         assertThat(PayeeKey.ofP2m("UPI/P2A/412345678901/RAHUL SHARMA/HDFC")).isEmpty();

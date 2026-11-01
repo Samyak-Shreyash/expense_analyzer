@@ -55,11 +55,7 @@ export function TransactionActions({
   )
 
   const [merchant, setMerchant] = useState(
-    t.merchantName ??
-      t.personName ??
-      t.payeeName ??
-      t.normalizedDescription ??
-      t.description,
+    t.merchantName ?? t.personName ?? t.payeeName ?? '',
   )
 
   const holder = t.personId ? t.personName : t.merchantName
