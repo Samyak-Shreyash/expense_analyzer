@@ -224,7 +224,7 @@ class AuthServiceTest {
         String fullName = "John Doe";
 
         // Act
-        UserResponse response = new UserResponse(email, fullName, UserRole.USER);
+        UserResponse response = new UserResponse(email, fullName, UserRole.USER, java.util.Map.of());
 
         // Assert
         assertThat(response.email()).isEqualTo(email);
