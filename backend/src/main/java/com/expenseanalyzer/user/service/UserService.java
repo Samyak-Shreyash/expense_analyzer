@@ -13,8 +13,12 @@ import com.expenseanalyzer.user.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -36,12 +40,10 @@ public class UserService {
     /**
      * Update user information.
      */
+    @Transactional
     public UserResponse updateUser(String callerEmail, UUID userId, UserRequest request) {
-        logger.debug("Updating user: {}", userId);
-
         Optional<User> optionalUser = userRepository.findById(userId);
         if (!optionalUser.isPresent()) {
-            logger.error("User not found: {}", userId);
             throw new IllegalArgumentException("User not found");
         }
 
@@ -52,27 +54,23 @@ public class UserService {
             throw new AccessDeniedException("Not allowed to update this user");
         }
 
-        // Update email if provided
-        if (request.email() != null && !request.email().isEmpty()) {
-            logger.debug("Setting email for user {}", userId);
-            updatedUser.setEmail(request.email());
+        // Email change is not supported for now
+        if (request.email() != null) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email cannot be changed");
         }
 
         // Update full name if provided
         if (request.fullName() != null && !request.fullName().isEmpty()) {
-            logger.debug("Setting full name for user {}: {}", userId, request.fullName());
             updatedUser.setFullName(request.fullName());
         }
 
         // Update role if provided
         if (request.role() != null) {
-            logger.debug("Setting role for user {}: {}", userId, request.role());
             updatedUser.setRole(request.role());
         }
 
         // Update active status if provided
         if (request.active() != null) {
-            logger.debug("Setting active status for user {}: {}", userId, request.active());
             updatedUser.setActive(request.active());
         }
 
@@ -80,33 +78,24 @@ public class UserService {
 
         // Update preferences if provided
         if (request.preferences() != null) {
-            logger.debug("Updating preferences for user {}: {}", userId, request.preferences());
-            for (String key : request.preferences().keySet()) {
-                Preference pref = getPreference(updatedUser.getId(), key);
-
-                switch (key) {
-                    case "theme":
-                        String themeValue = request.preferences().get("theme").toString();
-                        logger.debug("Setting theme preference: {}", themeValue);
-                        Theme theme = Theme.valueOf(themeValue.toUpperCase());
-                        pref.setTheme(theme);
-                        break;
-
-                    case "currency":
-                        String currencyValue = request.preferences().get("currency").toString();
-                        logger.debug("Setting currency preference: {}", currencyValue);
-                        Currency currency = Currency.valueOf(currencyValue.toUpperCase());
-                        pref.setCurrency(currency);
-                        break;
-
-                    case "notifications":
-                        Boolean notificationValue = (Boolean) request.preferences().get("notifications");
-                        NotificationMode mode = notificationValue ? NotificationMode.ALL : NotificationMode.NONE;
-                        logger.debug("Setting notification mode: {}", mode);
-                        pref.setNotificationMode(mode);
-                        break;
+            for (Map.Entry<String, Object> entry : request.preferences().entrySet()) {
+                Preference pref = getPreference(updatedUser.getId(), entry.getKey());
+                Object value = entry.getValue();
+                try {
+                    switch (entry.getKey()) {
+                        case "theme" -> pref.setTheme(Theme.valueOf(String.valueOf(value).toUpperCase()));
+                        case "currency" -> pref.setCurrency(Currency.valueOf(String.valueOf(value).toUpperCase()));
+                        case "notifications" -> {
+                            if (!(value instanceof Boolean on)) {
+                                throw new IllegalArgumentException();
+                            }
+                            pref.setNotificationMode(on ? NotificationMode.ALL : NotificationMode.NONE);
+                        }
+                        default -> throw new IllegalArgumentException();
+                    }
+                } catch (IllegalArgumentException e) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid preference: " + entry.getKey());
                 }
-
                 preferenceRepository.save(pref);
             }
         }
@@ -129,19 +118,6 @@ public class UserService {
         }
         User user = optionalUser.get();
 
-        // Get preferences
-        Preference currencyPref = preferenceRepository.findByUserIdAndKey(user.getId(), "currency")
-                .orElse(new Preference());
-        currencyPref.setCurrency(Currency.INR);
-
-        Preference themePref = preferenceRepository.findByUserIdAndKey(user.getId(), "theme")
-                .orElse(new Preference());
-        themePref.setTheme(Theme.DARK);
-
-        Preference notificationPref = preferenceRepository.findByUserIdAndKey(user.getId(), "notifications")
-                .orElse(new Preference());
-        notificationPref.setNotificationMode(NotificationMode.ALL);
-
         return Optional.of(new UserResponse(
             user.getEmail(),
             user.getFullName(),
@@ -154,6 +130,11 @@ public class UserService {
      */
     private Preference getPreference(UUID userId, String key) {
         return preferenceRepository.findByUserIdAndKey(userId, key)
-                .orElse(new Preference());
+                .orElseGet(() -> {
+                    Preference pref = new Preference();
+                    pref.setUserId(userId);
+                    pref.setKey(key);
+                    return pref;
+                });
     }
 }
