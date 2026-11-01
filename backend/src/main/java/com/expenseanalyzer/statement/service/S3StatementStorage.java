@@ -2,6 +2,7 @@ package com.expenseanalyzer.statement.service;
 
 import java.io.InputStream;
 import java.net.URI;
+import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -19,7 +20,11 @@ import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
  * the bucket is created on first write. Never logs keys.
  */
 @Service
-public class S3StatementStorage implements StatementStorage {
+public class S3StatementStorage {
+
+    public static String keyFor(UUID userId, UUID statementId) {
+        return "users/" + userId + "/statements/" + statementId;
+    }
 
     private final S3Client s3;
     private final String bucket;
@@ -43,7 +48,6 @@ public class S3StatementStorage implements StatementStorage {
         this.serverSideEncryption = serverSideEncryption;
     }
 
-    @Override
     public void store(String key, InputStream content, long size, String contentType) {
         ensureBucket();
         s3.putObject(b -> {
@@ -55,7 +59,7 @@ public class S3StatementStorage implements StatementStorage {
                 RequestBody.fromInputStream(content, size));
     }
 
-    @Override
+    /** @throws StatementObjectNotFoundException if no object exists for the key */
     public InputStream read(String key) {
         try {
             return s3.getObject(b -> b.bucket(bucket).key(key));
@@ -64,7 +68,7 @@ public class S3StatementStorage implements StatementStorage {
         }
     }
 
-    @Override
+    /** Deleting a missing object is a no-op. */
     public void delete(String key) {
         try {
             s3.deleteObject(b -> b.bucket(bucket).key(key));

@@ -6,7 +6,7 @@ import com.expenseanalyzer.messaging.repository.OutboxEventRepository;
 import com.expenseanalyzer.observability.CorrelationIdFilter;
 import com.expenseanalyzer.statement.model.Statement;
 import com.expenseanalyzer.statement.repository.StatementRepository;
-import com.expenseanalyzer.statement.service.StatementStorage;
+import com.expenseanalyzer.statement.service.S3StatementStorage;
 import com.expenseanalyzer.user.model.User;
 import com.expenseanalyzer.user.model.UserRole;
 import com.expenseanalyzer.user.repository.UserRepository;
@@ -73,7 +73,7 @@ class StatementControllerTest {
     @MockitoBean
     private UserRepository userRepository;
     @MockitoBean
-    private StatementStorage storage;
+    private S3StatementStorage storage;
 
     private MockMvc mockMvc;
     private User alice;
@@ -130,7 +130,7 @@ class StatementControllerTest {
         Statement saved = statementRepository.findAll().getFirst();
         assertThat(saved.getUserId()).isEqualTo(alice.getId());
         assertThat(saved.getFileHash()).hasSize(64);
-        assertThat(saved.getStorageKey()).isEqualTo(StatementStorage.keyFor(alice.getId(), saved.getId()));
+        assertThat(saved.getStorageKey()).isEqualTo(S3StatementStorage.keyFor(alice.getId(), saved.getId()));
         verify(storage).store(eq(saved.getStorageKey()), any(), eq((long) CSV.length), eq("text/csv"));
     }
 

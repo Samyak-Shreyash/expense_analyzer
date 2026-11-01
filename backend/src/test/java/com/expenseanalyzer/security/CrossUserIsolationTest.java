@@ -9,7 +9,7 @@ import com.expenseanalyzer.statement.model.StatementFormat;
 import com.expenseanalyzer.statement.model.StatementStatus;
 import com.expenseanalyzer.statement.repository.StatementRepository;
 import com.expenseanalyzer.statement.service.StatementService;
-import com.expenseanalyzer.statement.service.StatementStorage;
+import com.expenseanalyzer.statement.service.S3StatementStorage;
 import com.expenseanalyzer.transaction.model.Transaction;
 import com.expenseanalyzer.transaction.repository.TransactionRepository;
 import com.expenseanalyzer.transaction.service.TransactionService;
@@ -75,7 +75,7 @@ class CrossUserIsolationTest {
     @MockitoBean
     private UserRepository userRepository;
     @MockitoBean
-    private StatementStorage storage;
+    private S3StatementStorage storage;
 
     private MockMvc mockMvc;
     private UUID alice;
