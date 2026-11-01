@@ -143,7 +143,7 @@ Starts after the core vertical slice. Scope and blocked items are in `MVP-REQUIR
 | MOB-001 | P2 | Scaffold `mobile/`, lint, tests, CI (#331) | - | BACKLOG |
 | MOB-002 | P2 | Refresh token transport for mobile (#332) | - | DONE, verify test coverage against the issue |
 | MOB-002a | P2 | Rate limit `/auth/refresh` (#332) | - | BACKLOG |
-| MOB-003 | P2 | Login, register, secure storage, silent refresh, logout (#333) | MOB-001 | BACKLOG |
+| MOB-003 | P2 | Login, register, secure storage, silent refresh, logout, app lock setup after first login, cache wipe on logout and refresh 401 (#333) | MOB-001 | BACKLOG |
 | MOB-004 | P2 | Shared API client and types (#334) | MOB-001 | BACKLOG |
 | MOB-005 | P2 | Dashboard; balances are Phase 2 (#335) | MOB-003, MOB-004 | BACKLOG |
 | MOB-006 | P2 | Transactions (#336) | MOB-003, MOB-004 | BACKLOG |
