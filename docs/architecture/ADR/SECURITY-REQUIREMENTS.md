@@ -1970,3 +1970,49 @@ If an implementation decision conflicts with this document, the security impact 
 
 **Status:** Draft — Consolidated Security Baseline  
 **Next step:** Convert P0 security requirements into implementation tasks and security integration tests.
+
+# 45. Mobile Client Security
+
+Target, not implemented, except where marked. Owner decisions confirmed 2026-11-02; see `docs/product/MVP-REQUIREMENTS.md` section 8.5.
+
+## 45.1 Tokens
+- The refresh token is stored only in Keychain or Keystore through `expo-secure-store`. The access token stays in memory.
+- Logout revokes the token on the server and clears storage, even if the server call fails.
+- Mobile and web share rotation and revocation (implemented).
+- `/auth/refresh` is not rate limited today, although #332 expects it. It must be rate limited before release (MOB-002a).
+
+## 45.2 Data on the device
+- Financial data on disk is allowed only in the offline read cache. It must never reach logs, analytics stores or unencrypted files.
+- The cache is encrypted at rest with a per-install random key held in Keychain or Keystore (device-only, not backed up), and is excluded from OS backups. Store: `expo-sqlite` with SQLCipher, to be proved on both platforms in MOB-001.
+- The cache holds API responses already shown to this user, never statement files, statement passwords or tokens.
+- The cache is deleted on logout, on a refresh 401, and on account deletion. It is keyed by user, so a different login never sees it.
+- Cached data is deleted 7 days after the last successful sync with the backend. The check runs at app start and on resume, before anything is shown; a device clock moved backwards counts as expired.
+- Statement files taken from the picker or share sheet stay in the app sandbox and are deleted after upload, whether it succeeded or failed.
+- Content is hidden in the app switcher. Android sets `FLAG_SECURE` on financial screens.
+- The app lock is mandatory and cannot be turned off. It uses biometrics, with an app PIN as fallback, and is set up right after first login. No financial data, online or cached, is shown until it is unlocked.
+- The app locks on return after 1 minute in the background, and always on a cold start.
+- A forgotten PIN means logging in again with the password, which clears the cache. After 5 failed PIN attempts, the same path applies.
+- The lock is a local gate, not an authentication factor; it does not replace the server session.
+
+## 45.3 Transport
+- HTTPS only; cleartext is disabled on both platforms except local development builds.
+- No certificate pinning in the first release, because a pin rotation mistake locks users out until they update.
+
+## 45.4 Third parties and telemetry
+- Crash reports use an allow-list: stack trace, app version, OS and device model. Never request or response bodies, tokens, emails, account numbers, descriptions or amounts.
+- Each mobile request sends `X-Correlation-ID`.
+- App store privacy disclosures must match the actual data flows.
+
+## 45.5 Threats and tests
+| Threat | Control | Test |
+|---|---|---|
+| Lost device | Secure storage, encrypted cache, mandatory lock, 7-day cache expiry | Inspect the app sandbox: the cache file is unreadable without the key |
+| Session ended but data remains | Cache wipe on logout, refresh 401, deletion and expiry | Automated test of each path |
+| Lock bypass | Lock checked before any screen renders, including deep links and share-sheet entry | Test each entry point while locked |
+| Out-of-date figures taken as current | Last-updated notice, read-only offline mode | UI test |
+| Stolen refresh token | Rotation, revocation at logout and deletion | Reuse of a rotated token answers 401 (backend) |
+| Crash report leak | Allow-list | Inspect a forced crash payload |
+| Malicious shared file | Backend validation is authoritative | Upload rejection tests |
+| Screen capture | App switcher hiding, `FLAG_SECURE` | Manual checklist on both platforms |
+
+`security-reviewer` review is required before merging auth, storage or upload work.

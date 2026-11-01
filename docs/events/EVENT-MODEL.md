@@ -83,6 +83,8 @@ Requests delivery through a configured notification channel.
 Payload:
 `userId, notificationType, resourceId`
 
+Mobile: Phase 1 of the Mobile Release adds no events. If push is scheduled, this event is the trigger (target; nothing publishes or consumes it today). Push text must be generic and carry only `notificationType` and `resourceId`, never amounts, descriptions, merchant names or account numbers.
+
 ## 4. Delivery Semantics
 - At-least-once delivery should be assumed.
 - Consumers must be idempotent.

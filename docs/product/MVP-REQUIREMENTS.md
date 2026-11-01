@@ -121,3 +121,63 @@ If conversational AI is enabled in MVP+, it must use controlled backend tools an
 9. Duplicate uploads do not silently duplicate financial data.
 10. One user cannot access another user's financial data.
 11. AI and bank integrations are not hidden dependencies.
+
+## 8. Mobile Release Requirements
+
+Not part of the MVP. Status: target, nothing below is built except where marked implemented.
+
+### 8.1 Phase 1: existing API only
+| Area | Requirement | Issue |
+|---|---|---|
+| Foundation | Expo managed workflow, TypeScript strict, in `mobile/`; lint, type check and tests in CI | #331 |
+| Auth | Register, log in, log out, session survives restart, change password, delete account | #333 |
+| Shared client | Request functions and DTO types shared with `frontend/`; web behaviour unchanged | #334 |
+| Dashboard | Same figures as the web dashboard for the same user; pull to refresh; loading, empty and error states | #335 |
+| Transactions | List, filters, detail with raw description preserved, category, merchant and person edits, transfer marking | #336 |
+| Upload | Pick or receive a file through the share sheet, password prompt where the API supports it, progress and status polling | #337 |
+| Management | Categories, merchant names, people and payees, sharing settings | #338 |
+| Analytics | Charts from existing `/analytics/*` endpoints | #339, charts only |
+| Hardening and release | Section 8.3, end-to-end tests, signed preview builds | #341, #342 |
+
+### 8.2 Phase 2: blocked on backend work
+| Feature | Blocked by |
+|---|---|
+| Account balances (#335) | The `account` package is empty; no account or balance API is implemented |
+| AI chat (#339) | The `ai` package is empty, and `BACKLOG.md` holds AI until the core slice is complete |
+| Push notifications (#340) | The `notification` package is empty; needs device tokens, a migration and a delivery provider |
+
+### 8.3 Non-functional requirements
+- Usable at 360dp width, with system dark mode and dynamic font size.
+- Smooth scrolling with 5,000 or more transactions, through server pagination.
+- Upload limit is the backend's: 20 MB by default (`app.statement.upload.max-size-bytes`).
+- No PII, statement contents, account numbers, descriptions, amounts or tokens in logs or crash reports.
+- Security rules are in `docs/architecture/ADR/SECURITY-REQUIREMENTS.md` section 45.
+
+### 8.4 Failure behaviour
+- Offline: show the last loaded data from the encrypted cache, read-only, with a notice giving when it was last updated. Screens never loaded show an offline message with a retry action. Edits and uploads are disabled, not queued.
+- Back online: refetch on the next screen view or pull to refresh, and replace cached values with the backend's. The app never merges or recalculates them.
+- Access token expired: refresh once with a single in-flight request shared by all callers, then retry. If refresh answers 401, clear the session and go to login.
+- Network failure during refresh: keep the stored token and show the offline state. Only a 401 signs the user out. A lost response can leave the rotated token unusable, in which case the next attempt answers 401 and the user logs in again.
+- Upload interrupted: the user retries. A repeat of a file that was stored is answered by the backend's duplicate handling.
+- Account deleted elsewhere: the next request answers 401, and the session and cache are cleared.
+
+### 8.5 Decisions (owner confirmed, 2026-11-02)
+| Decision | Proposal | Trade-off |
+|---|---|---|
+| Scope | Phase 1 only at first release | Not the full parity #330 describes |
+| Device storage | Previously loaded data stays viewable offline, in an encrypted read-only cache. The refresh token and cache key are in Keychain or Keystore | Financial data on the device, more key and wipe handling, and figures that can be out of date |
+| Cache lifetime | Deleted 7 days after the last successful sync | After a week offline, screens show only the offline message |
+| App lock | Mandatory, biometrics with app PIN fallback, set up after first login | One more setup step and unlock on return; users cannot opt out |
+| Third parties | One crash reporter using an allow-list, with an opt-out. No product analytics | Crash reports carry less context |
+| Push provider | Not chosen; decided when Phase 2 is scheduled | None now |
+
+### 8.6 Mobile acceptance criteria
+1. Dashboard and analytics figures match web for the same user and period.
+2. A user can upload a statement on a device and see its processed transactions, against a real backend.
+3. Logout removes the stored token and the cache, and revokes the token on the server.
+4. A rotated refresh token is rejected on reuse.
+5. Inspected crash payloads contain none of the excluded data.
+6. With no network, previously loaded screens show their data with the last-updated notice, and edits and uploads are disabled.
+7. Cached data is gone 7 days after the last successful sync.
+8. No financial data appears before the app lock is set up and unlocked, including through deep links and the share sheet.
+9. Preview builds install on iOS and Android from TestFlight and Play internal testing.
