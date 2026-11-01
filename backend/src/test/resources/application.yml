@@ -1,4 +1,7 @@
 spring:
+  data:
+    redis:
+      port: 1 # closed on purpose: tests must not touch a developer's Redis
   profiles:
     active: test
   datasource:
