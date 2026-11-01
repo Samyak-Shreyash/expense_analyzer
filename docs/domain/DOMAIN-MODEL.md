@@ -180,3 +180,8 @@ Migration validation covers clean creation from an empty PostgreSQL database, mi
 ### 6.8 Explicitly Deferred Financial Semantics
 
 Direction, refunds and own-account transfers are decided in section 4. The baseline does not encode rules for credit-card payments, investment contributions, cash withdrawals, or EMI principal/interest representation; these remain product/domain decisions.
+
+## 7. Mobile Clients (target)
+Phase 1 of the Mobile Release adds no entities, tables or financial semantics. Each signed-in device holds its own row in `refresh_tokens`.
+
+Phase 2 push notifications would add a `DeviceToken` owned by a user: `id`, `user_id`, `platform`, `token`, `created_at`, `last_seen_at`, unique on `token`. It holds no financial data. It would need a new Flyway migration and an entry in the owned tables in `user/service/AccountDeletionService.java`. This is a sketch to be confirmed when push is scheduled.

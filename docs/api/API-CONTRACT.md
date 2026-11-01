@@ -33,6 +33,17 @@ Authenticate a user.
 ### POST `/auth/logout`
 Invalidate the current session.
 
+### Mobile session transport (implemented)
+Send `X-Client-Type: mobile` on these three endpoints to carry the refresh token in JSON instead of the `refresh_token` cookie. Web behaviour without the header is unchanged.
+
+| Endpoint | Request body | Response |
+|---|---|---|
+| POST `/auth/login` | `email`, `password` | `200` with the access token and `refreshToken`. `401` for bad credentials, `429` over the limit |
+| POST `/auth/refresh` | `refreshToken` | `200` with a new access token and a new `refreshToken`; the old one stops working. `401` if missing, unknown, rotated or expired, or the user is inactive |
+| POST `/auth/logout` | `refreshToken` | `204`, including for an unknown token |
+
+An unreadable body answers `400`. Refresh tokens must never be logged. `/auth/refresh` has no rate limit today; one is required before the mobile release (MOB-002a).
+
 ### GET `/user/me`
 Return the authenticated user: `email`, `fullName`, `role` and `preferences` (`theme` `light|dark`, `currency` `inr|usd|eur`, `notifications` boolean; only saved keys are present).
 

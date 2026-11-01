@@ -116,6 +116,15 @@ LLMs are not financial systems of record.
 ## 8. Observability
 Structured logs, metrics, tracing, queue depth, processing duration, DB health, API latency/error rates, and worker failures. OpenTelemetry/Prometheus/Grafana can be introduced as the observability stack.
 
+## 8.1 Mobile Clients (target)
+Native apps (Expo / React Native, in `mobile/`) call the same REST API as the web app. No mobile-specific backend or backend-for-frontend is added, and the backend stays blocking MVC and JPA.
+
+- **Sessions:** implemented. Sending `X-Client-Type: mobile` moves the refresh token from the cookie to the JSON body, with the same rotation and revocation (`auth/controller/AuthController.java`).
+- **Calculations:** the backend remains authoritative. Apps display values and never compute financial results.
+- **Device data:** an encrypted, read-only cache of responses already loaded (`MVP-REQUIREMENTS.md` section 8.5). The backend stays the source of truth; there is no write sync.
+- **Shared code:** request functions and DTO types move to a shared package with storage and transport injected per platform (#334). This needs a JavaScript workspace, which the repo does not have today.
+- **Push:** deferred. The `notification` module is empty.
+
 ## 9. Evolution Path
 1. Modular monolith.
 2. Async workers.

@@ -880,6 +880,10 @@ Behavior Analysis
 Forecasting
 ```
 
+### Mobile Release
+
+Native iOS and Android apps over the existing REST API, after the core vertical slice is complete (epic #330). Requirements are in `MVP-REQUIREMENTS.md` section 8. The apps display backend-computed values only and do not compute financial results. This does not depend on, or block, the AI release.
+
 ### Release 4 — Integrations
 
 Potentially add:
@@ -967,3 +971,4 @@ The PRD should be used together with:
 | Version | Date | Author | Change |
 |---|---|---|---|
 | 0.1 | 2026-09-06 | Expense Analyzer Team | Initial PRD baseline |
+| 0.2 | 2026-11-02 | Expense Analyzer Team | Added Mobile Release |

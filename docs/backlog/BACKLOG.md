@@ -134,6 +134,27 @@ BACKLOG / READY / IN_PROGRESS / BLOCKED / IN_REVIEW / DONE
 | AI-005 | P1 | Add response grounding/validation | AI-004 | READY |
 | AI-006 | P1 | Add AI fallback to deterministic analytics | AI-005 | READY |
 
+## Mobile Release (epic #330)
+
+Starts after the core vertical slice. Scope and blocked items are in `MVP-REQUIREMENTS.md` section 8.
+
+| ID | Priority | Task | Depends On | Status |
+|---|---|---|---|---|
+| MOB-001 | P2 | Scaffold `mobile/`, lint, tests, CI (#331) | - | BACKLOG |
+| MOB-002 | P2 | Refresh token transport for mobile (#332) | - | DONE, verify test coverage against the issue |
+| MOB-002a | P2 | Rate limit `/auth/refresh` (#332) | - | BACKLOG |
+| MOB-003 | P2 | Login, register, secure storage, silent refresh, logout (#333) | MOB-001 | BACKLOG |
+| MOB-004 | P2 | Shared API client and types (#334) | MOB-001 | BACKLOG |
+| MOB-005 | P2 | Dashboard; balances are Phase 2 (#335) | MOB-003, MOB-004 | BACKLOG |
+| MOB-006 | P2 | Transactions (#336) | MOB-003, MOB-004 | BACKLOG |
+| MOB-007 | P2 | Statement upload and share sheet (#337) | MOB-003, MOB-004 | BACKLOG |
+| MOB-008 | P2 | Categories, merchants, people (#338) | MOB-003, MOB-004 | BACKLOG |
+| MOB-009a | P2 | Analytics charts (#339) | MOB-003, MOB-004 | BACKLOG |
+| MOB-009b | P3 | AI chat (#339) | AI-006 | BLOCKED |
+| MOB-010 | P3 | Push notifications (#340) | Provider decision, notification module | BLOCKED |
+| MOB-011 | P2 | App security hardening, mandatory app lock, encrypted cache with 7-day expiry (#341) | MOB-003 | BACKLOG |
+| MOB-012 | P2 | End-to-end tests and release builds (#342) | MOB-003 to MOB-008 | BACKLOG |
+
 ## TXN-001 Scope Resolution (#222)
 
 Decision: **#110 and the backlog row TXN-001 are the same work; the duplicate is merged, not kept as separate scope.** Only a bounded remainder stays open, under #224.
@@ -162,7 +183,7 @@ Overlap with #187 ("[TEST] Test transaction invariants", parent #110, OPEN): #18
 - Service extraction from modular monolith.
 - Kubernetes/multi-region.
 - Advanced notifications.
-- Mobile-native applications.
+- Mobile push notifications, AI chat and balances on mobile (see Mobile Release).
 
 ## Definition of Done
 A task is DONE only when implementation, tests, validation, error handling, relevant observability, documentation/API/event updates, security review, and local verification are complete. Significant features also require performance, concurrency, failure, and backward-compatibility checks where applicable.

@@ -268,16 +268,14 @@ Production infrastructure should still meet appropriate security, backup, recove
 
 ## 16. Native Mobile Applications
 
-A native iOS/Android application is not required to validate the initial backend and product workflow.
+**Status (owner decision, 2026-11-02):** native iOS and Android apps move into scope as a release after the MVP, under the section 21 criterion "a clearly defined owner, acceptance criteria, and implementation plan" (epic #330). No user research or usage data supports this yet. See `PRD.md` section 21 and `MVP-REQUIREMENTS.md` section 8.
 
-Deferred:
+A native application remains not required to validate the initial backend and product workflow; the MVP still ships on the responsive web app.
 
-- Native iOS application.
-- Native Android application.
-- Mobile-specific offline synchronization.
-- Mobile push-notification infrastructure.
+Still deferred:
 
-A responsive web experience can support the initial product validation.
+- Mobile-specific offline synchronization: offline edits and two-way sync. A read-only offline cache of loaded data is in scope.
+- Mobile push-notification infrastructure, until the Mobile release's later phase is scheduled.
 
 ---
 
