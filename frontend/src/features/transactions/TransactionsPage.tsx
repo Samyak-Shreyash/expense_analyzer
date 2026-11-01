@@ -308,7 +308,10 @@ export function TransactionsPage() {
                 <tr>
                   <th>Date</th>
                   <th>Description</th>
-                  <th>Merchant / Person</th>
+                  <th>
+                    <span className={styles.merchant}>Merchant</span> /{' '}
+                    <span className={styles.person}>Person</span>
+                  </th>
                   <th>Category</th>
                   <th className={shared.num}>Amount</th>
                 </tr>
@@ -345,7 +348,7 @@ export function TransactionsPage() {
                               onClick={() => update({ personId: t.personId! })}
                             >
                               {t.personName}
-                              <span className={styles.tag}>Person</span>
+                              <span className={styles.hoverTag}>Person</span>
                             </button>
                           </RenameOnHover>
                         ) : t.merchantId ? (
@@ -364,7 +367,7 @@ export function TransactionsPage() {
                               }
                             >
                               {t.merchantName}
-                              <span className={styles.tag}>Merchant</span>
+                              <span className={styles.hoverTag}>Merchant</span>
                             </button>
                           </RenameOnHover>
                         ) : (
@@ -417,21 +420,28 @@ export function TransactionsPage() {
                         {t.transfer && (
                           <span className={styles.transfer}>
                             <span className={styles.tag}>Transfer</span>
-                            <button
-                              type="button"
-                              className={shared.quiet}
-                              onClick={() =>
-                                update({
-                                  transfer: 'true',
-                                  from: shift(t.date, -3),
-                                  to: shift(t.date, 3),
-                                })
-                              }
-                            >
-                              {t.transferPairId
-                                ? 'Show both halves'
-                                : 'Show transfers around this date'}
-                            </button>
+                            {t.transferPairId && (
+                              <button
+                                type="button"
+                                className={shared.quiet}
+                                onClick={() =>
+                                  update({
+                                    transfer: 'true',
+                                    from: shift(t.date, -3),
+                                    to: shift(t.date, 3),
+                                  })
+                                }
+                              >
+                                Show both halves
+                              </button>
+                            )}
+                          </span>
+                        )}
+                        {t.reversalPairId && (
+                          <span className={styles.transfer}>
+                            <span className={styles.tag}>
+                              Failed – refunded
+                            </span>
                           </span>
                         )}
                         <CategoryCell

@@ -1,10 +1,13 @@
 import { useState } from 'react'
 import shared from '../../components/shared.module.css'
+import { dayLabel, rupees } from '../../lib/format'
 import {
+  listTransactions,
   setCounterparty,
   setMerchantCategory,
   setPersonCategory,
   setTransactionCategory,
+  setReversal,
   setTransfer,
   type Category,
   type Transaction,
@@ -13,6 +16,14 @@ import styles from './TransactionsPage.module.css'
 
 const PICK = ''
 const CLEAR = '__clear'
+/** How far from a failed payment its refund is looked for, either way. */
+const REFUND_DAYS = 7
+
+const shift = (date: string, days: number) => {
+  const d = new Date(`${date}T00:00:00Z`)
+  d.setUTCDate(d.getUTCDate() + days)
+  return d.toISOString().slice(0, 10)
+}
 
 /**
  * Detail-row controls: this transaction's category, the default for its
@@ -35,6 +46,8 @@ export function TransactionActions({
     null,
   )
   const [bulk, setBulk] = useState(PICK)
+  const [candidates, setCandidates] = useState<Transaction[] | null>(null)
+  const [partner, setPartner] = useState(PICK)
   const [isPerson, setIsPerson] = useState(t.personId !== null)
   const [name, setName] = useState(
     t.personName ?? t.payeeName ?? t.normalizedDescription ?? t.description,
@@ -140,6 +153,85 @@ export function TransactionActions({
             ? 'Not a transfer between my accounts'
             : 'Mark as a transfer between my accounts'}
         </button>
+      </div>
+
+      <div className={styles.bulk}>
+        <span className={shared.label}>Failed payment and refund</span>
+        {t.reversalPairId ? (
+          <button
+            type="button"
+            className={shared.button}
+            onClick={() =>
+              save(async () => {
+                await setReversal(t.id, null)
+                reload()
+              }, 'No longer marked as failed and refunded.')
+            }
+          >
+            Not a failed payment and refund
+          </button>
+        ) : candidates === null ? (
+          <button
+            type="button"
+            className={shared.button}
+            onClick={() =>
+              save(async () => {
+                const page = await listTransactions({
+                  direction: t.direction === 'DEBIT' ? 'CREDIT' : 'DEBIT',
+                  minAmount: t.amount,
+                  maxAmount: t.amount,
+                  from: shift(t.date, -REFUND_DAYS),
+                  to: shift(t.date, REFUND_DAYS),
+                })
+                const found = page.items.filter((x) => x.id !== t.id)
+                setCandidates(found)
+                setPartner(found[0]?.id ?? PICK)
+              }, '')
+            }
+          >
+            {t.direction === 'DEBIT'
+              ? 'Mark as failed and refunded'
+              : 'Mark as the refund of a failed payment'}
+          </button>
+        ) : candidates.length === 0 ? (
+          <span className={shared.muted}>
+            No {t.direction === 'DEBIT' ? 'money in' : 'money out'} of{' '}
+            {rupees(t.amount)} within {REFUND_DAYS} days of this one.
+          </span>
+        ) : (
+          <>
+            <label>
+              <span className={shared.label}>
+                {t.direction === 'DEBIT' ? 'The refund' : 'The failed payment'}
+              </span>
+              <select
+                className={shared.input}
+                value={partner}
+                onChange={(e) => setPartner(e.target.value)}
+              >
+                {candidates.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {dayLabel(c.date)} ·{' '}
+                    {c.normalizedDescription ?? c.description}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              className={shared.button}
+              disabled={partner === PICK}
+              onClick={() =>
+                save(async () => {
+                  await setReversal(t.id, partner)
+                  reload()
+                }, 'Marked as failed and refunded. Both are left out of your totals.')
+              }
+            >
+              Pair them
+            </button>
+          </>
+        )}
       </div>
 
       <fieldset className={styles.counterparty}>

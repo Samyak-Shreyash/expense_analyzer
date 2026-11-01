@@ -31,6 +31,8 @@ import org.springframework.web.server.ResponseStatusException;
 @RequiredArgsConstructor
 public class CategoryService {
 
+    /** Default category for money in from a merchant. */
+    public static final String REFUND = "Refund";
     private static final int MAX_NAME_LENGTH = 50;
     private static final List<String> NON_SPENDING_DEFAULTS = List.of("Repayment", "Loan");
 
@@ -57,6 +59,8 @@ public class CategoryService {
         for (String name : MerchantNormalizer.defaultCategoryNames()) {
             seed(userId, name, true, have);
         }
+        // counts as spending so merchant totals keep netting refunds
+        seed(userId, REFUND, true, have);
         for (String name : NON_SPENDING_DEFAULTS) {
             seed(userId, name, false, have);
         }

@@ -19,7 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 /**
  * The single definition of a transaction's effective category: its own category, else the person's category, else the
- * user's category for its merchant, else the user's category named like the merchant's categoryHint, else none.
+ * user's category for its merchant, else for money in from a merchant the user's Refund category, else the user's
+ * category named like the merchant's categoryHint, else none.
  * {@link #forUser} loads the user's categories and merchant mappings once; resolve any number of rows from it.
  */
 @Component
@@ -83,6 +84,10 @@ public class EffectiveCategoryResolver {
             UUID mapped = mapping == null ? null : mapping.categoryFor(credit);
             if (mapped != null && byId.containsKey(mapped)) {
                 return byId.get(mapped);
+            }
+            Category refund = credit ? named(CategoryService.REFUND) : null;
+            if (refund != null) {
+                return refund;
             }
             return merchant == null || merchant.getCategoryHint() == null ? null : byName.get(key(merchant.getCategoryHint()));
         }

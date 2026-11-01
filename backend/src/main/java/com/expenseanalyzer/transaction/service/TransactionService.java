@@ -18,6 +18,7 @@ import com.expenseanalyzer.merchant.service.MerchantService;
 import com.expenseanalyzer.merchant.service.PayeeKey;
 import com.expenseanalyzer.merchant.service.PersonService;
 import com.expenseanalyzer.transaction.dto.CounterpartyRequest;
+import com.expenseanalyzer.transaction.dto.ReversalRequest;
 import com.expenseanalyzer.transaction.dto.TransactionFilter;
 import com.expenseanalyzer.transaction.dto.TransactionResponse;
 import com.expenseanalyzer.transaction.dto.TransferRequest;
@@ -178,6 +179,53 @@ public class TransactionService {
         }
         t.setUpdatedAt(now);
         return response(transactionRepository.save(t), userId);
+    }
+
+    /**
+     * Pairs a failed payment with the refund that reversed it, or unpairs it when {@code pairWithId} is null. The
+     * other half must be the caller's, in the other direction, with the same amount and currency (else 400). Both are
+     * then left out of analytics; any earlier partner of either is released, and a transfer mark is cleared (the
+     * user's choice, so automatic transfer matching leaves them alone). Not yours: 404.
+     */
+    @Transactional
+    public TransactionResponse setReversal(String email, UUID id, ReversalRequest request) {
+        UUID userId = currentUser(email).getId();
+        Transaction t = owned(id, userId);
+        Instant now = Instant.now();
+        unpairReversal(t, userId, now);
+        if (request.pairWithId() != null) {
+            Transaction other = owned(request.pairWithId(), userId);
+            if (other.getId().equals(t.getId()) || other.getType().equals(t.getType())
+                    || other.getAmount().compareTo(t.getAmount()) != 0 || !other.getCurrency().equals(t.getCurrency())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "A refund pairs money out and money in of the same amount");
+            }
+            unpairReversal(other, userId, now);
+            for (Transaction half : List.of(t, other)) {
+                release(half, userId, true, now);
+                half.setTransfer(false);
+                half.setTransferManual(true);
+            }
+            t.setReversalPairId(other.getId());
+            other.setReversalPairId(t.getId());
+            other.setUpdatedAt(now);
+            transactionRepository.save(other);
+        }
+        t.setUpdatedAt(now);
+        return response(transactionRepository.save(t), userId);
+    }
+
+    /** Clears the transaction's refund pairing on both halves, if it has one. */
+    private void unpairReversal(Transaction t, UUID userId, Instant now) {
+        if (t.getReversalPairId() == null) {
+            return;
+        }
+        transactionRepository.findByIdAndUserId(t.getReversalPairId(), userId).ifPresent(partner -> {
+            partner.setReversalPairId(null);
+            partner.setUpdatedAt(now);
+            transactionRepository.save(partner);
+        });
+        t.setReversalPairId(null);
     }
 
     /** Unlinks the transaction's partner, if any; {@code manual} records the partner as the user's choice too. */
@@ -414,7 +462,7 @@ public class TransactionService {
     /**
      * Filters by effective category name (case-insensitive). This is the SQL form of {@link Resolution#resolve}; keep
      * them in sync. Order: own category (only if it is one of the user's), else the person's category, else the
-     * merchant mapping (person and mapping: their money-in or money-out category by the row's type), else a merchant categoryHint naming one of the user's categories, else Uncategorized.
+     * merchant mapping (person and mapping: their money-in or money-out category by the row's type), else for money in from a merchant the user's Refund category, else a merchant categoryHint naming one of the user's categories, else Uncategorized.
      * A categoryId (or mapping, or person category) that is not one of the user's categories counts as not set.
      * Everything is matched through subqueries; no id lists are bound.
      */
@@ -426,13 +474,17 @@ public class TransactionService {
         }
         UUID categoryId = uncategorized ? null : category.getId();
         String lowerName = uncategorized ? null : category.getName().toLowerCase(Locale.ROOT);
+        Category refund = resolution.named(CategoryService.REFUND);
+        boolean isRefund = refund != null && refund.getId().equals(categoryId);
         return (root, q, cb) -> {
             Predicate ownValid = in(cb, root.get("categoryId"), userCategories(q, cb, userId));
             Predicate credit = cb.equal(root.get("type"), "CREDIT");
             Predicate personValid = byDirection(cb, credit, root.get("personId"), f -> people(q, cb, userId, null, f));
             Predicate mappedValid = byDirection(cb, credit, root.get("merchantId"), f -> mappings(q, cb, userId, null, f));
+            Predicate refundDefault = refund == null ? cb.disjunction()
+                    : cb.and(credit, cb.isNotNull(root.get("merchantId")));
             if (uncategorized) {
-                return cb.and(cb.not(ownValid), cb.not(personValid), cb.not(mappedValid),
+                return cb.and(cb.not(ownValid), cb.not(personValid), cb.not(mappedValid), cb.not(refundDefault),
                         cb.not(in(cb, root.get("merchantId"), hinted(q, cb, userId, null))));
             }
             Predicate viaPerson = byDirection(cb, credit, root.get("personId"),
@@ -440,9 +492,11 @@ public class TransactionService {
             Predicate viaMapping = byDirection(cb, credit, root.get("merchantId"),
                     f -> mappings(q, cb, userId, categoryId, f));
             Predicate viaHint = cb.and(in(cb, root.get("merchantId"), hinted(q, cb, userId, lowerName)),
-                    cb.not(mappedValid));
+                    cb.not(mappedValid), cb.not(refundDefault));
+            Predicate viaRefund = isRefund ? cb.and(refundDefault, cb.not(mappedValid)) : cb.disjunction();
             return cb.or(cb.equal(root.get("categoryId"), categoryId),
-                    cb.and(cb.not(ownValid), cb.or(viaPerson, cb.and(cb.not(personValid), cb.or(viaMapping, viaHint)))));
+                    cb.and(cb.not(ownValid), cb.or(viaPerson,
+                            cb.and(cb.not(personValid), cb.or(viaMapping, viaHint, viaRefund)))));
         };
     }
 

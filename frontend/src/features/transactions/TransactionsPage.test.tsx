@@ -14,6 +14,7 @@ vi.mock('../../services/finance', async (orig) => ({
   setCounterparty: vi.fn(),
   setMerchantCategory: vi.fn(),
   setTransfer: vi.fn(),
+  setReversal: vi.fn(),
   setPersonCategory: vi.fn(),
   updatePerson: vi.fn(),
   listPeople: vi.fn(),
@@ -43,6 +44,7 @@ const swiggy: Transaction = {
   payeeType: null,
   transfer: false,
   transferPairId: null,
+  reversalPairId: null,
 }
 
 const categories: finance.Category[] = [
@@ -995,8 +997,11 @@ describe('TransactionsPage', () => {
         'Ravi Kumar',
       ),
     )
-    expect(await screen.findByText('Ravi Kumar')).toBeTruthy()
-    expect(screen.getByText('Person')).toBeTruthy()
+    expect(
+      await screen.findByRole('button', {
+        name: 'Show all payments with Ravi Kumar',
+      }),
+    ).toBeTruthy()
   })
 
   it('shows the server message when the counterparty is rejected', async () => {
@@ -1049,6 +1054,66 @@ describe('TransactionsPage', () => {
       expect(
         await screen.findByText('Marked as a transfer between your accounts.'),
       ).toBeTruthy()
+    })
+
+    it('pairs a failed payment with its refund', async () => {
+      const refund: Transaction = {
+        ...swiggy,
+        id: 't2',
+        direction: 'CREDIT',
+        normalizedDescription: 'SWIGGY REFUND',
+      }
+      vi.mocked(finance.listTransactions).mockImplementation(async (q) => ({
+        items: q.direction === 'CREDIT' ? [refund] : [swiggy],
+        page: 0,
+        size: 50,
+        totalItems: 1,
+        totalPages: 1,
+      }))
+      vi.mocked(finance.setReversal).mockResolvedValue({
+        ...swiggy,
+        reversalPairId: 't2',
+      })
+      renderPage()
+      fireEvent.click(
+        await screen.findByRole('button', { name: /SWIGGY ORDER/ }),
+      )
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Mark as failed and refunded' }),
+      )
+      await waitFor(() =>
+        expect(finance.listTransactions).toHaveBeenLastCalledWith({
+          direction: 'CREDIT',
+          minAmount: 450,
+          maxAmount: 450,
+          from: '2025-12-26',
+          to: '2026-01-09',
+        }),
+      )
+      expect(
+        (await screen.findByRole('combobox', { name: 'The refund' }))
+          .textContent,
+      ).toContain('SWIGGY REFUND')
+      fireEvent.click(screen.getByRole('button', { name: 'Pair them' }))
+      await waitFor(() =>
+        expect(finance.setReversal).toHaveBeenCalledWith('t1', 't2'),
+      )
+    })
+
+    it('labels a paired failed payment and can unpair it', async () => {
+      only({ ...swiggy, reversalPairId: 't2' })
+      vi.mocked(finance.setReversal).mockResolvedValue(swiggy)
+      renderPage()
+      expect(await screen.findByText('Failed – refunded')).toBeTruthy()
+      fireEvent.click(screen.getByRole('button', { name: /SWIGGY ORDER/ }))
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: 'Not a failed payment and refund',
+        }),
+      )
+      await waitFor(() =>
+        expect(finance.setReversal).toHaveBeenCalledWith('t1', null),
+      )
     })
 
     it('labels a transfer and shows both halves around its date', async () => {

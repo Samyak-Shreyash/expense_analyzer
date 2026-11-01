@@ -3,6 +3,7 @@ package com.expenseanalyzer.transaction.controller;
 import com.expenseanalyzer.category.dto.CategoryAssignment;
 import com.expenseanalyzer.common.dto.PageResponse;
 import com.expenseanalyzer.transaction.dto.CounterpartyRequest;
+import com.expenseanalyzer.transaction.dto.ReversalRequest;
 import com.expenseanalyzer.transaction.dto.MerchantNameRequest;
 import com.expenseanalyzer.transaction.dto.TransactionFilter;
 import com.expenseanalyzer.transaction.dto.TransferRequest;
@@ -73,6 +74,13 @@ public class TransactionController {
     public TransactionResponse setTransfer(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
                                            @RequestBody TransferRequest body) {
         return transactionService.setTransfer(jwt.getSubject(), id, body);
+    }
+
+    /** Pairs a failed payment with the refund that reversed it, or unpairs it (null pairWithId). */
+    @PutMapping("/{id}/reversal")
+    public TransactionResponse setReversal(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
+                                           @RequestBody ReversalRequest body) {
+        return transactionService.setReversal(jwt.getSubject(), id, body);
     }
 
     @PutMapping("/{id}/category")
