@@ -1581,7 +1581,7 @@ Still open: enforcing backup expiry, personal data in shared merchant names, and
 - **Financial data:** deleting a user deletes all their financial data, including stored statement files.
 - **Audit records:** `audit_logs` rows are kept with the user id removed. How long they are kept is still open (question 6).
 - **Shared merchant names:** the user's votes are removed. Shared merchants stay in place.
-- **Soft deletion:** financial data goes at once. The `users` row stays inactive with `deleted_at` set and name, preferences and password removed, so existing access tokens get 401 and the email stays taken. An hourly job removes the row once the access token lifetime has passed.
+- **Soft deletion:** financial data goes at once. The `users` row stays inactive with `deleted_at` set and name, preferences and password removed, so existing access tokens get 401 and the email stays taken. An hourly job removes the row, and anything written during deletion, once the access token lifetime plus five minutes has passed.
 - **Backups:** deleted data remains in backups for up to 30 days, until those backups expire. User-facing text must state this window and must not promise immediate physical deletion.
 
 ---

@@ -18,13 +18,18 @@ export function LoginPage() {
     e.preventDefault()
     const form = new FormData(e.currentTarget)
     setBusy(true)
-    const ok = await login(
-      String(form.get('email')),
-      String(form.get('password')),
-    )
-    setBusy(false)
-    if (ok) navigate(from ?? '/dashboard', { replace: true })
-    else setError('Invalid email or password.')
+    try {
+      const ok = await login(
+        String(form.get('email')),
+        String(form.get('password')),
+      )
+      if (ok) navigate(from ?? '/dashboard', { replace: true })
+      else setError('Invalid email or password.')
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not log in.')
+    } finally {
+      setBusy(false)
+    }
   }
 
   const err = error

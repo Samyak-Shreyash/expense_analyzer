@@ -24,6 +24,9 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.annotation.*;
 
+import com.expenseanalyzer.auth.config.RateLimiter;
+import jakarta.servlet.http.HttpServletRequest;
+
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor 
@@ -35,6 +38,7 @@ public class AuthController {
     private final AuthService authService;
     private final RefreshTokenService refreshTokenService;
     private final AuditService auditService;
+    private final RateLimiter rateLimiter;
 
     // Refresh cookie: HttpOnly (no JS access), sent only to /api/auth, never cross-site.
     private static final String REFRESH_COOKIE = "refresh_token";
@@ -47,7 +51,9 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request,
-            @RequestHeader(name = CLIENT_TYPE_HEADER, required = false) String clientType) {
+            @RequestHeader(name = CLIENT_TYPE_HEADER, required = false) String clientType,
+            HttpServletRequest servletRequest) {
+        rateLimiter.checkLogin(request.email(), servletRequest.getRemoteAddr());
         Authentication authentication;
         try {
             authentication = authenticationManager.authenticate(
@@ -58,6 +64,7 @@ public class AuthController {
                     userRepository.findByEmail(request.email()).map(User::getId).orElse(null));
             throw e;
         }
+        rateLimiter.resetLogin(request.email(), servletRequest.getRemoteAddr());
         if (authentication.isAuthenticated() && !authentication.getAuthorities().isEmpty()) {
             String jwt = tokenProvider.generateToken(authentication);
             

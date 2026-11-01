@@ -4,6 +4,7 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 
+import org.hibernate.annotations.DynamicUpdate;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -35,6 +36,8 @@ import java.util.UUID;
         @Index(name = "idx_users_email", columnList = "email", unique = true)
     }
 )
+// Dynamic: a request that loaded this user before deletion must not write deleted_at or is_active back.
+@DynamicUpdate
 @Getter
 @Setter
 @NoArgsConstructor
