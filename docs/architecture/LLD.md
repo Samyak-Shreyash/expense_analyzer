@@ -1,7 +1,7 @@
 # Expense Analyzer — Low-Level Design
 
 **Document ID:** ARCH-004  
-**Version:** 0.1  
+**Version:** 0.2  
 **Status:** Draft  
 **Depends on:** `PRD.md`, `MVP-REQUIREMENTS.md`, `HLD.md`, `DOMAIN-MODEL.md`, `API-CONTRACT.md`, `EVENT-MODEL.md`
 
@@ -1032,15 +1032,7 @@ Prefer ownership-aware queries.
 
 # 21. Object Storage
 
-Define an abstraction:
-
-```java
-interface StatementStorage {
-    StoredObject store(...);
-    InputStream read(...);
-    void delete(...);
-}
-```
+`S3StatementStorage` stores, reads and deletes the objects.
 
 Database stores:
 

@@ -16,7 +16,8 @@ import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
 
 /**
- * S3-compatible storage (RustFS locally). Objects are private and, unless disabled, encrypted at rest with SSE-S3;
+ * Private storage for original statement files. The database keeps only the key, never the bytes.
+ * S3-compatible (RustFS locally). Objects are private and, unless disabled, encrypted at rest with SSE-S3;
  * the bucket is created on first write. Never logs keys.
  */
 @Service
