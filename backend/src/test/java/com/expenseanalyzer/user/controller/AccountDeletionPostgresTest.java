@@ -51,7 +51,7 @@ class AccountDeletionPostgresTest extends AccountDeletionTest {
 
         assertThat(deletion.get(30, TimeUnit.SECONDS)).isEqualTo(204);
         assertThat(rows("categories", alice)).isZero();
-        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM users WHERE id = ?", Integer.class, alice)).isZero();
+        assertSoftDeleted(alice);
     }
 
     private void waitForBlockedQuery() throws InterruptedException {
