@@ -74,9 +74,6 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
     @Query("SELECT t.transactionFingerprint FROM Transaction t WHERE t.userId = :userId AND t.transactionFingerprint IN :fingerprints")
     Set<String> findExistingFingerprints(UUID userId, Collection<String> fingerprints);
 
-    /** The user's rows open to automatic transfer matching: not a transfer and never marked or unmarked by them. */
-    List<Transaction> findByUserIdAndTransferFalseAndTransferManualFalse(UUID userId);
-
     /** Rows: [type, sum of amountCents] over own-account transfers only. */
     @Query("SELECT t.type, SUM(CASE WHEN t.reversalPairId IS NULL THEN t.amountCents ELSE t.reversalChargePaise END) FROM Transaction t "
             + "WHERE t.userId = :userId AND t.transfer = TRUE AND t.date >= :from AND t.date < :to GROUP BY t.type")
