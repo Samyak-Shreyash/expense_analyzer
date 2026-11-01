@@ -118,6 +118,10 @@ public class User {
     @Column(name = "last_login_at")
     private Instant lastLoginAt;
 
+    /** Set when the account is deleted; the row goes once the user's access tokens have expired. */
+    @Column(name = "deleted_at")
+    private Instant deletedAt;
+
     // ---- Lifecycle hooks ----
 
     @PrePersist

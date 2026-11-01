@@ -64,6 +64,7 @@ export function ProfilePage() {
               className={styles.input}
               value={fullName}
               maxLength={255}
+              required
               onChange={(e) => setFullName(e.target.value)}
             />
           </label>

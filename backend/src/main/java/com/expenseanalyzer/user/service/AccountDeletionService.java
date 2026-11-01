@@ -8,12 +8,16 @@ import com.expenseanalyzer.statement.repository.StatementRepository;
 import com.expenseanalyzer.statement.service.S3StatementStorage;
 import com.expenseanalyzer.user.model.User;
 import com.expenseanalyzer.user.repository.UserRepository;
+import java.sql.Timestamp;
+import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -23,8 +27,10 @@ import org.springframework.web.server.ResponseStatusException;
 /**
  * Deletes the caller's account per docs/architecture/ADR/SECURITY-REQUIREMENTS.md section 33.1: stored files first, so
  * a storage failure (503) leaves every row in place and the request can be retried, then all rows in one transaction.
- * Audit rows stay with the user id removed; shared merchants stay.
+ * Audit rows stay with the user id removed; shared merchants stay. The users row stays inactive with deleted_at set,
+ * so access tokens already issued get 401 and the email stays taken until they expire; then purgeExpired removes it.
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AccountDeletionService {
@@ -43,11 +49,35 @@ public class AccountDeletionService {
     private final JdbcTemplate jdbc;
     private final TransactionTemplate transaction;
 
+    @Value("${app.oauth.jwt.tokenExpirationSeconds:3600}")
+    private long tokenLifetimeSeconds;
+
     public void delete(String email, String password) {
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         passwordService.verifyCurrentPassword(user, password);
         UUID userId = user.getId();
+        removeData(userId, () -> {
+            Timestamp now = Timestamp.from(Instant.now());
+            jdbc.update("UPDATE users SET deleted_at = ?, updated_at = ?, is_active = FALSE, password_hash = '', "
+                    + "full_name = NULL, preferences = NULL WHERE id = ?", now, now, userId);
+            auditService.record(AuditAction.ACCOUNT_DELETED, null);
+        });
+    }
+
+    /** Removes soft-deleted users whose access tokens have expired, and anything that slipped in after deletion. */
+    public void purgeExpired() {
+        Timestamp cutoff = Timestamp.from(Instant.now().minusSeconds(tokenLifetimeSeconds));
+        for (UUID userId : jdbc.queryForList("SELECT id FROM users WHERE deleted_at < ?", UUID.class, cutoff)) {
+            try {
+                removeData(userId, () -> jdbc.update("DELETE FROM users WHERE id = ?", userId));
+            } catch (RuntimeException e) {
+                log.warn("Deleted user purge failed, retrying next run: error={}", e.getClass().getSimpleName());
+            }
+        }
+    }
+
+    private void removeData(UUID userId, Runnable finish) {
         Set<String> deletedKeys = new HashSet<>();
         deleteFiles(userId, deletedKeys);
         transaction.executeWithoutResult(status -> {
@@ -56,8 +86,7 @@ public class AccountDeletionService {
             deleteFiles(userId, deletedKeys); // a statement uploaded since the first pass
             OWNED_TABLES.forEach(table -> jdbc.update("DELETE FROM " + table + " WHERE user_id = ?", userId));
             jdbc.update("UPDATE audit_logs SET user_id = NULL WHERE user_id = ?", userId);
-            jdbc.update("DELETE FROM users WHERE id = ?", userId);
-            auditService.record(AuditAction.ACCOUNT_DELETED, null);
+            finish.run();
         });
     }
 

@@ -9,6 +9,7 @@ import com.expenseanalyzer.user.model.User;
 import com.expenseanalyzer.user.model.UserRole;
 import com.expenseanalyzer.user.repository.PreferenceRepository;
 import com.expenseanalyzer.user.repository.UserRepository;
+import com.expenseanalyzer.user.service.AccountDeletionService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,6 +29,7 @@ import org.springframework.web.server.ResponseStatusException;
 import software.amazon.awssdk.core.exception.SdkClientException;
 
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -67,6 +69,8 @@ class AccountDeletionTest {
     JdbcTemplate jdbc;
     @Autowired
     private StatementProcessor processor;
+    @Autowired
+    private AccountDeletionService accountDeletionService;
     @Autowired
     private PreferenceRepository preferenceRepository;
     @MockitoBean
@@ -185,6 +189,11 @@ class AccountDeletionTest {
         return jdbc.queryForObject("SELECT COUNT(*) FROM users WHERE id = ?", Integer.class, user);
     }
 
+    void assertSoftDeleted(UUID user) {
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM users WHERE id = ? AND deleted_at IS NOT NULL "
+                + "AND is_active = FALSE AND full_name IS NULL AND password_hash = ''", Integer.class, user)).isEqualTo(1);
+    }
+
     private void assertAllRowsPresent(UUID user) {
         assertThat(userRows(user)).isEqualTo(1);
         for (String table : OWNED) {
@@ -196,7 +205,7 @@ class AccountDeletionTest {
     void removesEverythingTheUserOwnsAndNothingOfAnyoneElse() throws Exception {
         deleteAccount(ALICE, PASSWORD).andExpect(status().isNoContent());
 
-        assertThat(userRows(alice)).isZero();
+        assertSoftDeleted(alice);
         for (String table : OWNED) {
             assertThat(rows(table, alice)).as(table).isZero();
         }
@@ -204,6 +213,24 @@ class AccountDeletionTest {
         verify(storage, never()).delete("users/" + bob + "/statements/x");
         assertAllRowsPresent(bob);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM merchants WHERE id = ?", Integer.class, merchant)).isEqualTo(1);
+    }
+
+    @Test
+    void purgeWaitsForTokensToExpireThenRemovesTheUserAndAnythingLate() throws Exception {
+        deleteAccount(ALICE, PASSWORD).andExpect(status().isNoContent());
+
+        accountDeletionService.purgeExpired();
+        assertSoftDeleted(alice);
+
+        Timestamp old = Timestamp.from(Instant.now().minus(Duration.ofDays(30)));
+        jdbc.update("UPDATE users SET deleted_at = ? WHERE id = ?", old, alice);
+        UUID lateAudit = seedAudit(alice, old);
+        accountDeletionService.purgeExpired();
+
+        assertThat(userRows(alice)).isZero();
+        assertThat(jdbc.queryForObject("SELECT user_id FROM audit_logs WHERE id = ?", UUID.class, lateAudit)).isNull();
+        assertAllRowsPresent(bob);
+        jdbc.update("DELETE FROM audit_logs WHERE id = ?", lateAudit);
     }
 
     @Test
@@ -250,7 +277,7 @@ class AccountDeletionTest {
 
         doNothing().when(storage).delete(anyString());
         deleteAccount(ALICE, PASSWORD).andExpect(status().isNoContent());
-        assertThat(userRows(alice)).isZero();
+        assertSoftDeleted(alice);
         verify(storage, times(2)).delete("users/" + alice + "/statements/x");
     }
 

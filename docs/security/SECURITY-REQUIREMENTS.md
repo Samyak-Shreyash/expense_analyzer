@@ -26,6 +26,7 @@ Roles: `USER`, `ADMIN`. No admin-only endpoints exist yet; ADMIN has no extra da
 |---|---|---|---|
 | `POST /api/auth/login`, `/register`, `/refresh`, `/logout` | allow | allow | n/a |
 | `GET /actuator/health/**`, `/actuator/prometheus` | allow | allow | n/a |
+| `PUT /api/user/me`, `/api/user/me/password`, `DELETE /api/user/me` | 401 | 200, 204, 204 | n/a, caller comes from the token |
 | `POST /api/statements` | 401 | 201 | n/a |
 | `GET /api/statements`, `/api/transactions`, `/api/analytics/*` | 401 | 200, own rows only | never included |
 | `GET /api/statements/{id}`, `/{id}/status`, `/api/transactions/{id}` | 401 | 200 | 404 |
@@ -68,7 +69,7 @@ exposes audit logs.
 
 ## 4. Audit event model
 
-Table `audit_logs` (V13), written by `AuditService`, append-only (`@Immutable` entity, no update path).
+Table `audit_logs` (V11), written by `AuditService`, append-only (`@Immutable` entity). The one update is account deletion, which sets `user_id` to null.
 
 | Field | Content |
 |---|---|
