@@ -10,6 +10,7 @@ import com.expenseanalyzer.statement.model.StatementFormat;
 import com.expenseanalyzer.statement.model.StatementStatus;
 import com.expenseanalyzer.statement.repository.StatementRepository;
 import com.expenseanalyzer.transaction.repository.TransactionRepository;
+import com.expenseanalyzer.transaction.service.TransferService;
 import com.expenseanalyzer.user.model.User;
 import com.expenseanalyzer.user.repository.UserRepository;
 import java.io.ByteArrayInputStream;
@@ -55,6 +56,7 @@ public class StatementService {
 
     private final StatementRepository statementRepository;
     private final TransactionRepository transactionRepository;
+    private final TransferService transferService;
     private final UserRepository userRepository;
     private final StatementFileValidator validator;
     private final StatementStorage storage;
@@ -133,8 +135,11 @@ public class StatementService {
             return false;
         }
         Statement s = found.get();
+        transferService.releasePartners(s.getUserId(), s.getId());
         transactionRepository.deleteByStatementId(s.getId());
         statementRepository.delete(s);
+        statementRepository.flush();
+        transferService.match(s.getUserId());
         if (s.getStorageKey() != null) {
             storage.delete(s.getStorageKey());
         }

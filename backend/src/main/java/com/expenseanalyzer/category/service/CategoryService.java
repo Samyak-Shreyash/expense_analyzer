@@ -90,6 +90,9 @@ public class CategoryService {
         Category category = owned(userId, id);
         String name = validName(request);
         ensureUnique(userId, name, id);
+        if (REFUND.equalsIgnoreCase(category.getName()) && !REFUND.equalsIgnoreCase(name)) { // found by this name
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "The Refund category cannot be renamed");
+        }
         category.setName(name);
         category.setCountsAsSpending(spends(request));
         category.setUpdatedAt(Instant.now());
