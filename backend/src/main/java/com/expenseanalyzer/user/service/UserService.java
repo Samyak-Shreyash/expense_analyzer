@@ -62,8 +62,13 @@ public class UserService {
     }
 
     private UserResponse applyUpdate(User updatedUser, String callerEmail, UserRequest request) {
-        // Ownership: callers may only update themselves, and may not change their own role or status
-        if (!updatedUser.getEmail().equals(callerEmail) || request.role() != null || request.active() != null) {
+        // Ownership: another user's id looks like a missing one
+        if (!updatedUser.getEmail().equals(callerEmail)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND);
+        }
+
+        // Callers may not change their own role or status
+        if (request.role() != null || request.active() != null) {
             throw new AccessDeniedException("Not allowed to update this user");
         }
 

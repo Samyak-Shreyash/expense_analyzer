@@ -28,15 +28,10 @@ public class AuthService {
     private final PreferenceRepository preferenceRepository;
     private final PasswordEncoder passwordEncoder;
 
-    // Singleton flag: true if admin user exists (checked once at startup)
-    private boolean hasAdminUser = false;
-
     public AuthService(UserRepository userRepository, PreferenceRepository preferenceRepository, PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.preferenceRepository = preferenceRepository;
         this.passwordEncoder = passwordEncoder;
-        // Check if admin user exists at startup (Spring beans are singletons by default)
-        hasAdminUser = userRepository.countByRole(UserRole.ADMIN) > 0;
     }
 
     /**
@@ -75,7 +70,7 @@ public class AuthService {
         user.setFullName("");
 
         // Assign ADMIN role if no admin users exist, otherwise USER
-        if (!hasAdminUser) {
+        if (userRepository.countByRole(UserRole.ADMIN) == 0) {
             user.setRole(UserRole.ADMIN);
         } else {
             user.setRole(UserRole.USER);
