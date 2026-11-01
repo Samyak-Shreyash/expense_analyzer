@@ -17,6 +17,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -39,10 +40,14 @@ public class AuthController {
     private static final String REFRESH_COOKIE = "refresh_token";
     private static final String REFRESH_COOKIE_PATH = "/api/auth";
 
+    // Mobile clients opt in to carrying the refresh token in JSON bodies instead of the cookie.
+    private static final String CLIENT_TYPE_HEADER = "X-Client-Type";
+
     private static final Logger logger = LoggerFactory.getLogger(AuthController.class);
 
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request) {
+    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest request,
+            @RequestHeader(name = CLIENT_TYPE_HEADER, required = false) String clientType) {
         Authentication authentication;
         try {
             authentication = authenticationManager.authenticate(
@@ -65,6 +70,9 @@ public class AuthController {
             User user = userRepository.findByEmail(email).orElse(null);
             if (user != null) {
                 auditService.record(AuditAction.AUTH_LOGIN_SUCCEEDED, user.getId());
+                if (isMobile(clientType)) {
+                    return ResponseEntity.ok(new AuthResponse(jwt, refreshTokenService.issue(user)));
+                }
                 return ResponseEntity.ok()
                         .header(HttpHeaders.SET_COOKIE, refreshCookie(refreshTokenService.issue(user), refreshTokenService.getRefreshTokenSeconds()))
                         .body(new AuthResponse(jwt));
@@ -117,7 +125,21 @@ public class AuthController {
      * POST /api/auth/refresh
      */
     @PostMapping("/refresh")
-    public ResponseEntity<AuthResponse> refresh(@CookieValue(name = REFRESH_COOKIE, required = false) String refreshToken) {
+    public ResponseEntity<AuthResponse> refresh(
+            @CookieValue(name = REFRESH_COOKIE, required = false) String refreshToken,
+            @RequestBody(required = false) RefreshRequest body,
+            @RequestHeader(name = CLIENT_TYPE_HEADER, required = false) String clientType) {
+        if (isMobile(clientType)) {
+            String bodyToken = body == null ? null : body.refreshToken();
+            if (bodyToken == null || bodyToken.isBlank()) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+            return refreshTokenService.consume(bodyToken)
+                    .map(user -> ResponseEntity.ok(new AuthResponse(
+                            tokenProvider.generateToken(new UsernamePasswordAuthenticationToken(user.getEmail(), null)),
+                            refreshTokenService.issue(user))))
+                    .orElseGet(() -> ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
+        }
         if (refreshToken == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
@@ -131,15 +153,34 @@ public class AuthController {
     }
 
     /**
-     * Revoke the refresh token and clear its cookie.
+     * Revoke the refresh token and clear its cookie (web) or revoke the body token (mobile).
      * POST /api/auth/logout
      */
     @PostMapping("/logout")
-    public ResponseEntity<Void> logout(@CookieValue(name = REFRESH_COOKIE, required = false) String refreshToken) {
+    public ResponseEntity<Void> logout(
+            @CookieValue(name = REFRESH_COOKIE, required = false) String refreshToken,
+            @RequestBody(required = false) RefreshRequest body,
+            @RequestHeader(name = CLIENT_TYPE_HEADER, required = false) String clientType) {
+        if (isMobile(clientType)) {
+            if (body != null && body.refreshToken() != null && !body.refreshToken().isBlank()) {
+                refreshTokenService.revoke(body.refreshToken());
+            }
+            return ResponseEntity.noContent().build();
+        }
         if (refreshToken != null) {
             refreshTokenService.revoke(refreshToken);
         }
         return ResponseEntity.noContent().header(HttpHeaders.SET_COOKIE, refreshCookie("", 0)).build();
+    }
+
+    /** Unreadable bodies can echo the refresh token in the exception message; answer 400 without logging it. */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<Void> handleUnreadableBody() {
+        return ResponseEntity.badRequest().build();
+    }
+
+    private static boolean isMobile(String clientType) {
+        return "mobile".equalsIgnoreCase(clientType);
     }
 
     private static String refreshCookie(String value, long maxAgeSeconds) {

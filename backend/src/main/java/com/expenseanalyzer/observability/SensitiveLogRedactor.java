@@ -12,7 +12,7 @@ public class SensitiveLogRedactor implements StructuredLoggingJsonMembersCustomi
     private static final int CI = Pattern.CASE_INSENSITIVE;
 
     private static final Pattern SECRET = Pattern.compile(
-            "(password|passwd|pwd|secret|token|authorization|api[_-]?key|refresh[_-]?token|access[_-]?token)(\\s*[=:]\\s*)\\S+",
+            "(password|passwd|pwd|secret|token|authorization|api[_-]?key|refresh[_-]?token|access[_-]?token)(\\\\?\"?\\s*[=:]\\s*)(\\\\?\"[^\"\\\\]*\\\\?\"|\\S+)",
             CI);
     private static final Pattern BEARER = Pattern.compile("Bearer\\s+[A-Za-z0-9._~+/=-]+", CI);
     private static final Pattern JWT = Pattern.compile("eyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]*");

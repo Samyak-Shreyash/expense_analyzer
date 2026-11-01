@@ -21,9 +21,10 @@ import com.expenseanalyzer.statement.model.Statement;
 import com.expenseanalyzer.statement.model.StatementStatus;
 import com.expenseanalyzer.statement.repository.StatementRepository;
 import com.expenseanalyzer.statement.service.StatementObjectNotFoundException;
-import com.expenseanalyzer.statement.service.StatementStorage;
+import com.expenseanalyzer.statement.service.S3StatementStorage;
 import com.expenseanalyzer.transaction.model.Transaction;
 import com.expenseanalyzer.transaction.repository.TransactionRepository;
+import com.expenseanalyzer.transaction.service.TransferService;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -69,7 +70,7 @@ public class StatementProcessor {
     private final StatementRepository statementRepository;
     private final TransactionRepository transactionRepository;
     private final ProcessedEventRepository processedEventRepository;
-    private final StatementStorage storage;
+    private final S3StatementStorage storage;
     private final CsvStatementParser csvParser;
     private final ExcelStatementParser excelParser;
     private final PdfStatementParser pdfParser;
@@ -78,13 +79,14 @@ public class StatementProcessor {
     private final MerchantService merchantService;
     private final PersonService personService;
     private final ParserLimits limits;
+    private final TransferService transferService;
 
     public StatementProcessor(StatementRepository statementRepository, TransactionRepository transactionRepository,
-                              ProcessedEventRepository processedEventRepository, StatementStorage storage,
+                              ProcessedEventRepository processedEventRepository, S3StatementStorage storage,
                               CsvStatementParser csvParser, ExcelStatementParser excelParser,
                               PdfStatementParser pdfParser, JsonMapper jsonMapper,
                               MerchantNormalizer merchantNormalizer, MerchantService merchantService,
-                              PersonService personService,
+                              PersonService personService, TransferService transferService,
                               @Value("${app.parser.max-rows:50000}") int maxRows,
                               @Value("${app.parser.max-columns:50}") int maxColumns,
                               @Value("${app.parser.timeout:30s}") Duration timeout) {
@@ -99,6 +101,7 @@ public class StatementProcessor {
         this.merchantNormalizer = merchantNormalizer;
         this.merchantService = merchantService;
         this.personService = personService;
+        this.transferService = transferService;
         this.limits = new ParserLimits(maxRows, maxColumns, timeout);
     }
 
@@ -180,6 +183,7 @@ public class StatementProcessor {
             }
         });
         transactionRepository.saveAll(fresh);
+        transferService.match(s.getUserId());
 
         s.setStatus(StatementStatus.COMPLETED);
         s.setCompletedAt(Instant.now());

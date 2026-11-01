@@ -44,6 +44,12 @@ export function CategoriesPage() {
   const [categoryError, setCategoryError] = useState<string | null>(null)
   const [peopleError, setPeopleError] = useState<string | null>(null)
   const [confirming, setConfirming] = useState<string | null>(null)
+  // a rename to a name another person already has, waiting for merge-or-keep
+  const [namesake, setNamesake] = useState<{
+    id: string
+    name: string
+    other: Person
+  } | null>(null)
   const [newName, setNewName] = useState('')
   const [newCounts, setNewCounts] = useState(true)
 
@@ -62,6 +68,10 @@ export function CategoriesPage() {
   }, [])
 
   const others = (id: string) => people!.filter((x) => x.id !== id)
+
+  const sameName = (a: string, b: string) =>
+    a.replace(/\s+/g, ' ').toLowerCase() ===
+    b.replace(/\s+/g, ' ').toLowerCase()
 
   const replace = (c: Category) =>
     setCategories((all) => all!.map((x) => (x.id === c.id ? c : x)))
@@ -366,10 +376,69 @@ export function CategoriesPage() {
                           id={p.id}
                           name={p.name}
                           label="person"
-                          onSave={(name) =>
-                            run(() => save(name, p.categoryId), setPeopleError)
-                          }
+                          onSave={(name) => {
+                            const other = others(p.id).find((o) =>
+                              sameName(o.name, name),
+                            )
+                            if (other) {
+                              setNamesake({ id: p.id, name, other })
+                              return Promise.resolve()
+                            }
+                            return run(
+                              () => save(name, p.categoryId),
+                              setPeopleError,
+                            )
+                          }}
                         />
+                        {namesake?.id === p.id && (
+                          <div role="group" aria-label="Same name">
+                            <p className={shared.muted}>
+                              {namesake.other.name} already exists. Same person?
+                            </p>
+                            <span className={styles.actions}>
+                              <button
+                                type="button"
+                                className={shared.quiet}
+                                onClick={() =>
+                                  run(async () => {
+                                    setPeople(
+                                      await mergePerson(
+                                        p.id,
+                                        namesake.other.id,
+                                      ),
+                                    )
+                                    setNamesake(null)
+                                  }, setPeopleError).catch(() => {})
+                                }
+                              >
+                                Merge into {namesake.other.name}
+                              </button>
+                              <button
+                                type="button"
+                                className={shared.quiet}
+                                onClick={() =>
+                                  run(async () => {
+                                    await save(namesake.name, p.categoryId)
+                                    setNamesake(null)
+                                  }, setPeopleError).catch(() => {})
+                                }
+                              >
+                                Keep separate
+                              </button>
+                              <button
+                                type="button"
+                                className={shared.quiet}
+                                autoFocus
+                                onClick={() => setNamesake(null)}
+                                onKeyDown={(e) =>
+                                  e.key === 'Escape' && setNamesake(null)
+                                }
+                              >
+                                Cancel
+                              </button>
+                            </span>
+                          </div>
+                        )}
                       </td>
                       <td>
                         <ul className={styles.payees}>

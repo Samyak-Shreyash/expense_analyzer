@@ -13,8 +13,11 @@ vi.mock('../../services/finance', async (orig) => ({
   createCategory: vi.fn(),
   setCounterparty: vi.fn(),
   setMerchantCategory: vi.fn(),
+  setTransfer: vi.fn(),
+  setReversal: vi.fn(),
   setPersonCategory: vi.fn(),
   updatePerson: vi.fn(),
+  listPeople: vi.fn(),
   setTransactionMerchant: vi.fn(),
   getMerchantNameSettings: vi.fn(),
   reportSuggestion: vi.fn(),
@@ -39,6 +42,9 @@ const swiggy: Transaction = {
   suggestedMerchantName: null,
   payeeName: null,
   payeeType: null,
+  transfer: false,
+  transferPairId: null,
+  reversalPairId: null,
 }
 
 const categories: finance.Category[] = [
@@ -102,6 +108,148 @@ describe('TransactionsPage', () => {
     expect(
       screen.getByRole('columnheader', { name: 'Merchant / Person' }),
     ).toBeTruthy()
+  })
+
+  it('links a UPI merchant payee to its transactions and offers to rename it', async () => {
+    vi.mocked(finance.listTransactions).mockResolvedValue({
+      items: [
+        {
+          ...swiggy,
+          merchantId: null,
+          merchantName: null,
+          payeeName: 'Parampara',
+          payeeType: 'MERCHANT',
+        },
+      ],
+      page: 0,
+      size: 50,
+      totalItems: 1,
+      totalPages: 1,
+    })
+    renderPage()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Rename merchant Parampara' }),
+    )
+    expect(
+      (screen.getByLabelText('New name for Parampara') as HTMLInputElement)
+        .value,
+    ).toBe('Parampara')
+    expect(screen.queryByText('Add merchant')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+
+    fireEvent.click(
+      screen.getByRole('button', {
+        name: 'Show all transactions with Parampara',
+      }),
+    )
+    await waitFor(() =>
+      expect(finance.listTransactions).toHaveBeenLastCalledWith(
+        expect.objectContaining({ q: 'Parampara' }),
+      ),
+    )
+  })
+
+  it('renames a matched merchant for this payee without sharing it', async () => {
+    vi.mocked(finance.listTransactions).mockResolvedValue({
+      items: [swiggy],
+      page: 0,
+      size: 50,
+      totalItems: 1,
+      totalPages: 1,
+    })
+    vi.mocked(finance.setTransactionMerchant).mockResolvedValue(swiggy)
+    renderPage()
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: `Rename merchant ${swiggy.merchantName}`,
+      }),
+    )
+    fireEvent.change(
+      screen.getByLabelText(`New name for ${swiggy.merchantName}`),
+      { target: { value: 'Swiggy Instamart' } },
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() =>
+      expect(finance.setTransactionMerchant).toHaveBeenCalledWith(
+        swiggy.id,
+        'Swiggy Instamart',
+        undefined,
+      ),
+    )
+  })
+
+  it('shows all payments with a person from their label', async () => {
+    vi.mocked(finance.listTransactions).mockResolvedValue({
+      items: [
+        {
+          ...swiggy,
+          merchantId: null,
+          merchantName: null,
+          personId: 'p1',
+          personName: 'Miss Trisha',
+        },
+      ],
+      page: 0,
+      size: 50,
+      totalItems: 1,
+      totalPages: 1,
+    })
+    renderPage()
+    fireEvent.click(
+      await screen.findByRole('button', {
+        name: 'Show all payments with Miss Trisha',
+      }),
+    )
+    await waitFor(() =>
+      expect(finance.listTransactions).toHaveBeenLastCalledWith(
+        expect.objectContaining({ personId: 'p1' }),
+      ),
+    )
+    expect(screen.getByText(/Showing one person/)).toBeTruthy()
+  })
+
+  it('renames a person, keeping their category', async () => {
+    const paid = {
+      ...swiggy,
+      merchantId: null,
+      merchantName: null,
+      personId: 'p1',
+      personName: 'Miss Trisha',
+    }
+    vi.mocked(finance.listTransactions).mockResolvedValue({
+      items: [paid],
+      page: 0,
+      size: 50,
+      totalItems: 1,
+      totalPages: 1,
+    })
+    vi.mocked(finance.listPeople).mockResolvedValue([
+      {
+        id: 'p1',
+        name: 'Miss Trisha',
+        categoryId: 'c2',
+        creditCategoryId: null,
+        payees: ['MISS TRISHA'],
+      },
+    ])
+    vi.mocked(finance.updatePerson).mockResolvedValue({
+      id: 'p1',
+      name: 'Trisha',
+      categoryId: 'c2',
+      creditCategoryId: null,
+      payees: ['MISS TRISHA'],
+    })
+    renderPage()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Rename person Miss Trisha' }),
+    )
+    fireEvent.change(screen.getByLabelText('New name for Miss Trisha'), {
+      target: { value: 'Trisha' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() =>
+      expect(finance.updatePerson).toHaveBeenCalledWith('p1', 'Trisha', 'c2'),
+    )
   })
 
   it('prefills the person editor with the UPI payee, not the description', async () => {
@@ -627,7 +775,9 @@ describe('TransactionsPage', () => {
       })
       fireEvent.change(search, { target: { value: 'acme' } })
       fireEvent.submit(screen.getByRole('search'))
-      await screen.findByRole('button', { name: 'Acme Store' })
+      await screen.findByRole('button', {
+        name: 'Show all payments with Acme Store',
+      })
       expect(document.activeElement).toBe(search)
     })
 
@@ -847,8 +997,11 @@ describe('TransactionsPage', () => {
         'Ravi Kumar',
       ),
     )
-    expect(await screen.findByText('Ravi Kumar')).toBeTruthy()
-    expect(screen.getByText('Person')).toBeTruthy()
+    expect(
+      await screen.findByRole('button', {
+        name: 'Show all payments with Ravi Kumar',
+      }),
+    ).toBeTruthy()
   })
 
   it('shows the server message when the counterparty is rejected', async () => {
@@ -881,6 +1034,149 @@ describe('TransactionsPage', () => {
         totalPages: 1,
       })
 
+    it('marks and unmarks a transfer between own accounts', async () => {
+      vi.mocked(finance.setTransfer).mockResolvedValue({
+        ...swiggy,
+        transfer: true,
+      })
+      renderPage()
+      fireEvent.click(
+        await screen.findByRole('button', { name: /SWIGGY ORDER/ }),
+      )
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: 'Mark as a transfer between my accounts',
+        }),
+      )
+      await waitFor(() =>
+        expect(finance.setTransfer).toHaveBeenCalledWith('t1', true),
+      )
+      expect(
+        await screen.findByText('Marked as a transfer between your accounts.'),
+      ).toBeTruthy()
+    })
+
+    it('pairs a failed payment with its refund', async () => {
+      const refund: Transaction = {
+        ...swiggy,
+        id: 't2',
+        direction: 'CREDIT',
+        normalizedDescription: 'SWIGGY REFUND',
+      }
+      vi.mocked(finance.listTransactions).mockImplementation(async (q) => ({
+        items: q.direction === 'CREDIT' ? [refund] : [swiggy],
+        page: 0,
+        size: 50,
+        totalItems: 1,
+        totalPages: 1,
+      }))
+      vi.mocked(finance.setReversal).mockResolvedValue({
+        ...swiggy,
+        reversalPairId: 't2',
+      })
+      renderPage()
+      fireEvent.click(
+        await screen.findByRole('button', { name: /SWIGGY ORDER/ }),
+      )
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Mark as failed and refunded' }),
+      )
+      await waitFor(() =>
+        expect(finance.listTransactions).toHaveBeenLastCalledWith({
+          direction: 'CREDIT',
+          minAmount: 450,
+          maxAmount: 450,
+          from: '2025-12-26',
+          to: '2026-01-09',
+        }),
+      )
+      expect(
+        (await screen.findByRole('combobox', { name: 'The refund' }))
+          .textContent,
+      ).toContain('SWIGGY REFUND')
+      fireEvent.click(screen.getByRole('button', { name: 'Pair them' }))
+      await waitFor(() =>
+        expect(finance.setReversal).toHaveBeenCalledWith('t1', 't2'),
+      )
+    })
+
+    it('offers a payment a bit above the refund when no amount matches, with its charges', async () => {
+      const refund: Transaction = {
+        ...swiggy,
+        id: 't2',
+        direction: 'CREDIT',
+        amount: 440,
+        normalizedDescription: 'SWIGGY REFUND',
+      }
+      vi.mocked(finance.listTransactions).mockImplementation(async (q) => ({
+        items: !q.direction
+          ? [refund]
+          : q.minAmount === 440 && q.maxAmount === 484
+            ? [{ ...swiggy, amount: 450 }]
+            : [],
+        page: 0,
+        size: 50,
+        totalItems: 1,
+        totalPages: 1,
+      }))
+      vi.mocked(finance.setReversal).mockResolvedValue({
+        ...refund,
+        reversalPairId: 't1',
+      })
+      renderPage()
+      fireEvent.click(
+        await screen.findByRole('button', { name: /SWIGGY REFUND/ }),
+      )
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: 'Mark as the refund of a failed payment',
+        }),
+      )
+      expect(
+        (await screen.findByRole('combobox', { name: 'The failed payment' }))
+          .textContent,
+      ).toContain('₹10')
+      fireEvent.click(screen.getByRole('button', { name: 'Pair them' }))
+      await waitFor(() =>
+        expect(finance.setReversal).toHaveBeenCalledWith('t2', 't1'),
+      )
+    })
+
+    it('labels a paired failed payment and can unpair it', async () => {
+      only({ ...swiggy, reversalPairId: 't2' })
+      vi.mocked(finance.setReversal).mockResolvedValue(swiggy)
+      renderPage()
+      expect(await screen.findByText('Failed – refunded')).toBeTruthy()
+      fireEvent.click(screen.getByRole('button', { name: /SWIGGY ORDER/ }))
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: 'Not a failed payment and refund',
+        }),
+      )
+      await waitFor(() =>
+        expect(finance.setReversal).toHaveBeenCalledWith('t1', null),
+      )
+    })
+
+    it('labels a transfer and shows both halves around its date', async () => {
+      only({ ...swiggy, transfer: true, transferPairId: 't2' })
+      renderPage()
+      expect(await screen.findByText('Transfer')).toBeTruthy()
+      fireEvent.click(screen.getByRole('button', { name: 'Show both halves' }))
+      await waitFor(() =>
+        expect(finance.listTransactions).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            transfer: 'true',
+            from: '2025-12-30',
+            to: '2026-01-05',
+          }),
+        ),
+      )
+      expect(
+        screen.getByText(/Showing transfers between your accounts/),
+      ).toBeTruthy()
+    })
+
     it('sets the category for all of a merchant and refetches', async () => {
       vi.mocked(finance.setMerchantCategory).mockResolvedValue(null)
       renderPage()
@@ -896,7 +1192,11 @@ describe('TransactionsPage', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Apply to all' }))
 
       await waitFor(() =>
-        expect(finance.setMerchantCategory).toHaveBeenCalledWith('m1', 'c2'),
+        expect(finance.setMerchantCategory).toHaveBeenCalledWith(
+          'm1',
+          'c2',
+          false,
+        ),
       )
       await waitFor(() =>
         expect(finance.listTransactions).toHaveBeenCalledTimes(2),
@@ -909,7 +1209,7 @@ describe('TransactionsPage', () => {
 
     it('sets the category for all of a person', async () => {
       only(person)
-      vi.mocked(finance.updatePerson).mockResolvedValue({
+      vi.mocked(finance.setPersonCategory).mockResolvedValue({
         id: 'p1',
         name: 'Ravi Kumar',
         categoryId: 'c2',
@@ -927,10 +1227,10 @@ describe('TransactionsPage', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Apply to all' }))
 
       await waitFor(() =>
-        expect(finance.updatePerson).toHaveBeenCalledWith(
+        expect(finance.setPersonCategory).toHaveBeenCalledWith(
           'p1',
-          'Ravi Kumar',
           'c2',
+          false,
         ),
       )
       await waitFor(() =>
@@ -940,21 +1240,28 @@ describe('TransactionsPage', () => {
 
     it('switches a person back to a merchant', async () => {
       only(person)
-      vi.mocked(finance.setCounterparty).mockResolvedValue(swiggy)
+      vi.mocked(finance.setTransactionMerchant).mockResolvedValue(swiggy)
       renderPage()
       fireEvent.click(
         await screen.findByRole('button', { name: /SWIGGY ORDER/ }),
       )
       fireEvent.click(await screen.findByLabelText('This is a merchant'))
+      const merchant = screen.getByLabelText(
+        "Merchant's name",
+      ) as HTMLInputElement
+      expect(merchant.value).toBe('Ravi Kumar')
+      fireEvent.change(merchant, { target: { value: 'Indian Railways' } })
       fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
+      // Saved as a named merchant, so the payee cannot fall back to a person.
       await waitFor(() =>
-        expect(finance.setCounterparty).toHaveBeenCalledWith(
+        expect(finance.setTransactionMerchant).toHaveBeenCalledWith(
           't1',
-          'MERCHANT',
-          undefined,
+          'Indian Railways',
+          false,
         ),
       )
+      expect(finance.setCounterparty).not.toHaveBeenCalled()
     })
 
     it('prefills the person name from the cleaned-up description', async () => {

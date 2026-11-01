@@ -22,7 +22,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 /**
  * Owner-scoped people. Another user's person is indistinguishable from a missing one (404). Several payee names can
- * group under one person (see {@link PersonPayee}); grouping is always undoable by moving a payee back out.
+ * group under one person (see {@link PersonPayee}); grouping is always undoable by moving a payee back out. Two people
+ * may share a name (the UI offers a merge instead).
  */
 @Service
 @RequiredArgsConstructor
@@ -54,10 +55,6 @@ public class PersonService {
         UUID userId = categoryService.userId(email);
         Person person = owned(userId, id);
         String name = validName(request == null ? null : request.name());
-        personRepository.findByUserIdAndNameIgnoreCase(userId, name).filter(p -> !p.getId().equals(id))
-                .ifPresent(p -> {
-                    throw new ResponseStatusException(HttpStatus.CONFLICT, "Person name already exists");
-                });
         if (request.categoryId() != null) {
             categoryService.owned(userId, request.categoryId());
         }
@@ -84,13 +81,13 @@ public class PersonService {
 
     /**
      * Find-or-create the user's person for a payee name (case-insensitive): the person the name is grouped under, else
-     * the person with that name. The name must already be valid; it is remembered as one of the person's payees.
+     * the oldest person with that name. The name must already be valid; it is remembered as one of the person's payees.
      */
     @Transactional
     public Person findOrCreate(UUID userId, String name) {
         PersonPayee.Key key = new PersonPayee.Key(userId, payeeKey(name));
         Person person = payeeRepository.findById(key).flatMap(p -> personRepository.findById(p.getPersonId()))
-                .or(() -> personRepository.findByUserIdAndNameIgnoreCase(userId, name))
+                .or(() -> personRepository.findFirstByUserIdAndNameIgnoreCaseOrderByCreatedAtAsc(userId, name))
                 .orElseGet(() -> personRepository.save(new Person(userId, name)));
         if (!payeeRepository.existsById(key)) {
             payeeRepository.save(new PersonPayee(userId, key.payeeKey(), person.getId()));
@@ -135,7 +132,8 @@ public class PersonService {
                 .filter(p -> p.getPersonId().equals(from.getId()))
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         String ownName = PersonNameParser.titleCase(key);
-        Person to = toId != null ? owned(userId, toId) : personRepository.findByUserIdAndNameIgnoreCase(userId, ownName)
+        Person to = toId != null ? owned(userId, toId)
+                : personRepository.findFirstByUserIdAndNameIgnoreCaseOrderByCreatedAtAsc(userId, ownName)
                 .orElseGet(() -> personRepository.save(new Person(userId, ownName)));
         row.setPersonId(to.getId());
         payeeRepository.save(row);

@@ -14,6 +14,7 @@ import com.expenseanalyzer.analytics.dto.AnalyticsDtos.PersonSpend;
 import com.expenseanalyzer.analytics.dto.AnalyticsDtos.SpendingSummary;
 import com.expenseanalyzer.analytics.dto.AnalyticsDtos.Trends;
 import com.expenseanalyzer.category.model.Category;
+import com.expenseanalyzer.category.service.CategoryService;
 import com.expenseanalyzer.category.service.EffectiveCategoryResolver;
 import com.expenseanalyzer.category.service.EffectiveCategoryResolver.Resolution;
 import com.expenseanalyzer.merchant.model.Merchant;
@@ -84,14 +85,19 @@ public class SpendingAnalyticsService {
     }
 
     /** One SQL group with its effective category resolved (null = Uncategorized). */
-    private record Group(Category category, UUID personId, UUID merchantId, boolean credit, BigDecimal cents,
-                         long count) {
+    private record Group(Category category, Category netCategory, UUID personId, UUID merchantId, boolean credit,
+                         BigDecimal cents, long count) {
         String categoryName() {
             return category == null ? UNCATEGORIZED : category.getName();
         }
 
+        /** The category this group nets in: a refund reduces its merchant's top spending category. */
+        String netCategoryName() {
+            return netCategory == null ? UNCATEGORIZED : netCategory.getName();
+        }
+
         boolean spending() {
-            return category == null || category.isCountsAsSpending();
+            return netCategory == null || netCategory.isCountsAsSpending();
         }
     }
 
@@ -115,7 +121,14 @@ public class SpendingAnalyticsService {
         return new SpendingSummary(from, to, CURRENCY, money(cur.inflowCents()), money(cur.outflowCents()),
                 money(cur.inflowCents().subtract(cur.outflowCents()).subtract(cur.nonSpendingCents())), cur.count(),
                 previous, changePercent(cur.inflowCents(), prev.inflowCents()),
-                changePercent(cur.outflowCents(), prev.outflowCents()), money(cur.nonSpendingCents()));
+                changePercent(cur.outflowCents(), prev.outflowCents()), money(cur.nonSpendingCents()),
+                money(transfers(userId, from, to, "CREDIT")), money(transfers(userId, from, to, "DEBIT")));
+    }
+
+    /** Own-account transfers in one direction; they are left out of every other figure. */
+    private BigDecimal transfers(UUID userId, LocalDate from, LocalDate to, String type) {
+        return transactionRepository.sumTransfersByDirection(userId, start(from), endExclusive(to)).stream()
+                .filter(r -> type.equals(r[0])).map(r -> (BigDecimal) r[1]).findFirst().orElse(BigDecimal.ZERO);
     }
 
     @Transactional // not readOnly: first access seeds the user's default categories
@@ -148,7 +161,7 @@ public class SpendingAnalyticsService {
         Map<String, BigDecimal> cents = new LinkedHashMap<>();
         Map<String, Long> counts = new HashMap<>();
         // net per (category, merchant/person) so refunds net out within their own merchant, as before
-        net(groups, g -> true, g -> new CategoryKey(g.categoryName(), g.personId(), g.merchantId())).forEach((k, n) -> {
+        net(groups, g -> true, g -> new CategoryKey(g.netCategoryName(), g.personId(), g.merchantId())).forEach((k, n) -> {
             cents.merge(k.category(), n.cents(), BigDecimal::add);
             counts.merge(k.category(), n.count(), Long::sum);
         });
@@ -262,14 +275,34 @@ public class SpendingAnalyticsService {
     private List<Group> groups(UUID userId, LocalDate from, LocalDate to, Resolution resolution) {
         List<Object[]> rows = transactionRepository.sumByCategoryGroup(userId, start(from), endExclusive(to));
         Map<UUID, Merchant> merchants = merchants(rows.stream().map(r -> (UUID) r[2]).toList());
+        Map<UUID, Map<Category, BigDecimal>> spentAt = new HashMap<>();
+        for (Object[] r : rows) {
+            UUID merchantId = (UUID) r[2];
+            Category c = resolution.resolve((UUID) r[0], (UUID) r[1], merchantId, merchants.get(merchantId), false);
+            if (merchantId != null && "DEBIT".equals(r[3]) && c != null && c.isCountsAsSpending()) {
+                spentAt.computeIfAbsent(merchantId, k -> new HashMap<>()).merge(c, (BigDecimal) r[4], BigDecimal::add);
+            }
+        }
         List<Group> groups = new ArrayList<>(rows.size());
         for (Object[] r : rows) {
             UUID merchantId = (UUID) r[2];
-            groups.add(new Group(resolution.resolve((UUID) r[0], (UUID) r[1], merchantId, merchants.get(merchantId),
-                            "CREDIT".equals(r[3])),
-                    (UUID) r[1], merchantId, "CREDIT".equals(r[3]), (BigDecimal) r[4], (Long) r[5]));
+            boolean credit = "CREDIT".equals(r[3]);
+            Category category = resolution.resolve((UUID) r[0], (UUID) r[1], merchantId, merchants.get(merchantId), credit);
+            boolean refund = merchantId != null && credit && category != null
+                    && category == resolution.named(CategoryService.REFUND);
+            Category netCategory = !refund ? category : spentAt.containsKey(merchantId) ? top(spentAt.get(merchantId))
+                    : resolution.resolve(null, (UUID) r[1], merchantId, merchants.get(merchantId), false);
+            groups.add(new Group(category, netCategory, (UUID) r[1], merchantId, credit, (BigDecimal) r[4], (Long) r[5]));
         }
         return groups;
+    }
+
+    /** The category with the most spending (ties: first by name). */
+    private static Category top(Map<Category, BigDecimal> spent) {
+        return spent.entrySet().stream()
+                .max(Map.Entry.<Category, BigDecimal>comparingByValue()
+                        .thenComparing(e -> e.getKey().getName(), Comparator.reverseOrder()))
+                .orElseThrow().getKey();
     }
 
     /**

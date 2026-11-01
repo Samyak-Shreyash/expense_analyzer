@@ -17,9 +17,8 @@ not already exist in the repo.
 - Sources: `backend/src/main/java/com/expenseanalyzer/`
 - Tests:   `backend/src/test/java/com/expenseanalyzer/`
 - Migrations: `backend/src/main/resources/db/migration/`
-- Feature packages: `account`, `ai`, `analytics`, `auth`, `category`, `enrichment`,
-  `insight`, `merchant`, `messaging`, `notification`, `processing`, `statement`,
-  `transaction`, `user`. Shared code in `common`.
+- Feature packages: `analytics`, `auth`, `category`, `merchant`, `messaging`,
+  `processing`, `statement`, `transaction`, `user`. Shared code in `common`.
 - Per feature, use `controller/`, `dto/`, `model/` (JPA entities), `repository/`, `service/`.
 
 ## Rules

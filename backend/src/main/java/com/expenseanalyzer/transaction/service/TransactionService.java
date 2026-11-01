@@ -18,8 +18,10 @@ import com.expenseanalyzer.merchant.service.MerchantService;
 import com.expenseanalyzer.merchant.service.PayeeKey;
 import com.expenseanalyzer.merchant.service.PersonService;
 import com.expenseanalyzer.transaction.dto.CounterpartyRequest;
+import com.expenseanalyzer.transaction.dto.ReversalRequest;
 import com.expenseanalyzer.transaction.dto.TransactionFilter;
 import com.expenseanalyzer.transaction.dto.TransactionResponse;
+import com.expenseanalyzer.transaction.dto.TransferRequest;
 import com.expenseanalyzer.transaction.model.Transaction;
 import com.expenseanalyzer.transaction.repository.TransactionRepository;
 import com.expenseanalyzer.user.model.User;
@@ -31,6 +33,7 @@ import jakarta.persistence.criteria.Path;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 import jakarta.persistence.criteria.Subquery;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.HashMap;
@@ -57,6 +60,9 @@ import org.springframework.web.server.ResponseStatusException;
 @RequiredArgsConstructor
 public class TransactionService {
 
+    private static final int MAX_REFUND_CHARGE_PERCENT = 10;
+    private static final String REFUND_MISMATCH =
+            "A refund pairs money out and money in of the same amount, or a payment up to 10% above the refund";
     private final TransactionRepository transactionRepository;
     private final UserRepository userRepository;
     private final MerchantRepository merchantRepository;
@@ -88,8 +94,14 @@ public class TransactionService {
         if (f.merchantId() != null) {
             spec = spec.and((root, q, cb) -> cb.equal(root.get("merchantId"), f.merchantId()));
         }
+        if (f.personId() != null) {
+            spec = spec.and((root, q, cb) -> cb.equal(root.get("personId"), f.personId()));
+        }
         if (f.category() != null && !f.category().isBlank()) {
             spec = spec.and(categoryIs(f.category().trim(), resolution, userId));
+        }
+        if (f.transfer() != null) {
+            spec = spec.and((root, q, cb) -> cb.equal(root.get("transfer"), f.transfer()));
         }
         if (f.direction() != null) {
             spec = spec.and((root, q, cb) -> cb.equal(root.get("type"), f.direction().name()));
@@ -134,6 +146,120 @@ public class TransactionService {
         t.setCategoryId(categoryId);
         t.setUpdatedAt(Instant.now());
         return response(transactionRepository.save(t), userId);
+    }
+
+    /**
+     * Marks or unmarks a transaction as money moved between the caller's own accounts; the user's choice sticks
+     * (automatic matching skips it afterwards). Unmarking a pair unmarks both halves. Marking with {@code pairWithId}
+     * pairs it with that transaction, which must be the caller's, in the other direction, with the same amount and
+     * currency (else 400); any earlier partner of either is released back to automatic matching. Not yours: 404.
+     */
+    @Transactional
+    public TransactionResponse setTransfer(String email, UUID id, TransferRequest request) {
+        UUID userId = currentUser(email).getId();
+        Transaction t = owned(id, userId);
+        Instant now = Instant.now();
+        if (!request.transfer()) {
+            release(t, userId, true, now);
+            t.setTransfer(false);
+            t.setTransferManual(true);
+        } else if (request.pairWithId() != null) {
+            Transaction other = owned(request.pairWithId(), userId);
+            if (other.getId().equals(t.getId()) || other.getType().equals(t.getType())
+                    || other.getAmount().compareTo(t.getAmount()) != 0 || !other.getCurrency().equals(t.getCurrency())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "A transfer pairs money out and money in of the same amount");
+            }
+            if (!other.getId().equals(t.getTransferPairId())) {
+                release(t, userId, false, now);
+                release(other, userId, false, now);
+            }
+            TransferService.pair(t, other, true, now);
+            transactionRepository.save(other);
+        } else {
+            release(t, userId, false, now);
+            t.setTransfer(true);
+            t.setTransferManual(true);
+        }
+        t.setUpdatedAt(now);
+        return response(transactionRepository.save(t), userId);
+    }
+
+    /**
+     * Pairs a failed payment with the refund that reversed it, or unpairs it when {@code pairWithId} is null. The
+     * other half must be the caller's, in the other direction, in the same currency, with the same amount or a payment
+     * at most {@link #MAX_REFUND_CHARGE_PERCENT}% above the refund (else 400). Both are then left out of analytics except
+     * the difference, which is the charges and stays spending; any earlier partner of either is released, and a transfer mark is cleared (the
+     * user's choice, so automatic transfer matching leaves them alone). Not yours: 404.
+     */
+    @Transactional
+    public TransactionResponse setReversal(String email, UUID id, ReversalRequest request) {
+        UUID userId = currentUser(email).getId();
+        Transaction t = owned(id, userId);
+        Instant now = Instant.now();
+        unpairReversal(t, userId, now);
+        if (request.pairWithId() != null) {
+            Transaction other = owned(request.pairWithId(), userId);
+            if (other.getId().equals(t.getId()) || other.getType().equals(t.getType())
+                    || !other.getCurrency().equals(t.getCurrency())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, REFUND_MISMATCH);
+            }
+            Transaction payment = "DEBIT".equals(t.getType()) ? t : other;
+            Transaction refund = payment == t ? other : t;
+            BigDecimal charge = payment.getAmountCents().subtract(refund.getAmountCents());
+            if (charge.signum() < 0 || charge.multiply(BigDecimal.valueOf(100))
+                    .compareTo(refund.getAmountCents().multiply(BigDecimal.valueOf(MAX_REFUND_CHARGE_PERCENT))) > 0) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, REFUND_MISMATCH);
+            }
+            unpairReversal(other, userId, now);
+            for (Transaction half : List.of(t, other)) {
+                release(half, userId, true, now);
+                half.setTransfer(false);
+                half.setTransferManual(true);
+            }
+            t.setReversalPairId(other.getId());
+            other.setReversalPairId(t.getId());
+            payment.setReversalChargePaise(charge.signum() == 0 ? null : charge);
+            other.setUpdatedAt(now);
+            transactionRepository.save(other);
+        }
+        t.setUpdatedAt(now);
+        return response(transactionRepository.save(t), userId);
+    }
+
+    /** Clears the transaction's refund pairing on both halves, if it has one. */
+    private void unpairReversal(Transaction t, UUID userId, Instant now) {
+        if (t.getReversalPairId() == null) {
+            return;
+        }
+        transactionRepository.findByIdAndUserId(t.getReversalPairId(), userId).ifPresent(partner -> {
+            partner.setReversalPairId(null);
+            partner.setReversalChargePaise(null);
+            partner.setUpdatedAt(now);
+            transactionRepository.save(partner);
+        });
+        t.setReversalPairId(null);
+        t.setReversalChargePaise(null);
+    }
+
+    /** Unlinks the transaction's partner, if any; {@code manual} records the partner as the user's choice too. */
+    private void release(Transaction t, UUID userId, boolean manual, Instant now) {
+        if (t.getTransferPairId() == null) {
+            return;
+        }
+        transactionRepository.findByIdAndUserId(t.getTransferPairId(), userId).ifPresent(partner -> {
+            partner.setTransfer(false);
+            partner.setTransferPairId(null);
+            partner.setTransferManual(manual);
+            partner.setUpdatedAt(now);
+            transactionRepository.save(partner);
+        });
+        t.setTransferPairId(null);
+    }
+
+    private Transaction owned(UUID id, UUID userId) {
+        return transactionRepository.findByIdAndUserId(id, userId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
     }
 
     /**
@@ -198,7 +324,11 @@ public class TransactionService {
         if (key == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Transaction has no payee");
         }
+        UUID previous = t.getMerchantId();
         UUID merchantId = applyMerchant(userId, key, clean, share);
+        if (previous != null && !previous.equals(merchantId)) { // a rename: keep the user's category for it
+            carryCategory(userId, previous, merchantId);
+        }
         if (t.getCategoryId() != null && categoryService.adoptMerchantCategory(userId, merchantId, t.getCategoryId(),
                 "CREDIT".equals(t.getType()))) {
             t.setCategoryId(null);
@@ -219,12 +349,17 @@ public class TransactionService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         UUID previous = alias.getMerchantId();
         UUID merchantId = applyMerchant(userId, alias.getPayeeKey(), PersonService.validName(name), !alias.isShareOptOut());
-        categoryService.merchantCategory(userId, previous).ifPresent(old -> {
+        carryCategory(userId, previous, merchantId);
+    }
+
+    /** The user's money-out and money-in categories for {@code from} apply to {@code to} when it has none. */
+    private void carryCategory(UUID userId, UUID from, UUID to) {
+        categoryService.merchantCategory(userId, from).ifPresent(old -> {
             if (old.getCategoryId() != null) {
-                categoryService.adoptMerchantCategory(userId, merchantId, old.getCategoryId(), false);
+                categoryService.adoptMerchantCategory(userId, to, old.getCategoryId(), false);
             }
             if (old.getCreditCategoryId() != null) {
-                categoryService.adoptMerchantCategory(userId, merchantId, old.getCreditCategoryId(), true);
+                categoryService.adoptMerchantCategory(userId, to, old.getCreditCategoryId(), true);
             }
         });
     }
@@ -341,7 +476,7 @@ public class TransactionService {
     /**
      * Filters by effective category name (case-insensitive). This is the SQL form of {@link Resolution#resolve}; keep
      * them in sync. Order: own category (only if it is one of the user's), else the person's category, else the
-     * merchant mapping (person and mapping: their money-in or money-out category by the row's type), else a merchant categoryHint naming one of the user's categories, else Uncategorized.
+     * merchant mapping (person and mapping: their money-in or money-out category by the row's type), else for money in from a merchant the user's Refund category, else a merchant categoryHint naming one of the user's categories, else Uncategorized.
      * A categoryId (or mapping, or person category) that is not one of the user's categories counts as not set.
      * Everything is matched through subqueries; no id lists are bound.
      */
@@ -353,13 +488,17 @@ public class TransactionService {
         }
         UUID categoryId = uncategorized ? null : category.getId();
         String lowerName = uncategorized ? null : category.getName().toLowerCase(Locale.ROOT);
+        Category refund = resolution.named(CategoryService.REFUND);
+        boolean isRefund = refund != null && refund.getId().equals(categoryId);
         return (root, q, cb) -> {
             Predicate ownValid = in(cb, root.get("categoryId"), userCategories(q, cb, userId));
             Predicate credit = cb.equal(root.get("type"), "CREDIT");
             Predicate personValid = byDirection(cb, credit, root.get("personId"), f -> people(q, cb, userId, null, f));
             Predicate mappedValid = byDirection(cb, credit, root.get("merchantId"), f -> mappings(q, cb, userId, null, f));
+            Predicate refundDefault = refund == null ? cb.disjunction()
+                    : cb.and(credit, cb.isNotNull(root.get("merchantId")));
             if (uncategorized) {
-                return cb.and(cb.not(ownValid), cb.not(personValid), cb.not(mappedValid),
+                return cb.and(cb.not(ownValid), cb.not(personValid), cb.not(mappedValid), cb.not(refundDefault),
                         cb.not(in(cb, root.get("merchantId"), hinted(q, cb, userId, null))));
             }
             Predicate viaPerson = byDirection(cb, credit, root.get("personId"),
@@ -367,9 +506,11 @@ public class TransactionService {
             Predicate viaMapping = byDirection(cb, credit, root.get("merchantId"),
                     f -> mappings(q, cb, userId, categoryId, f));
             Predicate viaHint = cb.and(in(cb, root.get("merchantId"), hinted(q, cb, userId, lowerName)),
-                    cb.not(mappedValid));
+                    cb.not(mappedValid), cb.not(refundDefault));
+            Predicate viaRefund = isRefund ? cb.and(refundDefault, cb.not(mappedValid)) : cb.disjunction();
             return cb.or(cb.equal(root.get("categoryId"), categoryId),
-                    cb.and(cb.not(ownValid), cb.or(viaPerson, cb.and(cb.not(personValid), cb.or(viaMapping, viaHint)))));
+                    cb.and(cb.not(ownValid), cb.or(viaPerson,
+                            cb.and(cb.not(personValid), cb.or(viaMapping, viaHint, viaRefund)))));
         };
     }
 

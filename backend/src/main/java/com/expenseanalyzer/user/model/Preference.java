@@ -1,6 +1,8 @@
 package com.expenseanalyzer.user.model;
 
 import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.Setter;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import java.time.Instant;
@@ -13,6 +15,8 @@ import java.util.UUID;
  * Typed preferences (theme, currency, notification mode) use enum fields for compile-time safety.
  * Dynamic preferences are stored in the value field as JSONB.
  */
+@Getter
+@Setter
 @Entity
 @Table(name = "preferences")
 public class Preference {
@@ -62,78 +66,5 @@ public class Preference {
     @PreUpdate
     void onUpdate() {
         this.updatedAt = Instant.now();
-    }
-
-    // Getters and setters
-    public UUID getId() {
-        return id;
-    }
-
-    public void setId(UUID id) {
-        this.id = id;
-    }
-
-    public UUID getUserId() {
-        return userId;
-    }
-
-    public void setUserId(UUID userId) {
-        this.userId = userId;
-    }
-
-    public String getKey() {
-        return key;
-    }
-
-    public void setKey(String key) {
-        this.key = key;
-    }
-
-    public Theme getTheme() {
-        return theme;
-    }
-
-    public void setTheme(Theme theme) {
-        this.theme = theme;
-    }
-
-    public Currency getCurrency() {
-        return currency;
-    }
-
-    public void setCurrency(Currency currency) {
-        this.currency = currency;
-    }
-
-    public NotificationMode getNotificationMode() {
-        return notificationMode;
-    }
-
-    public void setNotificationMode(NotificationMode notificationMode) {
-        this.notificationMode = notificationMode;
-    }
-
-    public Map<String, Object> getValue() {
-        return value;
-    }
-
-    public void setValue(Map<String, Object> value) {
-        this.value = value;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(Instant createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public Instant getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(Instant updatedAt) {
-        this.updatedAt = updatedAt;
     }
 }

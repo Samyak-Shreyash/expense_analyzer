@@ -348,6 +348,39 @@ class PeopleTest {
     }
 
     @Test
+    void transactionsCanBeFilteredByPersonWithinTheOwnersRows() throws Exception {
+        Person rahul = person(alice, "Rahul Sharma", null);
+        Person bobsRahul = person(bob, "Rahul Sharma", null);
+        UUID paid = transaction(alice, RAHUL_1, "RAHUL SHARMA HDFC", null, rahul.getId());
+        transaction(alice, SWIGGY_RAW, "SWIGGY ORDER", swiggy, null);
+        transaction(bob, RAHUL_1, "RAHUL SHARMA HDFC", null, bobsRahul.getId());
+
+        mockMvc.perform(get("/api/transactions").param("personId", rahul.getId().toString())
+                        .header("Authorization", bearer(ALICE)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].id").value(paid.toString()));
+        mockMvc.perform(get("/api/transactions").param("personId", bobsRahul.getId().toString())
+                        .header("Authorization", bearer(ALICE)))
+                .andExpect(jsonPath("$.items.length()").value(0));
+    }
+
+    @Test
+    void twoPeopleCanShareANameAndImportsGoToTheOldest() throws Exception {
+        Person rahul = personService.findOrCreate(alice.getId(), "Rahul Sharma");
+        Person rahulS = personService.findOrCreate(alice.getId(), "Rahul S");
+
+        mockMvc.perform(put("/api/people/" + rahulS.getId()).header("Authorization", bearer(ALICE))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"rahul sharma\"}"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/api/people").header("Authorization", bearer(ALICE)))
+                .andExpect(jsonPath("$.length()").value(2));
+        // Each payee stays with its own person; a new payee spelled like the shared name goes to the oldest.
+        assertThat(personService.findOrCreate(alice.getId(), "Rahul S").getId()).isEqualTo(rahulS.getId());
+        assertThat(personService.findOrCreate(alice.getId(), "RAHUL  SHARMA").getId()).isEqualTo(rahul.getId());
+    }
+
+    @Test
     void mergeAndMoveAreOwnerScoped() throws Exception {
         Person rahul = personService.findOrCreate(alice.getId(), "Rahul Sharma");
         Person bobs = personService.findOrCreate(bob.getId(), "Rahul S");
@@ -390,5 +423,60 @@ class PeopleTest {
         mockMvc.perform(get("/api/people").header("Authorization", bearer(ALICE)))
                 .andExpect(jsonPath("$[0].categoryId").value(loan))
                 .andExpect(jsonPath("$[0].creditCategoryId").value(repaid));
+    }
+
+    private UUID credit(UUID merchantId) {
+        Transaction t = transactionRepository.findById(transaction(alice, "in", "IN", merchantId, null)).orElseThrow();
+        t.setType("CREDIT");
+        return transactionRepository.saveAndFlush(t).getId();
+    }
+
+    private void expectCategory(UUID tx, String category) throws Exception {
+        mockMvc.perform(get("/api/transactions/" + tx).header("Authorization", bearer(ALICE)))
+                .andExpect(jsonPath("$.category").value(category));
+    }
+
+    private void expectOnlyInFilter(String category, UUID tx) throws Exception {
+        mockMvc.perform(get("/api/transactions").param("category", category).header("Authorization", bearer(ALICE)))
+                .andExpect(jsonPath("$.totalItems").value(1))
+                .andExpect(jsonPath("$.items[0].id").value(tx.toString()));
+    }
+
+    @Test
+    void moneyInFromAMerchantDefaultsToRefundAndMoneyOutKeepsItsHint() throws Exception {
+        createCategory(ALICE, "Refund");
+        createCategory(ALICE, "Food & Dining");
+        UUID out = transaction(alice, "out", "OUT", swiggy, null);
+        UUID in = credit(swiggy);
+
+        expectCategory(in, "Refund");
+        expectCategory(out, "Food & Dining");
+        expectOnlyInFilter("Refund", in);
+        expectOnlyInFilter("Food & Dining", out);
+    }
+
+    @Test
+    void merchantMoneyInCategoryBeatsRefund() throws Exception {
+        createCategory(ALICE, "Refund");
+        String cashback = createCategory(ALICE, "Cashback");
+        UUID in = credit(swiggy);
+        mockMvc.perform(put("/api/merchants/" + swiggy + "/category").header("Authorization", bearer(ALICE))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"categoryId\":\"" + cashback + "\",\"credit\":true}"))
+                .andExpect(status().is2xxSuccessful());
+
+        expectCategory(in, "Cashback");
+        expectOnlyInFilter("Cashback", in);
+        mockMvc.perform(get("/api/transactions").param("category", "Refund").header("Authorization", bearer(ALICE)))
+                .andExpect(jsonPath("$.totalItems").value(0));
+    }
+
+    @Test
+    void moneyInWithoutAMerchantStaysUncategorized() throws Exception {
+        createCategory(ALICE, "Refund");
+        UUID in = credit(null);
+
+        expectCategory(in, "Uncategorized");
+        expectOnlyInFilter("Uncategorized", in);
     }
 }

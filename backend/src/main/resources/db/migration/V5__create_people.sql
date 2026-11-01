@@ -1,5 +1,6 @@
 -- Migration: V5__create_people.sql
 -- Description: People a user transfers money to, with money-out and money-in default categories.
+-- Two of a user's people may share a name (the UI offers a merge instead), so the name index is non-unique.
 
 CREATE TABLE IF NOT EXISTS people (
     id UUID PRIMARY KEY,
@@ -10,6 +11,6 @@ CREATE TABLE IF NOT EXISTS people (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uq_people_user_lower_name ON people(user_id, lower(name));
+CREATE INDEX IF NOT EXISTS idx_people_user_lower_name ON people(user_id, lower(name));
 CREATE INDEX IF NOT EXISTS idx_people_category_id ON people(category_id);
 CREATE INDEX IF NOT EXISTS idx_people_credit_category_id ON people(credit_category_id);

@@ -97,7 +97,7 @@ class CategoryControllerTest {
 
     @Test
     void listSeedsDefaultsOnceSortedByName() throws Exception {
-        int expected = MerchantNormalizer.defaultCategoryNames().size() + 2;
+        int expected = MerchantNormalizer.defaultCategoryNames().size() + 3; // Refund, Repayment, Loan
         for (int i = 0; i < 2; i++) {
             mockMvc.perform(get("/api/categories").header("Authorization", bearer(ALICE)))
                     .andExpect(status().isOk())
@@ -108,6 +108,14 @@ class CategoryControllerTest {
                 .andExpect(jsonPath("$[?(@.name=='Loan')].countsAsSpending").value(false))
                 .andExpect(jsonPath("$[?(@.name=='Groceries')].countsAsSpending").value(true))
                 .andExpect(jsonPath("$[0].name").value("Entertainment"));
+    }
+
+    @Test
+    void refundCannotBeRenamed() throws Exception {
+        String id = createAs(ALICE, "Refund");
+        mockMvc.perform(put("/api/categories/" + id).header("Authorization", bearer(ALICE))
+                        .contentType(MediaType.APPLICATION_JSON).content(body("Reimbursement", true)))
+                .andExpect(status().isConflict());
     }
 
     @Test

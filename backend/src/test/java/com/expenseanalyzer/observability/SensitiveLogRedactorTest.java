@@ -45,4 +45,11 @@ class SensitiveLogRedactorTest {
         assertThat(SensitiveLogRedactor.redact(msg)).isEqualTo(msg);
         assertThat(SensitiveLogRedactor.redact(null)).isNull();
     }
+
+    @Test
+    void redactsJsonShapedSecrets() {
+        assertThat(SensitiveLogRedactor.redact("{\"refreshToken\":\"abc\"}")).doesNotContain("abc");
+        assertThat(SensitiveLogRedactor.redact("{\"refreshToken\" : \"abc\"}")).doesNotContain("abc");
+        assertThat(SensitiveLogRedactor.redact("{\\\"refreshToken\\\":\\\"abc\\\"}")).doesNotContain("abc");
+    }
 }

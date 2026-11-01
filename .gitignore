@@ -4,8 +4,6 @@ HELP.md
 /backend/.gradle/
 /backend/build/
 /backend/gradle/wrapper/gradle-wrapper.jar
-!/backend/**/src/main/**/build/
-!/backend/**/src/test/**/build/
 
 # Compiled output
 /backend/bin/
@@ -56,7 +54,7 @@ desktop.ini
 .claude/
 .agents/
 /graphify*
-
+.rtk/*
 agents.md
 
 *package*.json

@@ -6,8 +6,8 @@ import java.util.regex.Pattern;
 
 /**
  * Identifies "who was paid" so a user's merchant name for one payment applies to every payment to that payee.
- * A UPI P2M payment is keyed by its payee-name segment (trailing remarks vary per payment); anything else by its
- * normalized description. Pure; nothing is logged.
+ * A UPI P2M, P2A or P2P payment is keyed by its payee-name segment (trailing remarks vary per payment); anything else
+ * by its normalized description. Pure; nothing is logged.
  */
 public final class PayeeKey {
 
@@ -17,9 +17,10 @@ public final class PayeeKey {
     private PayeeKey() {
     }
 
-    /** Upper-cased key, or null when the transaction has neither a P2M payee nor a normalized description. */
+    /** Upper-cased key, or null when the transaction has neither a UPI payee nor a normalized description. */
     public static String of(String rawDescription, String normalizedDescription) {
-        return ofP2m(rawDescription).orElseGet(() -> clean(normalizedDescription == null ? "" : normalizedDescription));
+        return ofP2m(rawDescription).or(() -> PersonNameParser.parse(rawDescription).map(PayeeKey::clean))
+                .orElseGet(() -> clean(normalizedDescription == null ? "" : normalizedDescription));
     }
 
     /** The key when it comes from a UPI P2M payee segment (a merchant); empty for any other description. */

@@ -178,6 +178,24 @@ class AnalyticsControllerTest {
     }
 
     @Test
+    void refundReducesTheMerchantsTopCategoryWhenPaymentsHaveTheirOwnCategory() throws Exception {
+        call("categories", "2026-01-01", "2026-01-31").andExpect(status().isOk()); // seeds the categories
+        UUID shop = merchantRepository.save(new Merchant("Corner Shop", null)).getId();
+        merchantIds.add(shop);
+        UUID groceries = jdbcTemplate.queryForObject("SELECT id FROM categories WHERE user_id = ? AND name = 'Groceries'",
+                UUID.class, alice);
+        Transaction own = tx(alice, "2026-03-01", "500.00", "DEBIT", shop);
+        own.setCategoryId(groceries);
+        transactionRepository.save(own);
+        save(alice, "2026-03-02", "100.00", "CREDIT", shop);
+
+        call("categories", "2026-03-01", "2026-03-31")
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].category").value("Groceries"))
+                .andExpect(jsonPath("$.items[0].spend").value(400.00));
+    }
+
+    @Test
     void cashFlowHasOneBucketPerMonthIncludingEmptyMonths() throws Exception {
         call("cash-flow", "2025-11-01", "2026-02-28")
                 .andExpect(status().isOk())

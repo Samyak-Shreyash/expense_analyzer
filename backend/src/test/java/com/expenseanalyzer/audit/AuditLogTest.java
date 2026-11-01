@@ -7,7 +7,7 @@ import com.expenseanalyzer.auth.dto.JwtTokenProvider;
 import com.expenseanalyzer.messaging.repository.OutboxEventRepository;
 import com.expenseanalyzer.observability.CorrelationIdFilter;
 import com.expenseanalyzer.statement.repository.StatementRepository;
-import com.expenseanalyzer.statement.service.StatementStorage;
+import com.expenseanalyzer.statement.service.S3StatementStorage;
 import com.expenseanalyzer.user.model.User;
 import com.expenseanalyzer.user.model.UserRole;
 import com.expenseanalyzer.user.repository.PreferenceRepository;
@@ -66,7 +66,7 @@ class AuditLogTest {
     @MockitoBean
     private PreferenceRepository preferenceRepository;
     @MockitoBean
-    private StatementStorage storage;
+    private S3StatementStorage storage;
 
     private MockMvc mockMvc;
     private User alice;

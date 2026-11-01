@@ -920,6 +920,7 @@ correctness and the transaction domain model.
 The product MVP is functionally complete when:
 
 - [ ] Users can register and authenticate.
+- [ ] Users can delete their account and financial data.
 - [ ] Users can create financial accounts.
 - [ ] Users can upload supported CSV statements.
 - [ ] Users can upload supported PDF statements.

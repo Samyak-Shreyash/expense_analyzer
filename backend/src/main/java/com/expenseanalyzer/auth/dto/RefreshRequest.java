@@ -1,0 +1,9 @@
+package com.expenseanalyzer.auth.dto;
+
+public record RefreshRequest(String refreshToken) {
+
+    @Override
+    public String toString() {
+        return "RefreshRequest[refreshToken=***]";
+    }
+}

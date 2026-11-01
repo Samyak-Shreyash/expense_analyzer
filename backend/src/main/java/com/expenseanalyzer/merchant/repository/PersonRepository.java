@@ -16,7 +16,8 @@ public interface PersonRepository extends JpaRepository<Person, UUID> {
 
     Optional<Person> findByIdAndUserId(UUID id, UUID userId);
 
-    Optional<Person> findByUserIdAndNameIgnoreCase(UUID userId, String name);
+    /** People may share a name; the oldest one wins. */
+    Optional<Person> findFirstByUserIdAndNameIgnoreCaseOrderByCreatedAtAsc(UUID userId, String name);
 
     /** Detaches the category from every person (the FK also does this on Postgres; H2 tests have no FK). */
     @Modifying(clearAutomatically = true)

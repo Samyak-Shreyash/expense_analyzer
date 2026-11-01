@@ -5,6 +5,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -145,6 +146,28 @@ public class Transaction {
      */
     @Column(name = "transaction_fingerprint", length = 64)
     private String transactionFingerprint;
+
+    /** True when this is money moved between the user's own accounts (DOMAIN-MODEL 4.3); left out of analytics. */
+    @ColumnDefault("false")
+    @Column(name = "transfer", nullable = false)
+    private boolean transfer;
+
+    /** The other half of an own-account transfer; null when unpaired or a single transfer the user marked. */
+    @Column(name = "transfer_pair_id")
+    private UUID transferPairId;
+
+    /** True once the user marked or unmarked this row as a transfer; automatic matching then leaves it alone. */
+    @ColumnDefault("false")
+    @Column(name = "transfer_manual", nullable = false)
+    private boolean transferManual;
+
+    /** The other half of a failed payment and its refund, paired by the user; both are left out of analytics. */
+    @Column(name = "reversal_pair_id")
+    private UUID reversalPairId;
+
+    /** On the payment of such a pair: what the refund did not return. It still counts as spending. Null when none. */
+    @Column(name = "reversal_charge_paise")
+    private BigDecimal reversalChargePaise;
 
     // ---- Lifecycle hooks ----
 

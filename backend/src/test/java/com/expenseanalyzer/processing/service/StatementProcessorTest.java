@@ -10,7 +10,7 @@ import com.expenseanalyzer.statement.model.StatementFormat;
 import com.expenseanalyzer.statement.model.StatementStatus;
 import com.expenseanalyzer.statement.repository.StatementRepository;
 import com.expenseanalyzer.statement.service.StatementObjectNotFoundException;
-import com.expenseanalyzer.statement.service.StatementStorage;
+import com.expenseanalyzer.statement.service.S3StatementStorage;
 import com.expenseanalyzer.transaction.model.Transaction;
 import com.expenseanalyzer.transaction.repository.TransactionRepository;
 import org.junit.jupiter.api.AfterEach;
@@ -65,7 +65,7 @@ class StatementProcessorTest {
     private PersonPayeeRepository personPayeeRepository;
 
     @MockitoBean
-    private StatementStorage storage;
+    private S3StatementStorage storage;
 
     @AfterEach
     void cleanUp() {
@@ -87,7 +87,7 @@ class StatementProcessorTest {
         s.setFileHash(UUID.randomUUID().toString().replace("-", ""));
         s.onCreate();
         s = statementRepository.saveAndFlush(s);
-        s.setStorageKey(StatementStorage.keyFor(userId, s.getId()));
+        s.setStorageKey(S3StatementStorage.keyFor(userId, s.getId()));
         return statementRepository.saveAndFlush(s);
     }
 

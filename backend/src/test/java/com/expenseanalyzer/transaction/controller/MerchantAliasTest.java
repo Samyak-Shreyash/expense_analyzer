@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.expenseanalyzer.category.model.UserMerchantCategory;
 import com.expenseanalyzer.auth.dto.JwtTokenProvider;
 import com.expenseanalyzer.category.model.Category;
 import com.expenseanalyzer.category.repository.CategoryRepository;
@@ -22,7 +23,7 @@ import com.expenseanalyzer.statement.model.Statement;
 import com.expenseanalyzer.statement.model.StatementFormat;
 import com.expenseanalyzer.statement.model.StatementStatus;
 import com.expenseanalyzer.statement.repository.StatementRepository;
-import com.expenseanalyzer.statement.service.StatementStorage;
+import com.expenseanalyzer.statement.service.S3StatementStorage;
 import com.expenseanalyzer.transaction.model.Transaction;
 import com.expenseanalyzer.transaction.repository.TransactionRepository;
 import com.expenseanalyzer.user.model.User;
@@ -83,7 +84,7 @@ class MerchantAliasTest {
     @MockitoBean
     private UserRepository userRepository;
     @MockitoBean
-    private StatementStorage storage;
+    private S3StatementStorage storage;
 
     private MockMvc mockMvc;
     private User alice;
@@ -200,6 +201,22 @@ class MerchantAliasTest {
     }
 
     @Test
+    void renamingAMerchantKeepsTheUsersCategoryForIt() throws Exception {
+        UUID food = categoryRepository.saveAndFlush(new Category(alice.getId(), "Food", true)).getId();
+        UUID a = transaction(alice, ACME + "lunch", "P2M ACME STORE LUNCH");
+        name(ALICE, a, "{\"name\":\"Acme\"}", 200);
+        UUID acme = merchantRepository.findByCanonicalName("Acme").orElseThrow().getId();
+        merchantCategoryRepository.saveAndFlush(new UserMerchantCategory(alice.getId(), acme, food));
+
+        name(ALICE, a, "{\"name\":\"Acme Store\"}", 200);
+
+        UUID renamed = merchantRepository.findByCanonicalName("Acme Store").orElseThrow().getId();
+        assertThat(reload(a).getMerchantId()).isEqualTo(renamed);
+        assertThat(merchantCategoryRepository.findByUserIdAndMerchantId(alice.getId(), renamed).orElseThrow()
+                .getCategoryId()).isEqualTo(food);
+    }
+
+    @Test
     void laterImportOfSamePayeeGetsTheMerchantAutomatically() throws Exception {
         UUID a = transaction(alice, ACME + "lunch", "P2M ACME STORE LUNCH");
         name(ALICE, a, "{\"name\":\"Acme Store\"}", 200);
@@ -262,7 +279,7 @@ class MerchantAliasTest {
         s.setFileHash(UUID.randomUUID().toString().replace("-", ""));
         s.onCreate();
         s = statementRepository.saveAndFlush(s);
-        s.setStorageKey(StatementStorage.keyFor(userId, s.getId()));
+        s.setStorageKey(S3StatementStorage.keyFor(userId, s.getId()));
         s = statementRepository.saveAndFlush(s);
         when(storage.read(s.getStorageKey()))
                 .thenAnswer(inv -> new ByteArrayInputStream(csv.getBytes(StandardCharsets.UTF_8)));

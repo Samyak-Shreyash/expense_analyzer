@@ -17,7 +17,9 @@ public class StatementRowMapper {
             DateTimeFormatter.ofPattern("uuuu-MM-dd").withResolverStyle(ResolverStyle.STRICT),
             DateTimeFormatter.ofPattern("dd/MM/uuuu").withResolverStyle(ResolverStyle.STRICT),
             DateTimeFormatter.ofPattern("dd-MM-uuuu").withResolverStyle(ResolverStyle.STRICT),
-            DateTimeFormatter.ofPattern("dd-MMM-uuuu", Locale.ENGLISH).withResolverStyle(ResolverStyle.STRICT));
+            DateTimeFormatter.ofPattern("dd-MMM-uuuu", Locale.ENGLISH).withResolverStyle(ResolverStyle.STRICT),
+            // HDFC: 27/10/26 (two-digit year means 20xx)
+            DateTimeFormatter.ofPattern("dd/MM/uu").withResolverStyle(ResolverStyle.STRICT));
 
     private final int dateIdx;
     private final int descIdx;
@@ -30,11 +32,12 @@ public class StatementRowMapper {
         for (String s : header) {
             h.add(s == null ? "" : s.trim().toLowerCase(Locale.ROOT));
         }
-        // Generic names first, then bank-specific ones (Axis: Tran Date, PARTICULARS, DR, CR).
+        // Generic names first, then bank-specific ones (Axis: Tran Date, PARTICULARS, DR, CR;
+        // HDFC: Narration, Withdrawal Amt., Deposit Amt.).
         dateIdx = indexOf(h, "date", "tran date");
-        descIdx = indexOf(h, "description", "particulars");
-        debitIdx = indexOf(h, "debit", "dr");
-        creditIdx = indexOf(h, "credit", "cr");
+        descIdx = indexOf(h, "description", "particulars", "narration");
+        debitIdx = indexOf(h, "debit", "dr", "withdrawal amt.");
+        creditIdx = indexOf(h, "credit", "cr", "deposit amt.");
         amountIdx = indexOf(h, "amount");
     }
 
