@@ -4,6 +4,9 @@ import type { Profile } from '../../services/finance'
 import * as finance from '../../services/finance'
 import { ProfilePage } from './ProfilePage'
 
+vi.mock('../auth/AuthContext', () => ({
+  useAuth: () => ({ logout: vi.fn() }),
+}))
 vi.mock('../../services/finance', async (orig) => ({
   ...(await orig<typeof import('../../services/finance')>()),
   getProfile: vi.fn(),

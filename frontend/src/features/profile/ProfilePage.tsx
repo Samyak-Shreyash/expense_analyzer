@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import shared from '../../components/shared.module.css'
 import { getProfile, updateProfile, type Profile } from '../../services/finance'
+import { DeleteAccountSection } from './DeleteAccountSection'
 import styles from './ProfilePage.module.css'
 
 /** Shows the signed-in user's details and lets them edit name and preferences. */
@@ -108,6 +109,7 @@ export function ProfilePage() {
           </button>
         </form>
       )}
+      {profile && <DeleteAccountSection />}
     </>
   )
 }

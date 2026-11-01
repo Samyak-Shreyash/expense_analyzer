@@ -3,8 +3,10 @@ package com.expenseanalyzer.user.controller;
 import com.expenseanalyzer.auth.dto.ChangePasswordRequest;
 import com.expenseanalyzer.auth.service.AuthService;
 import com.expenseanalyzer.auth.service.PasswordService;
+import com.expenseanalyzer.user.dto.DeleteAccountRequest;
 import com.expenseanalyzer.user.dto.UserRequest;
 import com.expenseanalyzer.user.dto.UserResponse;
+import com.expenseanalyzer.user.service.AccountDeletionService;
 import com.expenseanalyzer.user.service.UserService;
 
 import jakarta.validation.Valid;
@@ -30,6 +32,7 @@ public class UserController {
     private final AuthService authService;
     private final UserService userService;
     private final PasswordService passwordService;
+    private final AccountDeletionService accountDeletionService;
 
 
     /**
@@ -56,6 +59,18 @@ public class UserController {
             @AuthenticationPrincipal Jwt jwt,
             @Valid @RequestBody ChangePasswordRequest request) {
         passwordService.changePassword(jwt.getSubject(), request.currentPassword(), request.newPassword());
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Delete the authenticated user's account and all their financial data.
+     * DELETE /api/user/me
+     */
+    @DeleteMapping("/me")
+    public ResponseEntity<Void> deleteMe(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody DeleteAccountRequest request) {
+        accountDeletionService.delete(jwt.getSubject(), request.password());
         return ResponseEntity.noContent().build();
     }
 

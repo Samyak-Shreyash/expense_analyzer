@@ -41,6 +41,9 @@ Update the caller's own `fullName` (1 to 255 characters) and `preferences`. Retu
 ### PUT `/user/me/password`
 Change the caller's password. Body: `currentPassword`, `newPassword` (at least 8 characters). Returns `204`. All the caller's refresh tokens are revoked; access tokens already issued stay valid until they expire. `400` for a weak or missing new password or a wrong current password (generic message, never `401`). `429` after more than 5 attempts in 300 seconds (every attempt counts; success clears the count), `503` if the rate limiter store is unavailable. `401` without a token.
 
+### DELETE `/user/me`
+Delete the caller's account and all their financial data, including stored statement files. Body: `password`. Returns `204`. `400` (generic) for a wrong or missing password, `429` after too many attempts. `503` if file storage fails: no rows are removed and the request can be retried. Audit records stay with the user id removed; shared merchants stay. Deleted data remains in backups for up to 30 days.
+
 ## 3. Accounts
 
 ### POST `/accounts`
