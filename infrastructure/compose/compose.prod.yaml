@@ -1,0 +1,47 @@
+# ============================================================
+# Production override for a single VPS.
+#
+#   docker compose -f compose.yaml -f compose.prod.yaml up -d --build
+#   (or just run infrastructure/scripts/deploy.sh)
+#
+# - Only the frontend is published, and only on 127.0.0.1. Put Tailscale
+#   Serve or a Cloudflare Tunnel in front of it for HTTPS; never open it
+#   directly. HTTPS is required: the refresh cookie is Secure.
+# - Postgres, Redis, Kafka, RustFS and the backend are reachable only on
+#   the internal Docker network.
+# - Observability services (profile "observability") stay off.
+# Requires Docker Compose >= 2.24 for !reset / !override.
+# ============================================================
+
+services:
+
+  postgres:
+    ports: !reset []
+
+  redis:
+    ports: !reset []
+
+  kafka:
+    ports: !reset []
+    environment:
+      # Keep the broker small on a 4 GB box.
+      KAFKA_HEAP_OPTS: "-Xms256m -Xmx512m"
+
+  rustfs:
+    # RustFS is pre-1.0; "latest" can change under you on restart.
+    image: rustfs/rustfs:${RUSTFS_TAG:?set RUSTFS_TAG in .env to a specific RustFS version}
+    ports: !reset []
+    environment:
+      RUSTFS_CONSOLE_ENABLE: "false"
+
+  backend:
+    ports: !reset []
+    environment:
+      APP_BASE_URL: ${APP_BASE_URL:?set APP_BASE_URL in .env to the public https origin}
+      # No collector running in prod yet: don't sample or export telemetry.
+      MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "0"
+      MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED: "false"
+
+  frontend:
+    ports: !override
+      - "127.0.0.1:${FRONTEND_PORT:-3001}:80"
