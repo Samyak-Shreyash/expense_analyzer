@@ -17,6 +17,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -170,6 +171,12 @@ public class AuthController {
             refreshTokenService.revoke(refreshToken);
         }
         return ResponseEntity.noContent().header(HttpHeaders.SET_COOKIE, refreshCookie("", 0)).build();
+    }
+
+    /** Unreadable bodies can echo the refresh token in the exception message; answer 400 without logging it. */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<Void> handleUnreadableBody() {
+        return ResponseEntity.badRequest().build();
     }
 
     private static boolean isMobile(String clientType) {

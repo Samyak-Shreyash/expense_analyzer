@@ -9,4 +9,9 @@ public record AuthResponse(String token, String refreshToken) {
     public AuthResponse(String token) {
         this(token, null);
     }
+
+    @Override
+    public String toString() {
+        return "AuthResponse[token=***, refreshToken=***]";
+    }
 }

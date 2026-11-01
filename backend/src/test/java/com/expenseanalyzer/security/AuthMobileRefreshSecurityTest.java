@@ -12,6 +12,9 @@ import com.jayway.jsonpath.JsonPath;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
@@ -33,6 +36,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest
+@ExtendWith(OutputCaptureExtension.class)
 class AuthMobileRefreshSecurityTest {
 
     private static final String EMAIL = "alice@example.com";
@@ -248,5 +252,22 @@ class AuthMobileRefreshSecurityTest {
     @Test
     void refreshRequestToStringHidesToken() {
         assertThat(new RefreshRequest("secret-value").toString()).doesNotContain("secret-value");
+    }
+
+    @Test
+    void malformedMobileRefreshBodyIs400AndValueIsNotLogged(CapturedOutput output) throws Exception {
+        MvcResult result = mockMvc.perform(post("/api/auth/refresh")
+                        .header(CLIENT_TYPE, "mobile")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("abcdefghijkl"))
+                .andReturn();
+        assertThat(result.getResponse().getStatus()).isEqualTo(400);
+        assertThat(output.getAll()).doesNotContain("abcdefghijkl");
+    }
+
+    @Test
+    void authResponseToStringHidesTokens() {
+        String text = new com.expenseanalyzer.auth.dto.AuthResponse("access-secret", "refresh-secret").toString();
+        assertThat(text).doesNotContain("access-secret").doesNotContain("refresh-secret");
     }
 }
