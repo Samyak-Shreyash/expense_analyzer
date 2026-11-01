@@ -78,40 +78,41 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
     List<Transaction> findByUserIdAndTransferFalseAndTransferManualFalse(UUID userId);
 
     /** Rows: [type, sum of amountCents] over own-account transfers only. */
-    @Query("SELECT t.type, SUM(t.amountCents) FROM Transaction t "
+    @Query("SELECT t.type, SUM(CASE WHEN t.reversalPairId IS NULL THEN t.amountCents ELSE t.reversalChargePaise END) FROM Transaction t "
             + "WHERE t.userId = :userId AND t.transfer = TRUE AND t.date >= :from AND t.date < :to GROUP BY t.type")
     List<Object[]> sumTransfersByDirection(UUID userId, Instant from, Instant to);
 
     /** Ownership-scoped lookup: another user's transaction is indistinguishable from a missing one. */
     Optional<Transaction> findByIdAndUserId(UUID id, UUID userId);
 
-    // ---- Aggregations for analytics. Range is [from, to). Rows are Object[]; see each method. ----
+    // ---- Aggregations for analytics. Range is [from, to). Rows are Object[]; see each method. A refund pair counts only
+    // for the charges on its payment. ----
 
     /** Rows: [type (String), sum of amountCents (BigDecimal), count (Long)]. */
-    @Query("SELECT t.type, SUM(t.amountCents), COUNT(t) FROM Transaction t "
-            + "WHERE t.userId = :userId AND t.transfer = FALSE AND t.reversalPairId IS NULL AND t.date >= :from AND t.date < :to GROUP BY t.type")
+    @Query("SELECT t.type, SUM(CASE WHEN t.reversalPairId IS NULL THEN t.amountCents ELSE t.reversalChargePaise END), COUNT(t) FROM Transaction t "
+            + "WHERE t.userId = :userId AND t.transfer = FALSE AND (t.reversalPairId IS NULL OR t.reversalChargePaise IS NOT NULL) AND t.date >= :from AND t.date < :to GROUP BY t.type")
     List<Object[]> sumByDirection(UUID userId, Instant from, Instant to);
 
     /** Rows: [merchantId (UUID or null), type, sum of amountCents, count]. */
-    @Query("SELECT t.merchantId, t.type, SUM(t.amountCents), COUNT(t) FROM Transaction t "
-            + "WHERE t.userId = :userId AND t.transfer = FALSE AND t.reversalPairId IS NULL AND t.date >= :from AND t.date < :to GROUP BY t.merchantId, t.type")
+    @Query("SELECT t.merchantId, t.type, SUM(CASE WHEN t.reversalPairId IS NULL THEN t.amountCents ELSE t.reversalChargePaise END), COUNT(t) FROM Transaction t "
+            + "WHERE t.userId = :userId AND t.transfer = FALSE AND (t.reversalPairId IS NULL OR t.reversalChargePaise IS NOT NULL) AND t.date >= :from AND t.date < :to GROUP BY t.merchantId, t.type")
     List<Object[]> sumByMerchantAndDirection(UUID userId, Instant from, Instant to);
 
     /** Rows: [year (Integer), month (Integer), type, sum of amountCents]. Dates are UTC days. */
-    @Query("SELECT YEAR(t.date), MONTH(t.date), t.type, SUM(t.amountCents) FROM Transaction t "
-            + "WHERE t.userId = :userId AND t.transfer = FALSE AND t.reversalPairId IS NULL AND t.date >= :from AND t.date < :to "
+    @Query("SELECT YEAR(t.date), MONTH(t.date), t.type, SUM(CASE WHEN t.reversalPairId IS NULL THEN t.amountCents ELSE t.reversalChargePaise END) FROM Transaction t "
+            + "WHERE t.userId = :userId AND t.transfer = FALSE AND (t.reversalPairId IS NULL OR t.reversalChargePaise IS NOT NULL) AND t.date >= :from AND t.date < :to "
             + "GROUP BY YEAR(t.date), MONTH(t.date), t.type")
     List<Object[]> sumByMonthAndDirection(UUID userId, Instant from, Instant to);
 
     /** Rows: [categoryId, personId, merchantId (each UUID or null), type, sum of amountCents, count]. */
-    @Query("SELECT t.categoryId, t.personId, t.merchantId, t.type, SUM(t.amountCents), COUNT(t) FROM Transaction t "
-            + "WHERE t.userId = :userId AND t.transfer = FALSE AND t.reversalPairId IS NULL AND t.date >= :from AND t.date < :to "
+    @Query("SELECT t.categoryId, t.personId, t.merchantId, t.type, SUM(CASE WHEN t.reversalPairId IS NULL THEN t.amountCents ELSE t.reversalChargePaise END), COUNT(t) FROM Transaction t "
+            + "WHERE t.userId = :userId AND t.transfer = FALSE AND (t.reversalPairId IS NULL OR t.reversalChargePaise IS NOT NULL) AND t.date >= :from AND t.date < :to "
             + "GROUP BY t.categoryId, t.personId, t.merchantId, t.type")
     List<Object[]> sumByCategoryGroup(UUID userId, Instant from, Instant to);
 
     /** Rows: [year, month, categoryId, personId, merchantId, type, sum of amountCents]. Dates are UTC days. */
-    @Query("SELECT YEAR(t.date), MONTH(t.date), t.categoryId, t.personId, t.merchantId, t.type, SUM(t.amountCents) "
-            + "FROM Transaction t WHERE t.userId = :userId AND t.transfer = FALSE AND t.reversalPairId IS NULL AND t.date >= :from AND t.date < :to "
+    @Query("SELECT YEAR(t.date), MONTH(t.date), t.categoryId, t.personId, t.merchantId, t.type, SUM(CASE WHEN t.reversalPairId IS NULL THEN t.amountCents ELSE t.reversalChargePaise END) "
+            + "FROM Transaction t WHERE t.userId = :userId AND t.transfer = FALSE AND (t.reversalPairId IS NULL OR t.reversalChargePaise IS NOT NULL) AND t.date >= :from AND t.date < :to "
             + "GROUP BY YEAR(t.date), MONTH(t.date), t.categoryId, t.personId, t.merchantId, t.type")
     List<Object[]> sumByMonthAndCategoryGroup(UUID userId, Instant from, Instant to);
 }

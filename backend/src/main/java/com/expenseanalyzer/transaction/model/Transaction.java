@@ -165,6 +165,10 @@ public class Transaction {
     @Column(name = "reversal_pair_id")
     private UUID reversalPairId;
 
+    /** On the payment of such a pair: what the refund did not return. It still counts as spending. Null when none. */
+    @Column(name = "reversal_charge_paise")
+    private BigDecimal reversalChargePaise;
+
     // ---- Lifecycle hooks ----
 
     /**

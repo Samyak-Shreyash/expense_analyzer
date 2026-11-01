@@ -33,6 +33,7 @@ import jakarta.persistence.criteria.Path;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 import jakarta.persistence.criteria.Subquery;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.HashMap;
@@ -59,6 +60,9 @@ import org.springframework.web.server.ResponseStatusException;
 @RequiredArgsConstructor
 public class TransactionService {
 
+    private static final int MAX_REFUND_CHARGE_PERCENT = 10;
+    private static final String REFUND_MISMATCH =
+            "A refund pairs money out and money in of the same amount, or a payment up to 10% above the refund";
     private final TransactionRepository transactionRepository;
     private final UserRepository userRepository;
     private final MerchantRepository merchantRepository;
@@ -183,8 +187,9 @@ public class TransactionService {
 
     /**
      * Pairs a failed payment with the refund that reversed it, or unpairs it when {@code pairWithId} is null. The
-     * other half must be the caller's, in the other direction, with the same amount and currency (else 400). Both are
-     * then left out of analytics; any earlier partner of either is released, and a transfer mark is cleared (the
+     * other half must be the caller's, in the other direction, in the same currency, with the same amount or a payment
+     * at most {@link #MAX_REFUND_CHARGE_PERCENT}% above the refund (else 400). Both are then left out of analytics except
+     * the difference, which is the charges and stays spending; any earlier partner of either is released, and a transfer mark is cleared (the
      * user's choice, so automatic transfer matching leaves them alone). Not yours: 404.
      */
     @Transactional
@@ -196,9 +201,15 @@ public class TransactionService {
         if (request.pairWithId() != null) {
             Transaction other = owned(request.pairWithId(), userId);
             if (other.getId().equals(t.getId()) || other.getType().equals(t.getType())
-                    || other.getAmount().compareTo(t.getAmount()) != 0 || !other.getCurrency().equals(t.getCurrency())) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        "A refund pairs money out and money in of the same amount");
+                    || !other.getCurrency().equals(t.getCurrency())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, REFUND_MISMATCH);
+            }
+            Transaction payment = "DEBIT".equals(t.getType()) ? t : other;
+            Transaction refund = payment == t ? other : t;
+            BigDecimal charge = payment.getAmountCents().subtract(refund.getAmountCents());
+            if (charge.signum() < 0 || charge.multiply(BigDecimal.valueOf(100))
+                    .compareTo(refund.getAmountCents().multiply(BigDecimal.valueOf(MAX_REFUND_CHARGE_PERCENT))) > 0) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, REFUND_MISMATCH);
             }
             unpairReversal(other, userId, now);
             for (Transaction half : List.of(t, other)) {
@@ -208,6 +219,7 @@ public class TransactionService {
             }
             t.setReversalPairId(other.getId());
             other.setReversalPairId(t.getId());
+            payment.setReversalChargePaise(charge.signum() == 0 ? null : charge);
             other.setUpdatedAt(now);
             transactionRepository.save(other);
         }
@@ -222,10 +234,12 @@ public class TransactionService {
         }
         transactionRepository.findByIdAndUserId(t.getReversalPairId(), userId).ifPresent(partner -> {
             partner.setReversalPairId(null);
+            partner.setReversalChargePaise(null);
             partner.setUpdatedAt(now);
             transactionRepository.save(partner);
         });
         t.setReversalPairId(null);
+        t.setReversalChargePaise(null);
     }
 
     /** Unlinks the transaction's partner, if any; {@code manual} records the partner as the user's choice too. */
