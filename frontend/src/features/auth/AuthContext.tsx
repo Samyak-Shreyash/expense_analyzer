@@ -37,7 +37,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return ok
     },
     logout: async () => {
-      await api.logout()
+      // The local token is already gone: sign out here even if the server call fails.
+      await api.logout().catch(() => {})
       setStatus('anonymous')
       navigate('/login', { replace: true })
     },

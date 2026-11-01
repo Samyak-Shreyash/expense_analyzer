@@ -529,6 +529,6 @@ export const deleteAccount = (password: string) =>
     {
       400: 'That password is not correct.',
       429: 'Too many attempts. Try again in a few minutes.',
-      503: 'Could not delete your account right now. Try again in a moment.',
+      503: 'Could not finish deleting your account, and some statement files may already be gone. Try again in a moment.',
     },
   )

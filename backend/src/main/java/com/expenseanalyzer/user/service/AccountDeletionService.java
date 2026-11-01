@@ -51,9 +51,11 @@ public class AccountDeletionService {
         Set<String> deletedKeys = new HashSet<>();
         deleteFiles(userId, deletedKeys);
         transaction.executeWithoutResult(status -> {
+            // The row lock conflicts with foreign key checks: running uploads and imports finish first, later ones fail.
+            jdbc.queryForList("SELECT id FROM users WHERE id = ? FOR UPDATE", userId);
             deleteFiles(userId, deletedKeys); // a statement uploaded since the first pass
-            jdbc.update("UPDATE audit_logs SET user_id = NULL WHERE user_id = ?", userId);
             OWNED_TABLES.forEach(table -> jdbc.update("DELETE FROM " + table + " WHERE user_id = ?", userId));
+            jdbc.update("UPDATE audit_logs SET user_id = NULL WHERE user_id = ?", userId);
             jdbc.update("DELETE FROM users WHERE id = ?", userId);
             auditService.record(AuditAction.ACCOUNT_DELETED, null);
         });
