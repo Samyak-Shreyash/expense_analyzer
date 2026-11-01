@@ -130,6 +130,11 @@ class ChangePasswordTest {
     }
 
     @Test
+    void newPasswordOverTheBcryptLimitIsBadRequest() throws Exception {
+        change(OLD, "x".repeat(73)).andExpect(status().isBadRequest());
+    }
+
+    @Test
     void everyAttemptIsCountedAndLimitAnswers429() throws Exception {
         change("wrong-password", NEW).andExpect(status().isBadRequest());
         verify(rateLimiter).check("pwd", user.getId());

@@ -36,7 +36,7 @@ Invalidate the current session.
 Return the authenticated user: `email`, `fullName`, `role` and `preferences` (`theme` `light|dark`, `currency` `inr|usd|eur`, `notifications` boolean; only saved keys are present).
 
 ### PUT `/user/me`
-Update the caller's own `fullName` (1 to 255 characters) and `preferences`. Returns the same body as `GET /user/me`. `400` for a blank or too long name, an unknown preference value, or an `email` in the body; `403` if `role` or `active` is sent; `401` without a token. Also available as `PUT /user/{userId}` for the caller's own id.
+Update the caller's own `fullName` (1 to 255 characters) and `preferences`. Returns the same body as `GET /user/me`. `400` for a blank or too long name, an unknown preference value, or an `email` in the body; `403` if `role` or `active` is sent; `401` without a token. Also available as `PUT /user/{userId}` for the caller's own id; another user's id answers `404`.
 
 ### PUT `/user/me/password`
 Change the caller's password. Body: `currentPassword`, `newPassword` (at least 8 characters). Returns `204`. All the caller's refresh tokens are revoked; access tokens already issued stay valid until they expire. `400` for a weak or missing new password or a wrong current password (generic message, never `401`). `429` after more than 5 attempts in 300 seconds (every attempt counts; success clears the count), `503` if the rate limiter store is unavailable. `401` without a token.

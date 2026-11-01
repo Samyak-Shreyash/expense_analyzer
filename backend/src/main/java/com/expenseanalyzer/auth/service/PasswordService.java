@@ -1,5 +1,6 @@
 package com.expenseanalyzer.auth.service;
 
+import java.nio.charset.StandardCharsets;
 import com.expenseanalyzer.audit.model.AuditAction;
 import com.expenseanalyzer.audit.service.AuditService;
 import com.expenseanalyzer.auth.config.RateLimiter;
@@ -17,6 +18,9 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 @RequiredArgsConstructor
 public class PasswordService {
+
+    /** BCrypt limit. */
+    private static final int MAX_PASSWORD_BYTES = 72;
 
     private static final String PURPOSE = "pwd";
 
@@ -44,6 +48,9 @@ public class PasswordService {
         User user = userRepository.findByEmail(callerEmail)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         verifyCurrentPassword(user, currentPassword);
+        if (newPassword.getBytes(StandardCharsets.UTF_8).length > MAX_PASSWORD_BYTES) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request could not be completed");
+        }
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);
         refreshTokenService.revokeAll(user.getId());

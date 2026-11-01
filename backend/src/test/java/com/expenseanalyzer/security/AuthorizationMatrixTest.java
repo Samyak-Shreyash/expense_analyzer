@@ -107,9 +107,9 @@ class AuthorizationMatrixTest {
     @Test
     void userCannotUpdateAnotherUser() throws Exception {
         mockMvc.perform(putUser(bob.getId(), ALICE, "{\"fullName\":\"X\"}"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isNotFound());
         mockMvc.perform(putUser(alice.getId(), BOB, "{\"fullName\":\"X\"}"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isNotFound());
         verify(userRepository, never()).save(any());
 
         mockMvc.perform(putUser(bob.getId(), BOB, "{\"fullName\":\"X\"}"))
@@ -120,7 +120,7 @@ class AuthorizationMatrixTest {
     void adminRoleInDbDoesNotGrantUpdateOfOthers() throws Exception {
         // Documents current behaviour: no admin override on user updates.
         mockMvc.perform(putUser(alice.getId(), CAROL, "{\"fullName\":\"X\"}"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isNotFound());
         verify(userRepository, never()).save(any());
 
         mockMvc.perform(putUser(carol.getId(), CAROL, "{\"fullName\":\"X\"}"))

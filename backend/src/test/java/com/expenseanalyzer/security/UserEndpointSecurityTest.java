@@ -163,7 +163,7 @@ class UserEndpointSecurityTest {
 
         mockMvc.perform(put("/api/user/" + bob.getId()).header("Authorization", bearer(EMAIL))
                         .contentType(MediaType.APPLICATION_JSON).content("{\"fullName\":\"Hacked\"}"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isNotFound());
     }
 
     @Test
