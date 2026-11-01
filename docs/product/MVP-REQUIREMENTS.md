@@ -15,6 +15,7 @@ Primary user: an Indian individual managing personal finances across bank accoun
 
 ### FR-01 Authentication
 - Users can register, log in, log out, and retrieve their profile.
+- Users can delete their account and financial data (SEC-021; deletion policy still to be decided, see `docs/architecture/ADR/SECURITY-REQUIREMENTS.md` section 33).
 - Authentication credentials are never exposed in logs.
 - Every protected resource is authorized against the authenticated user.
 

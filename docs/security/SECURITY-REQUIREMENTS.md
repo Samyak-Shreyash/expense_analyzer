@@ -14,7 +14,8 @@ Covers what is implemented. Statement storage and parser limits are documented i
 | Worker | A `StatementUploaded` event is processed only if the event's `userId` owns the statement. |
 | Shared data | `merchants` rows are global and contain no user data; user-specific amounts are only reachable through owned transactions. |
 
-Owned resources today: statements (and stored files), transactions, analytics derived from them.
+Owned resources today: statements (and stored files), transactions, analytics derived from them,
+categories, people and their payee names, per-merchant category assignments, merchant names (aliases).
 Not built yet: accounts, insights, AI queries. Each must follow the same rules when added.
 
 ## 2. Authorization matrix
@@ -29,12 +30,17 @@ Roles: `USER`, `ADMIN`. No admin-only endpoints exist yet; ADMIN has no extra da
 | `GET /api/statements`, `/api/transactions`, `/api/analytics/*` | 401 | 200, own rows only | never included |
 | `GET /api/statements/{id}`, `/{id}/status`, `/api/transactions/{id}` | 401 | 200 | 404 |
 | `DELETE /api/statements/{id}` | 401 | 204 | 404, nothing deleted |
+| `PUT /api/transactions/{id}/transfer`, `/reversal`, `/category`, `/counterparty`, `/merchant`; `POST /{id}/suggestion-report` | 401 | 200 (report: 204) | 404, nothing changed; also 404 when a referenced `pairWithId` or `categoryId` is someone else's |
+| `PUT`, `DELETE /api/categories/{id}` | 401 | 200, 204 | 404, nothing changed |
+| `PUT /api/people/{id}`, `/{id}/category`, `/{id}/payees`; `POST /api/people/{id}/merge` | 401 | 200 | 404, nothing changed; also 404 when a referenced person or category is someone else's |
+| `PUT /api/merchants/{id}/category` | 401 | 204 | merchants are shared and the assignment is private to the caller; 404 when `categoryId` is someone else's |
+| `PUT /api/merchant-names/{id}`, `/{id}/sharing` | 401 | 200 | 404, nothing changed |
 | Any audit log endpoint | none exists | none exists | none exists |
 
 ## 3. Cross-user isolation test matrix
 
 Implemented in `CrossUserIsolationTest`, `StatementControllerTest`, `TransactionControllerTest`,
-`AnalyticsControllerTest`, `StatementProcessorTest`:
+`AnalyticsControllerTest`, `StatementProcessorTest` and the feature tests named below:
 
 | Scenario | Covered by |
 |---|---|
@@ -42,7 +48,14 @@ Implemented in `CrossUserIsolationTest`, `StatementControllerTest`, `Transaction
 | Foreign id indistinguishable from random id | `CrossUserIsolationTest.foreignIdIsIndistinguishableFromAGuessedOne` |
 | Foreign `statementId` / `merchantId` filter | `CrossUserIsolationTest.filteringByForeignStatementOrMerchantReturnsNothing` |
 | Injected `userId` query parameter | `CrossUserIsolationTest.injectedUserIdParameterIsIgnored` |
-| Analytics never mix users | `CrossUserIsolationTest`, `AnalyticsControllerTest` |
+| Analytics never mix users, on every endpoint | `CrossUserIsolationTest.analyticsNeverIncludeOtherUsersData`, `.remainingAnalyticsNeverIncludeOtherUsersData` |
+| Foreign transaction on write, foreign pair or category reference | `CategoryAssignmentTest`, `PeopleTest`, `MerchantAliasTest`, `TransferTest`, `ReversalTest`, `MerchantNameSharingTest` |
+| Foreign category on update, delete | `CategoryControllerTest.otherUsersCategoryIsNotFoundAndHidden` |
+| Foreign person on update, foreign merge target | `PeopleTest` |
+| Foreign person on category, merge, payee move | `CrossUserIsolationTest.foreignPersonCannotBeChanged` |
+| Own person given a foreign category or moved to a foreign person | `CrossUserIsolationTest.ownPersonCannotAdoptForeignCategoryOrMoveToForeignPerson` |
+| Foreign merchant name on rename, sharing | `MerchantNameSharingTest` |
+| ADMIN has no access to other users' financial data | `CrossUserIsolationTest.adminHasNoAccessToOtherUsersFinancialData`, `AuthorizationMatrixTest.adminRoleInDbDoesNotGrantUpdateOfOthers` |
 | Direct service calls | `CrossUserIsolationTest.servicesScopeEveryLookupToTheCaller` |
 | Same file / same transactions for two users | `StatementControllerTest`, `StatementProcessorTest` |
 | Forged event user | `StatementProcessorTest.eventWhoseUserDoesNotOwnStatementIsIgnored` |
