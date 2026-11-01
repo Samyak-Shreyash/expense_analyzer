@@ -7,6 +7,7 @@ import {
   setMerchantCategory,
   setPersonCategory,
   setTransactionCategory,
+  setTransactionMerchant,
   setReversal,
   setTransfer,
   type Category,
@@ -53,6 +54,14 @@ export function TransactionActions({
     t.personName ?? t.payeeName ?? t.normalizedDescription ?? t.description,
   )
 
+  const [merchant, setMerchant] = useState(
+    t.merchantName ??
+      t.personName ??
+      t.payeeName ??
+      t.normalizedDescription ??
+      t.description,
+  )
+
   const holder = t.personId ? t.personName : t.merchantName
 
   async function save(task: () => Promise<void>, done: string) {
@@ -77,6 +86,77 @@ export function TransactionActions({
 
   return (
     <div className={styles.actions}>
+      <fieldset className={styles.counterparty}>
+        <legend className={shared.label}>Who was paid</legend>
+        <label className={styles.option}>
+          <input
+            type="radio"
+            name={`counterparty-${t.id}`}
+            checked={isPerson}
+            onChange={() => setIsPerson(true)}
+          />
+          This is a person
+        </label>
+        <label className={styles.option}>
+          <input
+            type="radio"
+            name={`counterparty-${t.id}`}
+            checked={!isPerson}
+            onChange={() => setIsPerson(false)}
+          />
+          This is a merchant
+        </label>
+        {isPerson && (
+          <label>
+            <span className={shared.label}>Person's name</span>
+            <input
+              className={shared.input}
+              value={name}
+              maxLength={100}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </label>
+        )}
+        {!isPerson && (
+          <label>
+            <span className={shared.label}>Merchant's name</span>
+            <input
+              className={shared.input}
+              value={merchant}
+              maxLength={100}
+              onChange={(e) => setMerchant(e.target.value)}
+            />
+          </label>
+        )}
+        <button
+          type="button"
+          className={shared.button}
+          disabled={!(isPerson ? name : merchant).trim()}
+          onClick={() =>
+            save(
+              async () => {
+                onSaved(
+                  isPerson
+                    ? await setCounterparty(t.id, 'PERSON', name.trim())
+                    : // A named merchant is remembered for the payee, even with no merchant rule for it.
+                      await setTransactionMerchant(
+                        t.id,
+                        merchant.trim(),
+                        false,
+                      ),
+                )
+                reload()
+              },
+              t.normalizedDescription === null
+                ? 'Saved for this transaction.'
+                : 'Saved. This applies to every transaction with the same cleaned-up description.',
+            )
+          }
+        >
+          Save
+        </button>
+      </fieldset>
+
       <label>
         <span className={shared.label}>Category for this transaction</span>
         <select
@@ -233,63 +313,6 @@ export function TransactionActions({
           </>
         )}
       </div>
-
-      <fieldset className={styles.counterparty}>
-        <legend className={shared.label}>Who was paid</legend>
-        <label className={styles.option}>
-          <input
-            type="radio"
-            name={`counterparty-${t.id}`}
-            checked={isPerson}
-            onChange={() => setIsPerson(true)}
-          />
-          This is a person
-        </label>
-        <label className={styles.option}>
-          <input
-            type="radio"
-            name={`counterparty-${t.id}`}
-            checked={!isPerson}
-            onChange={() => setIsPerson(false)}
-          />
-          This is a merchant
-        </label>
-        {isPerson && (
-          <label>
-            <span className={shared.label}>Person's name</span>
-            <input
-              className={shared.input}
-              value={name}
-              maxLength={100}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </label>
-        )}
-        <button
-          type="button"
-          className={shared.button}
-          disabled={isPerson && !name.trim()}
-          onClick={() =>
-            save(
-              async () => {
-                onSaved(
-                  await setCounterparty(
-                    t.id,
-                    isPerson ? 'PERSON' : 'MERCHANT',
-                    isPerson ? name.trim() : undefined,
-                  ),
-                )
-                reload()
-              },
-              t.normalizedDescription === null
-                ? 'Saved for this transaction.'
-                : 'Saved. This applies to every transaction with the same cleaned-up description.',
-            )
-          }
-        >
-          Save
-        </button>
-      </fieldset>
 
       {/* Always mounted so screen readers announce the text when it is swapped in. */}
       <p
