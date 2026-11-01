@@ -78,7 +78,7 @@ Table `audit_logs` (V13), written by `AuditService`, append-only (`@Immutable` e
 | `correlation_id` | request's `X-Correlation-ID` |
 | `occurred_at` | server time |
 
-**Audited actions:** `AUTH_REGISTERED`, `AUTH_LOGIN_SUCCEEDED`, `AUTH_LOGIN_FAILED`, `STATEMENT_UPLOADED`,
+**Audited actions:** `AUTH_REGISTERED`, `AUTH_LOGIN_SUCCEEDED`, `AUTH_LOGIN_FAILED`, `AUTH_PASSWORD_CHANGED`, `STATEMENT_UPLOADED`,
 `STATEMENT_ACCESSED` (detail/status view of an owned statement), `STATEMENT_DELETED`. Transaction edits,
 AI actions and admin actions are added when those features exist.
 

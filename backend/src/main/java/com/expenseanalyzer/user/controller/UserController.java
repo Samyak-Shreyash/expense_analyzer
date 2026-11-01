@@ -1,10 +1,13 @@
 package com.expenseanalyzer.user.controller;
 
+import com.expenseanalyzer.auth.dto.ChangePasswordRequest;
 import com.expenseanalyzer.auth.service.AuthService;
+import com.expenseanalyzer.auth.service.PasswordService;
 import com.expenseanalyzer.user.dto.UserRequest;
 import com.expenseanalyzer.user.dto.UserResponse;
 import com.expenseanalyzer.user.service.UserService;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 import java.util.UUID;
@@ -26,6 +29,7 @@ public class UserController {
     private static final Logger logger = LoggerFactory.getLogger(UserController.class);
     private final AuthService authService;
     private final UserService userService;
+    private final PasswordService passwordService;
 
 
     /**
@@ -41,6 +45,18 @@ public class UserController {
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(404).body(null);
         }
+    }
+
+    /**
+     * Change the authenticated user's password.
+     * PUT /api/user/me/password
+     */
+    @PutMapping("/me/password")
+    public ResponseEntity<Void> changePassword(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody ChangePasswordRequest request) {
+        passwordService.changePassword(jwt.getSubject(), request.currentPassword(), request.newPassword());
+        return ResponseEntity.noContent().build();
     }
 
     /**

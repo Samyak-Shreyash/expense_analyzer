@@ -17,6 +17,7 @@ import java.time.Instant;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Issues, rotates and revokes opaque refresh tokens. Each token is single-use:
@@ -69,6 +70,12 @@ public class RefreshTokenService {
     @Transactional
     public void revoke(String raw) {
         refreshTokenRepository.deleteByTokenHash(hash(raw));
+    }
+
+    /** Revokes every refresh token of the user. */
+    @Transactional
+    public void revokeAll(UUID userId) {
+        refreshTokenRepository.deleteByUserId(userId);
     }
 
     private static String hash(String raw) {
