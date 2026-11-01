@@ -6,7 +6,10 @@ import com.expenseanalyzer.user.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.convert.converter.Converter;
+import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.ProviderManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -19,8 +22,10 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
 
 import javax.crypto.spec.SecretKeySpec;
@@ -87,7 +92,7 @@ public class SecurityConfiguration {
                 .username(user.getEmail())
                 .password(user.getPasswordHash())
                 .authorities("ROLE_" + user.getRole().name())
-                .accountExpired(false).accountLocked(false).credentialsExpired(false).disabled(false)
+                .accountExpired(false).accountLocked(false).credentialsExpired(false).disabled(!user.isEnabled())
                 .build())
             .orElse(null);
     }
@@ -102,6 +107,20 @@ public class SecurityConfiguration {
     }
 
     // Spring Security's default JwtAuthenticationConverter handles JWT claims properly without custom logic
+
+    /**
+     * Default JWT conversion plus an active check: a token whose user exists but is inactive gets 401.
+     * A missing user is left alone (unchanged behaviour). One indexed lookup per authenticated request.
+     */
+    private Converter<Jwt, AbstractAuthenticationToken> activeUserJwtConverter() {
+        JwtAuthenticationConverter delegate = new JwtAuthenticationConverter();
+        return jwt -> {
+            if (userRepository.findByEmail(jwt.getSubject()).filter(u -> !u.isEnabled()).isPresent()) {
+                throw new DisabledException("Account is inactive");
+            }
+            return delegate.convert(jwt);
+        };
+    }
 
     /**
      * Security Filter Chain bean.
@@ -119,7 +138,7 @@ public class SecurityConfiguration {
                         .requestMatchers("/actuator/health/**", "/actuator/prometheus").permitAll()
                         .anyRequest().authenticated()
                 )
-                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> {})) // Validate Bearer tokens; principal = sub (email)
+                .oauth2ResourceServer(oauth2 -> oauth2.jwt(jwt -> jwt.jwtAuthenticationConverter(activeUserJwtConverter()))) // Validate Bearer tokens; principal = sub (email)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)) // Stateless for JWT
                 .headers(headers -> headers.frameOptions(frame -> frame.sameOrigin())) // X-Frame-Options: SAMEORIGIN
                 .build();
