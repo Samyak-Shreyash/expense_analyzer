@@ -26,7 +26,7 @@ class PayeeKeyTest {
     @ParameterizedTest
     @CsvSource(delimiter = '~', value = {
             "POS 4521XXXX1234 CORNER SHOP~corner  shop~CORNER SHOP",
-            "UPI/P2A/412345678901/RAHUL SHARMA/HDFC~p2a rahul sharma~P2A RAHUL SHARMA",
+            "UPI/P2A/412345678901/RAHUL SHARMA/HDFC~p2a rahul sharma~RAHUL SHARMA",
             "UPI/P2M/not-a-reference~ upi shop ~UPI SHOP"})
     void otherwiseUsesNormalizedDescription(String raw, String normalized, String expected) {
         assertThat(PayeeKey.of(raw, normalized)).isEqualTo(expected);

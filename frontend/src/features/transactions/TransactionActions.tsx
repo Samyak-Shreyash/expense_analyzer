@@ -19,6 +19,8 @@ const PICK = ''
 const CLEAR = '__clear'
 /** How far from a failed payment its refund is looked for, either way. */
 const REFUND_DAYS = 7
+/** How far a payment can be above its refund: the rest is charges. Same limit as the server. */
+const REFUND_CHARGE_PERCENT = 10
 
 const shift = (date: string, days: number) => {
   const d = new Date(`${date}T00:00:00Z`)
@@ -252,14 +254,31 @@ export function TransactionActions({
             className={shared.button}
             onClick={() =>
               save(async () => {
-                const page = await listTransactions({
-                  direction: t.direction === 'DEBIT' ? 'CREDIT' : 'DEBIT',
-                  minAmount: t.amount,
-                  maxAmount: t.amount,
-                  from: shift(t.date, -REFUND_DAYS),
-                  to: shift(t.date, REFUND_DAYS),
-                })
-                const found = page.items.filter((x) => x.id !== t.id)
+                const search = async (minAmount: number, maxAmount: number) =>
+                  (
+                    await listTransactions({
+                      direction: t.direction === 'DEBIT' ? 'CREDIT' : 'DEBIT',
+                      minAmount,
+                      maxAmount,
+                      from: shift(t.date, -REFUND_DAYS),
+                      to: shift(t.date, REFUND_DAYS),
+                    })
+                  ).items.filter((x) => x.id !== t.id)
+                let found = await search(t.amount, t.amount)
+                if (found.length === 0) {
+                  // No exact match: the refund may have come back less charges.
+                  const paise = Math.round(t.amount * 100)
+                  const scale = 1 + REFUND_CHARGE_PERCENT / 100
+                  found = (
+                    t.direction === 'DEBIT'
+                      ? await search(Math.ceil(paise / scale) / 100, t.amount)
+                      : await search(t.amount, Math.floor(paise * scale) / 100)
+                  ).sort(
+                    (a, b) =>
+                      Math.abs(a.amount - t.amount) -
+                      Math.abs(b.amount - t.amount),
+                  )
+                }
                 setCandidates(found)
                 setPartner(found[0]?.id ?? PICK)
               }, '')
@@ -272,7 +291,8 @@ export function TransactionActions({
         ) : candidates.length === 0 ? (
           <span className={shared.muted}>
             No {t.direction === 'DEBIT' ? 'money in' : 'money out'} of{' '}
-            {rupees(t.amount)} within {REFUND_DAYS} days of this one.
+            {rupees(t.amount)}, or close to it after charges, within{' '}
+            {REFUND_DAYS} days of this one.
           </span>
         ) : (
           <>
@@ -289,6 +309,8 @@ export function TransactionActions({
                   <option key={c.id} value={c.id}>
                     {dayLabel(c.date)} ·{' '}
                     {c.normalizedDescription ?? c.description}
+                    {c.amount !== t.amount &&
+                      ` · ${rupees(Math.abs(c.amount - t.amount))} charges`}
                   </option>
                 ))}
               </select>
@@ -301,7 +323,7 @@ export function TransactionActions({
                 save(async () => {
                   await setReversal(t.id, partner)
                   reload()
-                }, 'Marked as failed and refunded. Both are left out of your totals.')
+                }, 'Marked as failed and refunded. Only any charges count in your totals.')
               }
             >
               Pair them

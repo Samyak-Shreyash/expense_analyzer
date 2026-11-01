@@ -1100,6 +1100,48 @@ describe('TransactionsPage', () => {
       )
     })
 
+    it('offers a payment a bit above the refund when no amount matches, with its charges', async () => {
+      const refund: Transaction = {
+        ...swiggy,
+        id: 't2',
+        direction: 'CREDIT',
+        amount: 440,
+        normalizedDescription: 'SWIGGY REFUND',
+      }
+      vi.mocked(finance.listTransactions).mockImplementation(async (q) => ({
+        items: !q.direction
+          ? [refund]
+          : q.minAmount === 440 && q.maxAmount === 484
+            ? [{ ...swiggy, amount: 450 }]
+            : [],
+        page: 0,
+        size: 50,
+        totalItems: 1,
+        totalPages: 1,
+      }))
+      vi.mocked(finance.setReversal).mockResolvedValue({
+        ...refund,
+        reversalPairId: 't1',
+      })
+      renderPage()
+      fireEvent.click(
+        await screen.findByRole('button', { name: /SWIGGY REFUND/ }),
+      )
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: 'Mark as the refund of a failed payment',
+        }),
+      )
+      expect(
+        (await screen.findByRole('combobox', { name: 'The failed payment' }))
+          .textContent,
+      ).toContain('₹10')
+      fireEvent.click(screen.getByRole('button', { name: 'Pair them' }))
+      await waitFor(() =>
+        expect(finance.setReversal).toHaveBeenCalledWith('t2', 't1'),
+      )
+    })
+
     it('labels a paired failed payment and can unpair it', async () => {
       only({ ...swiggy, reversalPairId: 't2' })
       vi.mocked(finance.setReversal).mockResolvedValue(swiggy)

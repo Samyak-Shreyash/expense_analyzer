@@ -286,7 +286,7 @@ async function write<T>(
 const CATEGORY_ERRORS = {
   400: 'Use a name of 1 to 50 characters. "Uncategorized" is reserved.',
   404: 'That category no longer exists. Reload the page.',
-  409: 'You already have a category with that name.',
+  409: 'That name is taken, or this is the Refund category, which cannot be renamed.',
 }
 const PERSON_ERRORS = {
   400: 'Use a name of 1 to 100 characters.',
@@ -422,7 +422,7 @@ export const setReversal = (id: string, pairWithId: string | null) =>
     `/transactions/${id}/reversal`,
     { pairWithId },
     {
-      400: 'A refund pairs money out and money in of the same amount.',
+      400: 'A refund pairs money out and money in of the same amount, or a payment up to 10% above the refund.',
       404: 'That transaction no longer exists. Reload the page.',
     },
   )

@@ -128,6 +128,24 @@ class ReversalTest {
     }
 
     @Test
+    void chargesOnARefundedPaymentStayInSpendingUntilUnpaired() throws Exception {
+        UUID failed = tx(alice, "DEBIT", "1000.00");
+        UUID refund = tx(alice, "CREDIT", "980.00");
+
+        pair(ALICE, refund, failed, 200);
+
+        assertThat(reload(failed).getReversalChargePaise()).isEqualByComparingTo("2000");
+        mockMvc.perform(get("/api/analytics/summary").param("from", "2026-01-01").param("to", "2026-01-31")
+                        .header("Authorization", bearer(ALICE)))
+                .andExpect(jsonPath("$.inflow").value(0))
+                .andExpect(jsonPath("$.outflow").value(20.00));
+
+        pair(ALICE, refund, null, 200);
+
+        assertThat(reload(failed).getReversalChargePaise()).isNull();
+    }
+
+    @Test
     void unpairingReleasesBothHalves() throws Exception {
         UUID failed = tx(alice, "DEBIT", "50000.00");
         UUID refund = tx(alice, "CREDIT", "50000.00");
@@ -170,11 +188,13 @@ class ReversalTest {
     void rejectsSameDirectionDifferentAmountsAndOtherUsersRows() throws Exception {
         UUID failed = tx(alice, "DEBIT", "50000.00");
         UUID sameWay = tx(alice, "DEBIT", "50000.00");
-        UUID smaller = tx(alice, "CREDIT", "49999.00");
+        UUID smaller = tx(alice, "CREDIT", "44000.00");
+        UUID larger = tx(alice, "CREDIT", "50001.00");
         UUID bobs = tx(bob, "CREDIT", "50000.00");
 
         pair(ALICE, failed, sameWay, 400);
         pair(ALICE, failed, smaller, 400);
+        pair(ALICE, failed, larger, 400);
         pair(ALICE, failed, bobs, 404);
         pair(BOB, failed, bobs, 404);
         assertThat(reload(failed).getReversalPairId()).isNull();
