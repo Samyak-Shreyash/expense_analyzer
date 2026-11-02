@@ -1,0 +1,7 @@
+# Allow-list: the repo root holds .env and other secrets, which must never reach a build context.
+*
+!frontend
+!packages
+**/node_modules
+**/dist
+**/.env*

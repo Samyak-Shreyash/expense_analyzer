@@ -12,7 +12,7 @@ Decision for #278. Status: proposed.
 | Routing | React Router |
 | Server state | `fetch` wrapper + custom hooks; add TanStack Query only if caching/refetch logic starts repeating |
 | Client state | React context (auth session only) |
-| HTTP client | Native `fetch` behind one `api.ts` wrapper |
+| HTTP client | Native `fetch` behind the shared `packages/api-client`, configured for the browser in `services/api.ts` |
 | UI components | None at MVP; plain CSS modules. Revisit with #286 (accessibility) |
 | Unit / component tests | Vitest + React Testing Library |
 | End-to-end tests | Playwright against the running backend |
