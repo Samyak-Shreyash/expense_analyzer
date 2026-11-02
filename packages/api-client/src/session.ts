@@ -2,6 +2,8 @@
 export type SessionTransport = {
   credentials?: RequestCredentials
   headers?: Record<string, string>
+  /** Added to every request, for values that change per call such as a correlation id. */
+  requestHeaders?: () => Record<string, string>
   /** Absent for cookies. The token then travels in JSON bodies. */
   tokens?: {
     load(): Promise<string | null>
@@ -14,6 +16,7 @@ let baseUrl = ''
 let transport: SessionTransport = {}
 let accessToken: string | null = null
 let refreshing: Promise<boolean> | null = null
+let refreshUnavailable = false
 let onAuthLost = () => {}
 let onForbidden = () => {}
 
@@ -39,6 +42,7 @@ export function setAuthHandlers(handlers: {
 function post(path: string, body?: unknown) {
   const headers = {
     ...transport.headers,
+    ...transport.requestHeaders?.(),
     ...(body ? { 'Content-Type': 'application/json' } : {}),
   }
   return fetch(baseUrl + path, {
@@ -63,17 +67,18 @@ async function storeSession(res: Response) {
 /**
  * Exchanges the refresh token for a new access token.
  * Shared promise: refresh tokens are single-use, so concurrent callers must not race.
- * Only a 401 discards the stored token: a 429 or a network failure leaves it usable.
+ * A 429, a 5xx or a network failure leaves the stored token usable; other failures discard it.
  */
 export function refresh(): Promise<boolean> {
   refreshing ??= tokenBody()
     .then((body) => post('/auth/refresh', body))
     .then(async (res) => {
+      refreshUnavailable = res.status === 429 || res.status >= 500
       if (res.ok) {
         await storeSession(res)
       } else {
         accessToken = null
-        if (res.status === 401) await transport.tokens?.save(null)
+        if (!refreshUnavailable) await transport.tokens?.save(null)
       }
       return res.ok
     })
@@ -101,7 +106,18 @@ export async function register(email: string, password: string) {
     : 'Registration failed.'
 }
 
+/** Whether an email can still be registered. */
+export async function isEmailAvailable(email: string) {
+  const res = await fetch(
+    `${baseUrl}/auth/register/check-email?email=${encodeURIComponent(email)}`,
+    { headers: transport.requestHeaders?.() },
+  )
+  return res.status !== 409
+}
+
 export async function logout() {
+  // A running refresh would otherwise rotate the token and store it after this deletes it.
+  await refreshing?.catch(() => {})
   accessToken = null
   const body = await tokenBody()
   await transport.tokens?.save(null) // local sign-out holds even if the server call fails
@@ -115,6 +131,7 @@ export async function apiFetch(path: string, init: RequestInit = {}) {
       ...init,
       headers: {
         ...init.headers,
+        ...transport.requestHeaders?.(),
         ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       },
     })
@@ -125,7 +142,8 @@ export async function apiFetch(path: string, init: RequestInit = {}) {
   }
   if (res.status === 401) {
     accessToken = null
-    onAuthLost()
+    // Refresh was rate limited or the server failed: the session may still be good.
+    if (!refreshUnavailable) onAuthLost()
   } else if (res.status === 403) {
     onForbidden()
   }
@@ -153,6 +171,8 @@ export async function apiUpload(
       xhr.open('POST', baseUrl + path)
       if (accessToken)
         xhr.setRequestHeader('Authorization', `Bearer ${accessToken}`)
+      for (const [k, v] of Object.entries(transport.requestHeaders?.() ?? {}))
+        xhr.setRequestHeader(k, v)
       xhr.upload.onprogress = (e) => {
         if (e.lengthComputable) onProgress(e.loaded / e.total)
       }
@@ -178,7 +198,7 @@ export async function apiUpload(
   }
   if (res.status === 401) {
     accessToken = null
-    onAuthLost()
+    if (!refreshUnavailable) onAuthLost()
   }
   return res
 }
