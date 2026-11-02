@@ -143,41 +143,41 @@ Users can ask:
 ```mermaid
 graph TB
     subgraph Clients
-        Web App
-        Mobile App
-        Chat Interface
+        WebApp[Web App]
+        MobileApp[Mobile App]
+        ChatInterface[Chat Interface]
     end
     
     subgraph Infrastructure
-        CDN/WAF --> API Gateway
-        API Gateway --> User Service
-        API Gateway --> Statement Service
-        API Gateway --> Transaction Service
+        CDN["CDN/WAF"] --> Gateway[API Gateway]
+        Gateway --> UserService[User Service]
+        Gateway --> StatementService[Statement Service]
+        Gateway --> TransactionService[Transaction Service]
     end
     
     subgraph Processing
-        Event Bus
-        Document Worker
-        Enrichment Worker
-        Analytics Worker
+        EventBus[Event Bus]
+        DocumentWorker[Document Worker]
+        EnrichmentWorker[Enrichment Worker]
+        AnalyticsWorker[Analytics Worker]
     end
     
-    subgraph Core Services
-        Analysis Service
-        AI/LLM Service
-        Notification Service
+    subgraph CoreServices[Core Services]
+        AnalysisService[Analysis Service]
+        AIService["AI/LLM Service"]
+        NotificationService[Notification Service]
     end
     
-    subgraph Data Layer
-        PostgreSQL --> Transaction Storage
+    subgraph DataLayer[Data Layer]
+        PostgreSQL --> TransactionStorage[Transaction Storage]
         Redis --> Cache
-        Object Storage --> Statements
+        ObjectStorage[Object Storage] --> Statements
     end
     
     Clients --> Infrastructure
     Infrastructure --> Processing
-    Processing --> Core Services
-    Core Services --> Data Layer
+    Processing --> CoreServices
+    CoreServices --> DataLayer
 ```
 
 ---
