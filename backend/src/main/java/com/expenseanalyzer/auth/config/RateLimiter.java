@@ -26,6 +26,7 @@ public class RateLimiter {
 
     static final int MAX_ATTEMPTS = 5;
     static final int WINDOW_SECONDS = 300;
+    static final int MAX_REFRESH_ATTEMPTS = 60;
 
     // INCR and the first-increment EXPIRE run as one atomic script, so a key can never be left without a TTL.
     private static final DefaultRedisScript<Long> INCREMENT = new DefaultRedisScript<>(
@@ -69,14 +70,26 @@ public class RateLimiter {
      * keep working when Redis is down, unlike the password endpoints.
      */
     public void checkLogin(String email, String ip) {
+        countFailingOpen(loginKey(email, ip), MAX_ATTEMPTS);
+    }
+
+    /**
+     * Counts one token refresh from this address; throws 429 above the limit. Higher than login because tokens cannot
+     * be guessed and many users can share an address. Fails open, like login.
+     */
+    public void checkRefresh(String ip) {
+        countFailingOpen("rate:refresh:" + sha256(ip), MAX_REFRESH_ATTEMPTS);
+    }
+
+    private void countFailingOpen(String key, int limit) {
         Long count;
         try {
-            count = redis.execute(INCREMENT, List.of(loginKey(email, ip)), String.valueOf(WINDOW_SECONDS));
+            count = redis.execute(INCREMENT, List.of(key), String.valueOf(WINDOW_SECONDS));
         } catch (RuntimeException e) {
-            log.warn("Login rate limit skipped: error={}", e.getClass().getSimpleName());
+            log.warn("Rate limit skipped: error={}", e.getClass().getSimpleName());
             return;
         }
-        if (count != null && count > MAX_ATTEMPTS) {
+        if (count != null && count > limit) {
             throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Too many attempts, try again later");
         }
     }
@@ -92,9 +105,13 @@ public class RateLimiter {
 
     // Hashed so Redis never holds an email or address.
     private static String loginKey(String email, String ip) {
-        byte[] input = (email.toLowerCase(Locale.ROOT) + "|" + ip).getBytes(StandardCharsets.UTF_8);
+        return "rate:login:" + sha256(email.toLowerCase(Locale.ROOT) + "|" + ip);
+    }
+
+    private static String sha256(String value) {
         try {
-            return "rate:login:" + HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(input));
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException(e); // every JVM ships SHA-256
         }

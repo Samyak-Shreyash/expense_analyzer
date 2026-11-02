@@ -1979,7 +1979,7 @@ Target, not implemented, except where marked. Owner decisions confirmed 2026-11-
 - The refresh token is stored only in Keychain or Keystore through `expo-secure-store`. The access token stays in memory.
 - Logout revokes the token on the server and clears storage, even if the server call fails.
 - Mobile and web share rotation and revocation (implemented).
-- `/auth/refresh` is not rate limited today, although #332 expects it. It must be rate limited before release (MOB-002a).
+- `/auth/refresh` allows 60 requests per 5 minutes from one address (implemented).
 
 ## 45.2 Data on the device
 - Financial data on disk is allowed only in the offline read cache. It must never reach logs, analytics stores or unencrypted files.

@@ -135,7 +135,9 @@ public class AuthController {
     public ResponseEntity<AuthResponse> refresh(
             @CookieValue(name = REFRESH_COOKIE, required = false) String refreshToken,
             @RequestBody(required = false) RefreshRequest body,
-            @RequestHeader(name = CLIENT_TYPE_HEADER, required = false) String clientType) {
+            @RequestHeader(name = CLIENT_TYPE_HEADER, required = false) String clientType,
+            HttpServletRequest servletRequest) {
+        rateLimiter.checkRefresh(servletRequest.getRemoteAddr());
         if (isMobile(clientType)) {
             String bodyToken = body == null ? null : body.refreshToken();
             if (bodyToken == null || bodyToken.isBlank()) {

@@ -1,5 +1,7 @@
 # Expense Analyzer
 
+[![Security: A — Skills Directory](https://www.skillsdirectory.com/api/skills/popup-studio-ai-mobile-app/badge)](https://www.skillsdirectory.com/skills/popup-studio-ai-mobile-app)
+
 > **Understand your money. Not just track it.**
 
 Expense Analyzer is an AI-powered personal finance analysis platform focused initially on **Indian users**.

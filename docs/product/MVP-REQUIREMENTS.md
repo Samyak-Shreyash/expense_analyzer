@@ -157,7 +157,7 @@ Not part of the MVP. Status: target, nothing below is built except where marked 
 - Offline: show the last loaded data from the encrypted cache, read-only, with a notice giving when it was last updated. Screens never loaded show an offline message with a retry action. Edits and uploads are disabled, not queued.
 - Back online: refetch on the next screen view or pull to refresh, and replace cached values with the backend's. The app never merges or recalculates them.
 - Access token expired: refresh once with a single in-flight request shared by all callers, then retry. If refresh answers 401, clear the session and go to login.
-- Network failure during refresh: keep the stored token and show the offline state. Only a 401 signs the user out. A lost response can leave the rotated token unusable, in which case the next attempt answers 401 and the user logs in again.
+- Network failure during refresh: keep the stored token and show the offline state. Treat a 429 the same way, retrying later. Only a 401 signs the user out. A lost response can leave the rotated token unusable, in which case the next attempt answers 401 and the user logs in again.
 - Upload interrupted: the user retries. A repeat of a file that was stored is answered by the backend's duplicate handling.
 - Account deleted elsewhere: the next request answers 401, and the session and cache are cleared.
 
