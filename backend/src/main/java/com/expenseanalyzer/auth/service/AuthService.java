@@ -100,11 +100,4 @@ public class AuthService {
 
         return user;
     }
-
-    /**
-     * Check if email is already registered.
-     */
-    public boolean isEmailRegistered(String email) {
-        return userRepository.findByEmail(email).isPresent();
-    }
 }

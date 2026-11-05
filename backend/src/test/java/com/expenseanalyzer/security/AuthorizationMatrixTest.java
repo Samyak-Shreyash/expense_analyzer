@@ -166,8 +166,8 @@ class AuthorizationMatrixTest {
 
     @Test
     void authPathsStayPublic() throws Exception {
-        mockMvc.perform(get("/api/auth/register/check-email").param("email", "new@example.com"))
-                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/auth/register").contentType("application/json").content("{}"))
+                .andExpect(status().isBadRequest());
         mockMvc.perform(post("/api/auth/refresh")).andExpect(status().isUnauthorized());
         mockMvc.perform(get("/api/user/me")).andExpect(status().isUnauthorized());
     }

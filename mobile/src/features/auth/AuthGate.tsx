@@ -1,5 +1,4 @@
 import {
-  isEmailAvailable,
   login,
   logout,
   register,
@@ -172,10 +171,6 @@ function AuthForm({ onSignedIn }: { onSignedIn: () => Promise<void> }) {
   async function create() {
     if (password.length < 8) {
       setError('Use a password of at least 8 characters.')
-      return
-    }
-    if (!(await isEmailAvailable(email))) {
-      setError('That email is already registered.')
       return
     }
     const failure = await register(email, password)

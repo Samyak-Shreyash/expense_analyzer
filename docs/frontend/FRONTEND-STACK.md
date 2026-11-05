@@ -34,8 +34,8 @@ Decision for #278. Status: proposed.
 
 Checked against `backend/src/main/java/com/expenseanalyzer/auth/`:
 
-- **Endpoints:** `POST /api/auth/login`, `POST /api/auth/register`,
-  `GET /api/auth/register/check-email`. Everything else requires
+- **Endpoints:** `POST /api/auth/login`, `POST /api/auth/register`.
+  Everything else requires
   `Authorization: Bearer <jwt>` (HS256, validated by `oauth2ResourceServer`).
 - **Token storage:** in memory (auth context) only. Not `localStorage` (readable by any XSS)
   and not cookies.

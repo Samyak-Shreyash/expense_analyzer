@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   apiFetch,
   configureApiClient,
-  isEmailAvailable,
   login,
   logout,
   refresh,
@@ -75,6 +74,27 @@ describe('body transport (mobile)', () => {
     fetchMock.mockResolvedValue(json(200, { token: 'a', refreshToken: 'r2' }))
     await Promise.all([refresh(), refresh()])
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('refreshes once when concurrent requests all get a 401, then retries each', async () => {
+    stored = 'r1'
+    fetchMock.mockImplementation(async (input, init) => {
+      if (String(input).endsWith('/auth/refresh'))
+        return json(200, { token: 'new', refreshToken: 'r2' })
+      const auth = new Headers(init?.headers).get('Authorization')
+      return json(auth === 'Bearer new' ? 200 : 401)
+    })
+    const results = await Promise.all([
+      apiFetch('/transactions'),
+      apiFetch('/categories'),
+      apiFetch('/merchants'),
+    ])
+    expect(results.map((r) => r.status)).toEqual([200, 200, 200])
+    const refreshes = fetchMock.mock.calls.filter(([url]) =>
+      String(url).endsWith('/auth/refresh'),
+    )
+    expect(refreshes).toHaveLength(1)
+    expect(stored).toBe('r2')
   })
 
   it('clears the stored token when refresh answers 401', async () => {
@@ -166,15 +186,6 @@ describe('body transport (mobile)', () => {
     await apiFetch('/transactions')
     expect(new Headers(call(0)[1]?.headers).get('X-Correlation-ID')).toBe('c1')
     expect(new Headers(call(1)[1]?.headers).get('X-Correlation-ID')).toBe('c2')
-  })
-
-  it('reports email availability from the check endpoint', async () => {
-    fetchMock.mockResolvedValueOnce(json(200)).mockResolvedValueOnce(json(409))
-    expect(await isEmailAvailable('a+b@c.d')).toBe(true)
-    expect(call(0)[0]).toBe(
-      'https://x/api/auth/register/check-email?email=a%2Bb%40c.d',
-    )
-    expect(await isEmailAvailable('a@b.c')).toBe(false)
   })
 
   it('retries a request once with the new access token after a 401', async () => {
