@@ -26,7 +26,6 @@ jest.mock('@expense-analyzer/api-client', () => ({
   login: jest.fn(),
   logout: jest.fn(),
   register: jest.fn(),
-  isEmailAvailable: jest.fn(),
   setAuthHandlers: jest.fn(),
 }))
 
@@ -138,7 +137,9 @@ it('returns to login when the session is lost', async () => {
 
 it('tells the user when an email is already registered', async () => {
   jest.mocked(restoreSession).mockResolvedValue(false)
-  jest.mocked(client.isEmailAvailable).mockResolvedValue(false)
+  jest
+    .mocked(client.register)
+    .mockResolvedValue('That email is already registered.')
   await render(app())
   await fireEvent.press(
     await screen.findByRole('button', { name: 'Create an account' }),
@@ -149,7 +150,7 @@ it('tells the user when an email is already registered', async () => {
   expect((await screen.findByRole('alert')).props.children).toBe(
     'That email is already registered.',
   )
-  expect(client.register).not.toHaveBeenCalled()
+  expect(client.login).not.toHaveBeenCalled()
 })
 
 it('treats a stored token without a PIN as signed out, so no one can choose a new PIN without the password', async () => {

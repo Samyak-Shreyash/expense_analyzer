@@ -109,25 +109,6 @@ public class AuthController {
     }
 
     /**
-     * Check if email is already registered.
-     * GET /api/auth/register/check-email
-     */
-    @GetMapping("/register/check-email")
-    public ResponseEntity<String> checkEmail(@RequestParam String email) {
-        logger.debug("Checking if email is registered");
-        try {
-            if (authService.isEmailRegistered(email)) {
-                return ResponseEntity.status(HttpStatus.CONFLICT).body("Email already registered");
-            }
-        } catch (Exception e) {
-            logger.error("Error checking email registration", e);
-            // Ignore exceptions and return default response
-        }
-
-        return ResponseEntity.ok("Email not found");
-    }
-
-    /**
      * Exchange the refresh cookie for a new access token. Rotates the refresh token.
      * POST /api/auth/refresh
      */

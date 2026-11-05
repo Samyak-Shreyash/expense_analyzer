@@ -106,15 +106,6 @@ export async function register(email: string, password: string) {
     : 'Registration failed.'
 }
 
-/** Whether an email can still be registered. */
-export async function isEmailAvailable(email: string) {
-  const res = await fetch(
-    `${baseUrl}/auth/register/check-email?email=${encodeURIComponent(email)}`,
-    { headers: transport.requestHeaders?.() },
-  )
-  return res.status !== 409
-}
-
 export async function logout() {
   // A running refresh would otherwise rotate the token and store it after this deletes it.
   await refreshing?.catch(() => {})

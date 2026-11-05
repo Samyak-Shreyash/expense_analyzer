@@ -177,44 +177,6 @@ class AuthServiceTest {
     }
 
     /**
-     * Test email registration check.
-     */
-    @Test
-    void isEmailRegistered_shouldReturnTrue_whenEmailExists() {
-        // Arrange
-        User existingUser = createMockUser();
-        existingUser.setEmail(TEST_EMAIL);
-        when(userRepository.findByEmail(TEST_EMAIL)).thenReturn(Optional.of(existingUser));
-
-        // Act
-        boolean result = authService.isEmailRegistered(TEST_EMAIL);
-
-        // Assert
-        assertThat(result).isTrue();
-
-        // Verify
-        verify(userRepository).findByEmail(TEST_EMAIL);
-    }
-
-    /**
-     * Test email registration check for non-existent email.
-     */
-    @Test
-    void isEmailRegistered_shouldReturnFalse_whenEmailDoesNotExist() {
-        // Arrange
-        when(userRepository.findByEmail(TEST_EMAIL)).thenReturn(Optional.empty());
-
-        // Act
-        boolean result = authService.isEmailRegistered(TEST_EMAIL);
-
-        // Assert
-        assertThat(result).isFalse();
-
-        // Verify
-        verify(userRepository).findByEmail(TEST_EMAIL);
-    }
-
-    /**
      * Test UserResponse construction.
      */
     @Test
