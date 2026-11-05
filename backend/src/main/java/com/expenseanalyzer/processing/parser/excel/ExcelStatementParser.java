@@ -20,14 +20,25 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /** Parses the first sheet of an XLS or XLSX bank statement. Caller owns the stream. Never logs cell values. */
 @Component
 public class ExcelStatementParser {
 
-    // POI loads the XLSX XML into memory, so bound it before opening. Roomy for 50k rows of a normal statement.
-    private static final long MAX_INFLATED_BYTES = 100L * 1024 * 1024;
+    // POI loads the XLSX XML into memory, so bound it before opening. The default is roomy for 50k rows of a normal statement.
+    private final long maxInflatedBytes;
+
+    ExcelStatementParser() {
+        this(104857600);
+    }
+
+    @Autowired
+    public ExcelStatementParser(@Value("${app.parser.max-inflated-bytes:104857600}") long maxInflatedBytes) {
+        this.maxInflatedBytes = maxInflatedBytes;
+    }
 
     public ParsedStatement parse(InputStream in) {
         return parse(in, ParserLimits.DEFAULTS);
@@ -91,7 +102,7 @@ public class ExcelStatementParser {
     }
 
     /** Counts bytes actually inflated, stopping at the cap, rather than trusting sizes the zip declares. */
-    private static boolean inflatesPastCap(byte[] file) throws IOException {
+    private boolean inflatesPastCap(byte[] file) throws IOException {
         long total = 0;
         byte[] buffer = new byte[8192];
         try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(file))) {
@@ -99,7 +110,7 @@ public class ExcelStatementParser {
                 int n;
                 while ((n = zip.read(buffer)) > 0) {
                     total += n;
-                    if (total > MAX_INFLATED_BYTES) {
+                    if (total > maxInflatedBytes) {
                         return true;
                     }
                 }

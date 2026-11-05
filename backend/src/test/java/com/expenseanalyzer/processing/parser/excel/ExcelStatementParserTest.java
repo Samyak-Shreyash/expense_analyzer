@@ -281,4 +281,10 @@ class ExcelStatementParserTest {
         assertThat(r.transactions()).isEmpty();
         assertThat(r.errors()).extracting(RowError::code).containsExactly(RowErrorCode.TOO_MANY_ROWS);
     }
+
+    @Test
+    void usesConfiguredInflatedSizeCap() throws IOException {
+        ParsedStatement r = new ExcelStatementParser(1024).parse(new ByteArrayInputStream(workbook(rows(5))));
+        assertThat(r.errors()).extracting(RowError::code).containsExactly(RowErrorCode.TOO_MANY_ROWS);
+    }
 }

@@ -103,4 +103,13 @@ class RateLimiterTest {
                 .isInstanceOfSatisfying(ResponseStatusException.class,
                         e -> assertThat(e.getStatusCode().value()).isEqualTo(429));
     }
+
+    @Test
+    void usesConfiguredRegisterLimit() {
+        RateLimiter configured = new RateLimiter(redis, 2, 30, 20);
+        count(3);
+        assertThatThrownBy(() -> configured.checkRegister("10.0.0.1"))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        e -> assertThat(e.getStatusCode().value()).isEqualTo(429));
+    }
 }
