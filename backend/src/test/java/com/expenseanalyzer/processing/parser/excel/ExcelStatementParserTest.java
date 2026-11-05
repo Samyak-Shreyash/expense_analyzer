@@ -20,6 +20,8 @@ import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.Test;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 class ExcelStatementParserTest {
 
@@ -235,5 +237,48 @@ class ExcelStatementParserTest {
         byte[] cut = Arrays.copyOf(full, full.length / 2);
         ParsedStatement r = parse(cut);
         assertThat(r.errors()).extracting(RowError::code).containsExactly(RowErrorCode.UNREADABLE_FILE);
+    }
+
+    @Test
+    void preambleRowsWithoutAHeaderCountAgainstTheRowLimit() throws IOException {
+        Object[][] rows = new Object[][] {
+            {"junk", "more"},
+            {"junk", "more"},
+            {"junk", "more"},
+            {"junk", "more"},
+            {"junk", "more"}
+        };
+        ParsedStatement r = parser.parse(new ByteArrayInputStream(workbook(rows)),
+                new ParserLimits(3, 50, Duration.ofSeconds(30)));
+        assertThat(r.transactions()).isEmpty();
+        assertThat(r.errors()).extracting(RowError::code).containsExactly(RowErrorCode.TOO_MANY_ROWS);
+    }
+
+    @Test
+    void tooWidePreambleRowFailsTheWholeWorkbook() throws IOException {
+        Object[][] rows = new Object[][] {
+            {"a", "b", "c", "d", "e", "f"},
+            {"Date", "Description", "Amount"}
+        };
+        ParsedStatement r = parser.parse(new ByteArrayInputStream(workbook(rows)),
+                new ParserLimits(100, 5, Duration.ofSeconds(30)));
+        assertThat(r.transactions()).isEmpty();
+        assertThat(r.errors()).extracting(RowError::code).containsExactly(RowErrorCode.TOO_MANY_COLUMNS);
+    }
+
+    @Test
+    void workbookThatInflatesPastTheCapIsRejected() throws IOException {
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try (ZipOutputStream zos = new ZipOutputStream(out)) {
+            byte[] megabyte = new byte[1024 * 1024];
+            zos.putNextEntry(new ZipEntry("xl/worksheets/sheet1.xml"));
+            for (int i = 0; i < 101; i++) {
+                zos.write(megabyte);
+            }
+            zos.closeEntry();
+        }
+        ParsedStatement r = parse(out.toByteArray());
+        assertThat(r.transactions()).isEmpty();
+        assertThat(r.errors()).extracting(RowError::code).containsExactly(RowErrorCode.TOO_MANY_ROWS);
     }
 }

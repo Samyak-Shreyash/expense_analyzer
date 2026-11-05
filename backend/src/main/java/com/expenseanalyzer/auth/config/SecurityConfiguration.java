@@ -1,5 +1,6 @@
 package com.expenseanalyzer.auth.config;
 
+import com.expenseanalyzer.auth.dto.JwtTokenProvider;
 import com.expenseanalyzer.user.model.User;
 import com.expenseanalyzer.user.repository.UserRepository;
 
@@ -9,6 +10,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.convert.converter.Converter;
 import org.springframework.security.authentication.AbstractAuthenticationToken;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.CredentialsExpiredException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.ProviderManager;
@@ -19,17 +21,24 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtClaimValidator;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
 
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -94,7 +103,7 @@ public class SecurityConfiguration {
                 .authorities("ROLE_" + user.getRole().name())
                 .accountExpired(false).accountLocked(false).credentialsExpired(false).disabled(!user.isEnabled())
                 .build())
-            .orElse(null);
+            .orElseThrow(() -> new UsernameNotFoundException("User not found"));
     }
 
     /**
@@ -102,8 +111,16 @@ public class SecurityConfiguration {
      */
     @Bean
     public JwtDecoder jwtDecoder(@Value("${app.oauth.jwt.secret}") String secret) {
-        SecretKeySpec key = new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
-        return NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS256).build();
+        byte[] secretBytes = secret.getBytes(StandardCharsets.UTF_8);
+        if (secretBytes.length < 32) {
+            throw new IllegalArgumentException("app.oauth.jwt.secret must be at least 32 bytes");
+        }
+        NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(new SecretKeySpec(secretBytes, "HmacSHA256"))
+                .macAlgorithm(MacAlgorithm.HS256).build();
+        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
+                JwtValidators.createDefaultWithIssuer(JwtTokenProvider.ISSUER),
+                new JwtClaimValidator<List<String>>("aud", aud -> aud != null && aud.contains(JwtTokenProvider.AUDIENCE))));
+        return decoder;
     }
 
     // Spring Security's default JwtAuthenticationConverter handles JWT claims properly without custom logic
@@ -115,9 +132,16 @@ public class SecurityConfiguration {
     private Converter<Jwt, AbstractAuthenticationToken> activeUserJwtConverter() {
         JwtAuthenticationConverter delegate = new JwtAuthenticationConverter();
         return jwt -> {
-            if (userRepository.findByEmail(jwt.getSubject()).filter(u -> !u.isEnabled()).isPresent()) {
-                throw new DisabledException("Account is inactive");
-            }
+            userRepository.findByEmail(jwt.getSubject()).ifPresent(user -> {
+                if (!user.isEnabled()) {
+                    throw new DisabledException("Account is inactive");
+                }
+                // iat has whole seconds: a token from the new login in the same second must still pass
+                Instant changed = user.getPasswordChangedAt();
+                if (changed != null && jwt.getIssuedAt().isBefore(changed.truncatedTo(ChronoUnit.SECONDS))) {
+                    throw new CredentialsExpiredException("Password changed");
+                }
+            });
             return delegate.convert(jwt);
         };
     }

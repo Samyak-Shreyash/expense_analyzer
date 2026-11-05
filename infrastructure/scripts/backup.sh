@@ -4,8 +4,9 @@
 # Cron example (02:30 daily):
 #   30 2 * * * /opt/expense_analyzer/infrastructure/scripts/backup.sh >> /var/log/expense-backup.log 2>&1
 #
-# Backups contain users' financial data. Copy them OFF this host to encrypted
-# storage (e.g. `rclone copy --crypt ...` or restic), and keep the .env
+# Backups contain users' financial data. Set BACKUP_GPG_RECIPIENT in .env to
+# encrypt them to that public key (written as *.gpg; without it they are plain,
+# with a warning). Copy them OFF this host, and keep the .env
 # (which holds RUSTFS_SSE_S3_MASTER_KEY) backed up separately — without it
 # the RustFS objects can't be decrypted.
 set -euo pipefail
@@ -20,17 +21,27 @@ set -a; . "$ROOT/.env"; set +a
 umask 077
 mkdir -p "$DEST"
 
+if [[ -n "${BACKUP_GPG_RECIPIENT:-}" ]]; then
+  suffix=".gpg"
+  protect() { gpg --batch --yes --trust-model always --encrypt --recipient "$BACKUP_GPG_RECIPIENT"; }
+else
+  suffix=""
+  protect() { cat; }
+  echo "[$STAMP] WARNING: BACKUP_GPG_RECIPIENT not set; writing unencrypted backups." >&2
+fi
+
 echo "[$STAMP] Dumping Postgres..."
 docker exec postgres pg_dump -U "$DB_USER" -d "$DB_NAME" --format=custom \
-  > "$DEST/postgres-$STAMP.dump"
+  | protect > "$DEST/postgres-$STAMP.dump$suffix"
 
 echo "[$STAMP] Archiving RustFS data..."
 volume="$(docker inspect rustfs --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Name}}{{end}}{{end}}')"
-docker run --rm -v "$volume":/data:ro -v "$DEST":/backup alpine \
-  tar -czf "/backup/rustfs-$STAMP.tar.gz" -C /data .
+docker run --rm -v "$volume":/data:ro alpine:3.24.3 tar -czf - -C /data . \
+  | protect > "$DEST/rustfs-$STAMP.tar.gz$suffix"
 
-find "$DEST" -maxdepth 1 -type f \( -name 'postgres-*.dump' -o -name 'rustfs-*.tar.gz' \) \
+find "$DEST" -maxdepth 1 -type f \( -name 'postgres-*.dump*' -o -name 'rustfs-*.tar.gz*' \) \
   -mtime +"$KEEP_DAYS" -delete
 
 echo "[$STAMP] Done: $(du -sh "$DEST" | cut -f1) in $DEST"
 # Restore: docker exec -i postgres pg_restore -U "$DB_USER" -d "$DB_NAME" --clean < postgres-<stamp>.dump
+#   (encrypted: gpg --decrypt postgres-<stamp>.dump.gpg | docker exec -i postgres pg_restore ...)

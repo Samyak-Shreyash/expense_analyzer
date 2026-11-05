@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.HexFormat;
@@ -20,13 +21,15 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Issues, rotates and revokes opaque refresh tokens. Each token is single-use:
- * a successful rotation deletes it and issues a new one.
+ * Issues, rotates and revokes opaque refresh tokens. Each token is single-use: a rotation marks it consumed and
+ * issues a new one. Replaying a consumed token means it leaked, so all the user's tokens are revoked; replays within
+ * {@link #REUSE_GRACE} are only refused, since two browser tabs can refresh with the same cookie at once.
  */
 @Service
 public class RefreshTokenService {
 
     private static final SecureRandom RANDOM = new SecureRandom();
+    private static final Duration REUSE_GRACE = Duration.ofSeconds(10);
 
     private final RefreshTokenRepository refreshTokenRepository;
     private final UserRepository userRepository;
@@ -50,6 +53,7 @@ public class RefreshTokenService {
         byte[] bytes = new byte[32];
         RANDOM.nextBytes(bytes);
         String raw = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
+        refreshTokenRepository.deleteByUserIdAndExpiresAtBefore(user.getId(), Instant.now());
         refreshTokenRepository.save(new RefreshToken(user.getId(), hash(raw), Instant.now().plusSeconds(refreshTokenSeconds)));
         return raw;
     }
@@ -59,8 +63,18 @@ public class RefreshTokenService {
     public Optional<User> consume(String raw) {
         return refreshTokenRepository.findByTokenHash(hash(raw))
                 .flatMap(token -> {
-                    refreshTokenRepository.delete(token);
-                    if (token.getExpiresAt().isBefore(Instant.now())) {
+                    Instant now = Instant.now();
+                    if (token.getConsumedAt() != null) {
+                        if (token.getConsumedAt().isBefore(now.minus(REUSE_GRACE))) {
+                            refreshTokenRepository.deleteByUserId(token.getUserId());
+                        }
+                        return Optional.empty();
+                    }
+                    if (token.getExpiresAt().isBefore(now)) {
+                        refreshTokenRepository.delete(token);
+                        return Optional.empty();
+                    }
+                    if (refreshTokenRepository.markConsumed(token.getId(), now) == 0) {
                         return Optional.empty();
                     }
                     return userRepository.findById(token.getUserId()).filter(User::isEnabled);

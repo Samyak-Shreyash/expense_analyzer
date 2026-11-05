@@ -253,4 +253,33 @@ class AuthServiceTest {
         verify(userRepository).findByEmail(TEST_EMAIL);
         verify(userRepository, times(1)).save(any(User.class));
     }
+
+    @Test
+    void register_shouldNeverAssignAdmin() {
+        // Arrange
+        RegisterRequest request = new RegisterRequest(TEST_EMAIL, TEST_PASSWORD);
+
+        when(userRepository.findByEmail(TEST_EMAIL)).thenReturn(Optional.empty());
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        // Act
+        User user = authService.register(request);
+
+        // Assert
+        assertThat(user.getRole()).isEqualTo(UserRole.USER);
+
+        // Verify
+        verify(userRepository).findByEmail(TEST_EMAIL);
+        verify(userRepository, times(1)).save(any(User.class));
+    }
+
+    @Test
+    void register_shouldReject400_whenPasswordOver72Bytes() {
+        // Arrange
+        RegisterRequest request = new RegisterRequest(TEST_EMAIL, "a".repeat(73));
+
+        // Act & Assert
+        assertThatThrownBy(() -> authService.register(request))
+                .isInstanceOfSatisfying(org.springframework.web.server.ResponseStatusException.class, e -> assertThat(e.getStatusCode().value()).isEqualTo(400));
+    }
 }

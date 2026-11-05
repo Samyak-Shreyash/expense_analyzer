@@ -18,7 +18,7 @@ services:
       POSTGRES_PASSWORD: ${DB_USER_PASSWORD}
 
     ports:
-      - "${DB_BIND_ADDRESS:-0.0.0.0}:${DB_PORT:-5432}:5432"
+      - "${DB_BIND_ADDRESS:-127.0.0.1}:${DB_PORT:-5432}:5432"
 
     volumes:
       - postgres_data:/var/lib/postgresql
@@ -45,9 +45,9 @@ services:
     container_name: redis
     restart: unless-stopped
 
-    # No password: set REDIS_BIND_ADDRESS=127.0.0.1 to keep it off the network.
+    # No password: bound to localhost by default.
     ports:
-      - "${REDIS_BIND_ADDRESS:-0.0.0.0}:${REDIS_PORT:-6379}:6379"
+      - "${REDIS_BIND_ADDRESS:-127.0.0.1}:${REDIS_PORT:-6379}:6379"
 
     volumes:
       - redis_data:/data
@@ -105,7 +105,7 @@ services:
   # RustFS (S3-compatible object storage for uploaded statements)
   # ============================================================
   rustfs:
-    image: rustfs/rustfs:latest
+    image: rustfs/rustfs:${RUSTFS_TAG:-1.0.4}
     container_name: rustfs
     restart: unless-stopped
 
@@ -117,8 +117,8 @@ services:
       RUSTFS_CONSOLE_ENABLE: "true"
 
     ports:
-      - "${RUSTFS_BIND_ADDRESS:-0.0.0.0}:${RUSTFS_API_PORT:-9000}:9000"
-      - "${RUSTFS_BIND_ADDRESS:-0.0.0.0}:${RUSTFS_CONSOLE_PORT:-9001}:9001"
+      - "${RUSTFS_BIND_ADDRESS:-127.0.0.1}:${RUSTFS_API_PORT:-9000}:9000"
+      - "${RUSTFS_BIND_ADDRESS:-127.0.0.1}:${RUSTFS_CONSOLE_PORT:-9001}:9001"
 
     volumes:
       - rustfs_data:/data
@@ -162,8 +162,9 @@ services:
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT}
       MANAGEMENT_OTLP_METRICS_EXPORT_URL: http://otel-collector:4318/v1/metrics
 
+    # Set BACKEND_BIND_ADDRESS=0.0.0.0 to reach it from a phone on the LAN.
     ports:
-      - "${SERVER_PORT}:${SERVER_PORT}"
+      - "${BACKEND_BIND_ADDRESS:-127.0.0.1}:${SERVER_PORT}:${SERVER_PORT}"
 
     networks:
       - expense-analyzer
@@ -187,7 +188,7 @@ services:
       BACKEND_URL: http://backend:${SERVER_PORT}
 
     ports:
-      - "${FRONTEND_PORT:-3001}:80"
+      - "127.0.0.1:${FRONTEND_PORT:-3001}:80"
 
     networks:
       - expense-analyzer
@@ -197,7 +198,7 @@ services:
   # Prometheus
   # ============================================================
   prometheus:
-    image: prom/prometheus:main
+    image: prom/prometheus:v3.16.0
     container_name: prometheus
     restart: unless-stopped
     profiles:
@@ -222,7 +223,7 @@ services:
       - prometheus_data:/prometheus
 
     ports:
-      - "${PROMETHEUS_PORT}:9090"
+      - "127.0.0.1:${PROMETHEUS_PORT}:9090"
 
     depends_on:
       - backend
@@ -236,7 +237,7 @@ services:
   # OpenTelemetry Collector
   # ============================================================
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:nightly
+    image: otel/opentelemetry-collector-contrib:0.164.0
     container_name: otel-collector
     restart: unless-stopped
     profiles:
@@ -249,9 +250,9 @@ services:
       - ../observability/otel-collector/config.yml:/etc/otelcol-contrib/config.yml:ro
 
     ports:
-      - "${OTEL_GRPC_PORT}:4317"
-      - "${OTEL_HTTP_PORT}:4318"
-      - "${OTEL_METRICS_PORT}:9464"
+      - "127.0.0.1:${OTEL_GRPC_PORT}:4317"
+      - "127.0.0.1:${OTEL_HTTP_PORT}:4318"
+      - "127.0.0.1:${OTEL_METRICS_PORT}:9464"
 
     depends_on:
       tempo:
@@ -279,7 +280,7 @@ services:
       - tempo_data:/var/tempo
 
     ports:
-      - "${TEMPO_PORT:-3200}:3200"
+      - "127.0.0.1:${TEMPO_PORT:-3200}:3200"
 
     networks:
       - expense-analyzer
@@ -289,7 +290,7 @@ services:
   # Grafana
   # ============================================================
   grafana:
-    image: grafana/grafana:nightly-slim
+    image: grafana/grafana:13.2.5-slim
     container_name: grafana
     restart: unless-stopped
     profiles:
@@ -304,7 +305,7 @@ services:
       - grafana_data:/var/lib/grafana
 
     ports:
-      - "${GRAFANA_PORT}:3000"
+      - "127.0.0.1:${GRAFANA_PORT}:3000"
 
     depends_on:
       prometheus:
