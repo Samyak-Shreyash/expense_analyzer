@@ -103,7 +103,8 @@ class InactiveAccountTest {
         assertThat(refresh(refreshTokenService.issue(active))).isEqualTo(200);
 
         assertThat(refresh(refreshTokenService.issue(inactive))).isEqualTo(401);
-        assertThat(refreshTokenRepository.count()).isEqualTo(1); // only the active user's rotated token remains
+        // only the active user's rotated token is still usable; consumed rows stay to detect replays
+        assertThat(refreshTokenRepository.findAll().stream().filter(t -> t.getConsumedAt() == null)).hasSize(1);
     }
 
     @Test

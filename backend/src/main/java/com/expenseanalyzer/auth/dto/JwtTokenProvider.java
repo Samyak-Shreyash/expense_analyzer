@@ -20,6 +20,9 @@ import java.time.Instant;
 @Component
 public class JwtTokenProvider {
 
+    public static final String ISSUER = "expense-analyzer";
+    public static final String AUDIENCE = "expense-analyzer-users";
+
     private static final Logger logger = LoggerFactory.getLogger(JwtTokenProvider.class);
 
     // HS256 needs a secret of at least 32 bytes
@@ -35,10 +38,10 @@ public class JwtTokenProvider {
         Instant now = Instant.now();
         JwtClaimsSet claims = JwtClaimsSet.builder()
             .subject(authentication.getName())
-            .issuer("expense-analyzer")
+            .issuer(ISSUER)
             .issuedAt(now)
             .expiresAt(now.plusSeconds(EXPIRATION_TIME))
-            .claim("aud", "expense-analyzer-users")
+            .claim("aud", AUDIENCE)
             .build();
         SecretKeySpec key = new SecretKeySpec(SECRET_KEY.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
         return new NimbusJwtEncoder(new ImmutableSecret<>(key))

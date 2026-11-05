@@ -1,0 +1,2 @@
+ALTER TABLE users ADD COLUMN password_changed_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE refresh_tokens ADD COLUMN consumed_at TIMESTAMP WITH TIME ZONE;

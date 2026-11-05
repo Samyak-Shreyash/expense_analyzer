@@ -27,6 +27,10 @@ public class RefreshToken {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
+    /** Set on rotation; the row stays until expiry so a replay of a rotated token can be recognised. */
+    @Column(name = "consumed_at")
+    private Instant consumedAt;
+
     protected RefreshToken() {
     }
 
@@ -39,6 +43,18 @@ public class RefreshToken {
     @PrePersist
     void onCreate() {
         this.createdAt = Instant.now();
+    }
+
+    public UUID getId() {
+        return id;
+    }
+
+    public Instant getConsumedAt() {
+        return consumedAt;
+    }
+
+    public void setConsumedAt(Instant consumedAt) {
+        this.consumedAt = consumedAt;
     }
 
     public UUID getUserId() {

@@ -21,6 +21,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
+import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -139,5 +140,49 @@ class AuthRefreshSecurityTest {
         assertThat(result.getResponse().getHeader("Set-Cookie")).contains("Max-Age=0");
 
         assertThat(refresh(raw).getResponse().getStatus()).isEqualTo(401);
+    }
+
+    @Test
+    void reusingARotatedTokenAfterTheGraceWindowRevokesTheSession() throws Exception {
+        String raw = refreshTokenService.issue(alice);
+
+        MvcResult first = refresh(raw);
+        assertThat(first.getResponse().getStatus()).isEqualTo(200);
+        String next = first.getResponse().getCookie("refresh_token").getValue();
+
+        refreshTokenRepository.findAll().stream().filter(t -> t.getConsumedAt() != null).forEach(t -> {
+            t.setConsumedAt(Instant.now().minusSeconds(60));
+            refreshTokenRepository.save(t);
+        });
+
+        assertThat(refresh(raw).getResponse().getStatus()).isEqualTo(401);
+        assertThat(refresh(next).getResponse().getStatus()).isEqualTo(401);
+    }
+
+    @Test
+    void concurrentReuseInsideTheGraceWindowKeepsTheSession() throws Exception {
+        String raw = refreshTokenService.issue(alice);
+
+        MvcResult first = refresh(raw);
+        assertThat(first.getResponse().getStatus()).isEqualTo(200);
+        String next = first.getResponse().getCookie("refresh_token").getValue();
+
+        assertThat(refresh(raw).getResponse().getStatus()).isEqualTo(401);
+        assertThat(refresh(next).getResponse().getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void accessTokenIssuedBeforeAPasswordChangeIs401() throws Exception {
+        MvcResult login = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"" + EMAIL + "\",\"password\":\"" + PASSWORD + "\"}"))
+                .andExpect(status().isOk())
+                .andReturn();
+        String token = JsonPath.read(login.getResponse().getContentAsString(), "$.token");
+
+        alice.setPasswordChangedAt(Instant.now().plusSeconds(60));
+
+        mockMvc.perform(get("/api/user/me").header("Authorization", "Bearer " + token))
+                .andExpect(status().isUnauthorized());
     }
 }

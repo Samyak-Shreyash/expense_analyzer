@@ -27,6 +27,10 @@ public class RateLimiter {
     static final int MAX_ATTEMPTS = 5;
     static final int WINDOW_SECONDS = 300;
     static final int MAX_REFRESH_ATTEMPTS = 60;
+    static final int MAX_REGISTER_ATTEMPTS = 10;
+    static final int MAX_UPLOADS = 30;
+    // Across all addresses. High enough that an attacker cannot easily lock the owner out for long.
+    static final int MAX_ACCOUNT_LOGIN_ATTEMPTS = 20;
 
     // INCR and the first-increment EXPIRE run as one atomic script, so a key can never be left without a TTL.
     private static final DefaultRedisScript<Long> INCREMENT = new DefaultRedisScript<>(
@@ -71,6 +75,17 @@ public class RateLimiter {
      */
     public void checkLogin(String email, String ip) {
         countFailingOpen(loginKey(email, ip), MAX_ATTEMPTS);
+        countFailingOpen(accountLoginKey(email), MAX_ACCOUNT_LOGIN_ATTEMPTS);
+    }
+
+    /** Counts one registration from this address; throws 429 above the limit. Fails open, like login. */
+    public void checkRegister(String ip) {
+        countFailingOpen("rate:register:" + sha256(ip), MAX_REGISTER_ATTEMPTS);
+    }
+
+    /** Counts one statement upload by this user; throws 429 above the limit. Fails open, like login. */
+    public void checkUpload(UUID userId) {
+        countFailingOpen(key("upload", userId), MAX_UPLOADS);
     }
 
     /**
@@ -98,6 +113,7 @@ public class RateLimiter {
     public void resetLogin(String email, String ip) {
         try {
             redis.delete(loginKey(email, ip));
+            redis.delete(accountLoginKey(email));
         } catch (RuntimeException ignored) {
             // the window expires by itself
         }
@@ -106,6 +122,10 @@ public class RateLimiter {
     // Hashed so Redis never holds an email or address.
     private static String loginKey(String email, String ip) {
         return "rate:login:" + sha256(email.toLowerCase(Locale.ROOT) + "|" + ip);
+    }
+
+    private static String accountLoginKey(String email) {
+        return "rate:login-account:" + sha256(email.toLowerCase(Locale.ROOT));
     }
 
     private static String sha256(String value) {

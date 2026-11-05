@@ -2,6 +2,7 @@ package com.expenseanalyzer.statement.service;
 
 import com.expenseanalyzer.audit.model.AuditAction;
 import com.expenseanalyzer.audit.service.AuditService;
+import com.expenseanalyzer.auth.config.RateLimiter;
 import com.expenseanalyzer.common.exception.InvalidFileException;
 import com.expenseanalyzer.messaging.service.OutboxService;
 import com.expenseanalyzer.common.exception.InvalidFileException.Reason;
@@ -62,6 +63,7 @@ public class StatementService {
     private final S3StatementStorage storage;
     private final OutboxService outboxService;
     private final AuditService auditService;
+    private final RateLimiter rateLimiter;
 
     /**
      * Validates, de-duplicates by content hash, persists metadata and stores the original file.
@@ -70,6 +72,7 @@ public class StatementService {
     @Transactional
     public Statement upload(String email, MultipartFile file, String password) {
         User user = currentUser(email);
+        rateLimiter.checkUpload(user.getId());
         validator.validate(file.getOriginalFilename(), file.getContentType(), file.getSize(), head(file));
         StatementFormat format = format(file.getOriginalFilename());
         String hash = sha256(file);

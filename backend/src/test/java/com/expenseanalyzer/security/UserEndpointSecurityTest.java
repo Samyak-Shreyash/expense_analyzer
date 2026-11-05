@@ -25,6 +25,7 @@ import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
+import com.expenseanalyzer.auth.dto.JwtTokenProvider;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -103,6 +104,8 @@ class UserEndpointSecurityTest {
     private String signedToken(String secret, Instant expiresAt) {
         JwtClaimsSet claims = JwtClaimsSet.builder()
                 .subject(EMAIL)
+                .issuer(JwtTokenProvider.ISSUER)
+                .claim("aud", JwtTokenProvider.AUDIENCE)
                 .issuedAt(expiresAt.minusSeconds(3600))
                 .expiresAt(expiresAt)
                 .build();

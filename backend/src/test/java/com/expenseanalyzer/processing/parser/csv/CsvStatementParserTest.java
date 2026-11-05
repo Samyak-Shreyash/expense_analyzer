@@ -177,4 +177,16 @@ class CsvStatementParserTest {
         assertThat(r.errors()).isEmpty();
         assertThat(r.transactions()).hasSize(10_000);
     }
+
+    @Test
+    void preambleRowsWithoutAHeaderCountAgainstTheRowLimit() {
+        ParsedStatement r = parse("junk,more\njunk,more\njunk,more\njunk,more\n", new ParserLimits(3, 50, Duration.ofSeconds(30)));
+        assertThat(r.errors()).extracting(RowError::code).containsExactly(RowErrorCode.TOO_MANY_ROWS);
+    }
+
+    @Test
+    void tooWidePreambleRowFailsTheWholeFile() {
+        ParsedStatement r = parse("a,b,c,d,e,f\nDate,Description,Amount\n", new ParserLimits(100, 5, Duration.ofSeconds(30)));
+        assertThat(r.errors()).extracting(RowError::code).containsExactly(RowErrorCode.TOO_MANY_COLUMNS);
+    }
 }
