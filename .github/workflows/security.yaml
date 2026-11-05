@@ -32,6 +32,9 @@ jobs:
 
       - name: Dependency Review
         uses: actions/dependency-review-action@v5
+        with:
+          # deepmerge: no patched release exists; test-only, via jest-config. Remove once one does.
+          allow-ghsas: GHSA-gcqx-w48m-w2h4
 
   codeql:
     name: CodeQL

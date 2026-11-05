@@ -69,3 +69,8 @@ uploaded_sessions.json
 frontend/build
 
 /.playwright-mcp/
+
+# Node manifests the *package*.json rule above would otherwise hide
+!/mobile/package.json
+!/mobile/package-lock.json
+!/packages/*/package.json

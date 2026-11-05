@@ -42,7 +42,7 @@ Send `X-Client-Type: mobile` on these three endpoints to carry the refresh token
 | POST `/auth/refresh` | `refreshToken` | `200` with a new access token and a new `refreshToken`; the old one stops working. `401` if missing, unknown, rotated or expired, or the user is inactive |
 | POST `/auth/logout` | `refreshToken` | `204`, including for an unknown token |
 
-An unreadable body answers `400`. Refresh tokens must never be logged. `/auth/refresh` has no rate limit today; one is required before the mobile release (MOB-002a).
+An unreadable body answers `400`. Refresh tokens must never be logged. `/auth/refresh`, on web and mobile, allows 60 requests per 5 minutes from one address, then `429` with the refresh token untouched, so the client can retry. If the limiter is unavailable, refresh still works.
 
 ### GET `/user/me`
 Return the authenticated user: `email`, `fullName`, `role` and `preferences` (`theme` `light|dark`, `currency` `inr|usd|eur`, `notifications` boolean; only saved keys are present).

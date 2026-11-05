@@ -48,6 +48,30 @@ class RateLimiterRedisTest {
     }
 
     @Test
+    void refreshIsLimitedPerAddressAllowingForSharedNetworks() {
+        RateLimiter limiter = new RateLimiter(template());
+        String ip = "10.1." + (int) (Math.random() * 255) + "." + (int) (Math.random() * 255);
+
+        for (int i = 0; i < RateLimiter.MAX_REFRESH_ATTEMPTS; i++) {
+            limiter.checkRefresh(ip);
+        }
+        assertThatThrownBy(() -> limiter.checkRefresh(ip))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS));
+        limiter.checkRefresh("10.2.0.1");
+    }
+
+    @Test
+    void refreshFailsOpenWhenRedisIsDown() {
+        LettuceConnectionFactory down = new LettuceConnectionFactory("localhost", 1);
+        down.afterPropertiesSet();
+        StringRedisTemplate redis = new StringRedisTemplate(down);
+        redis.afterPropertiesSet();
+
+        new RateLimiter(redis).checkRefresh("10.0.0.1");
+    }
+
+    @Test
     void loginFailsOpenWhenRedisIsDown() {
         LettuceConnectionFactory down = new LettuceConnectionFactory("localhost", 1);
         down.afterPropertiesSet();

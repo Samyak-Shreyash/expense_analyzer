@@ -36,3 +36,28 @@ jobs:
 
       - name: Build & test
         run: ./gradlew clean build
+
+  mobile:
+    name: Mobile checks
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: mobile
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint, format, type check and test
+        run: npm run ci

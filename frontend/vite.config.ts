@@ -10,6 +10,8 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     test: { environment: 'jsdom', globals: true }, // globals: RTL cleans up after each test
     server: {
+      // Only the shared package: the repo root holds .env, which the dev server must not serve.
+      fs: { allow: ['.', '../packages'] },
       // Same-origin /api in dev: the backend has no CORS config (see docs/frontend/FRONTEND-STACK.md).
       proxy: {
         '/api':
