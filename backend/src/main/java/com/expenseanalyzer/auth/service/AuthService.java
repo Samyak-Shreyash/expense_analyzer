@@ -13,9 +13,13 @@ import com.expenseanalyzer.user.repository.UserRepository;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.nio.charset.StandardCharsets;
 
 /**
  * Service for user registration and authentication operations.
@@ -24,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class AuthService {
 
     private static final Logger logger = LoggerFactory.getLogger(AuthService.class);
+    private static final int MAX_PASSWORD_BYTES = 72;
     private final UserRepository userRepository;
     private final PreferenceRepository preferenceRepository;
     private final PasswordEncoder passwordEncoder;
@@ -60,6 +65,11 @@ public class AuthService {
             throw new IllegalArgumentException("Password must be at least 8 characters");
         }
 
+        // BCrypt limit
+        if (request.password().getBytes(StandardCharsets.UTF_8).length > MAX_PASSWORD_BYTES) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Password is too long");
+        }
+
         // Check if email already exists
         if (userRepository.findByEmail(request.email()).isPresent()) {
             logger.warn("Registration failed: Email already registered");
@@ -69,12 +79,8 @@ public class AuthService {
         User user = new User(request.email(), passwordEncoder.encode(request.password()));
         user.setFullName("");
 
-        // Assign ADMIN role if no admin users exist, otherwise USER
-        if (userRepository.countByRole(UserRole.ADMIN) == 0) {
-            user.setRole(UserRole.ADMIN);
-        } else {
-            user.setRole(UserRole.USER);
-        }
+        // Registration never grants ADMIN: on a fresh deploy the first visitor could be anyone
+        user.setRole(UserRole.USER);
 
         // Save first: preferences reference the generated user id
         user = userRepository.save(user);

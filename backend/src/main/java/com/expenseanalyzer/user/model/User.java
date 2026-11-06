@@ -121,6 +121,10 @@ public class User {
     @Column(name = "last_login_at")
     private Instant lastLoginAt;
 
+    /** Access tokens issued before this are rejected. */
+    @Column(name = "password_changed_at")
+    private Instant passwordChangedAt;
+
     /** Set when the account is deleted; the row goes once the user's access tokens have expired. */
     @Column(name = "deleted_at")
     private Instant deletedAt;

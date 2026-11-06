@@ -1,6 +1,8 @@
 package com.expenseanalyzer.auth.config;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.http.HttpStatus;
@@ -35,9 +37,24 @@ public class RateLimiter {
                     + "return c", Long.class);
 
     private final StringRedisTemplate redis;
+    private final int maxRegisterAttempts;
+    private final int maxUploads;
+    private final int maxAccountLoginAttempts;
 
-    public RateLimiter(StringRedisTemplate redis) {
+    RateLimiter(StringRedisTemplate redis) {
+        this(redis, 10, 30, 20);
+    }
+
+    /** @param maxAccountLoginAttempts across all addresses; high enough that an attacker cannot easily lock the owner out */
+    @Autowired
+    public RateLimiter(StringRedisTemplate redis,
+                       @Value("${app.rate-limit.max-register-attempts:10}") int maxRegisterAttempts,
+                       @Value("${app.rate-limit.max-uploads:30}") int maxUploads,
+                       @Value("${app.rate-limit.max-account-login-attempts:20}") int maxAccountLoginAttempts) {
         this.redis = redis;
+        this.maxRegisterAttempts = maxRegisterAttempts;
+        this.maxUploads = maxUploads;
+        this.maxAccountLoginAttempts = maxAccountLoginAttempts;
     }
 
     /** Counts one attempt; throws 429 above the limit, 503 if Redis fails. */
@@ -71,6 +88,17 @@ public class RateLimiter {
      */
     public void checkLogin(String email, String ip) {
         countFailingOpen(loginKey(email, ip), MAX_ATTEMPTS);
+        countFailingOpen(accountLoginKey(email), maxAccountLoginAttempts);
+    }
+
+    /** Counts one registration from this address; throws 429 above the limit. Fails open, like login. */
+    public void checkRegister(String ip) {
+        countFailingOpen("rate:register:" + sha256(ip), maxRegisterAttempts);
+    }
+
+    /** Counts one statement upload by this user; throws 429 above the limit. Fails open, like login. */
+    public void checkUpload(UUID userId) {
+        countFailingOpen(key("upload", userId), maxUploads);
     }
 
     /**
@@ -98,6 +126,7 @@ public class RateLimiter {
     public void resetLogin(String email, String ip) {
         try {
             redis.delete(loginKey(email, ip));
+            redis.delete(accountLoginKey(email));
         } catch (RuntimeException ignored) {
             // the window expires by itself
         }
@@ -106,6 +135,10 @@ public class RateLimiter {
     // Hashed so Redis never holds an email or address.
     private static String loginKey(String email, String ip) {
         return "rate:login:" + sha256(email.toLowerCase(Locale.ROOT) + "|" + ip);
+    }
+
+    private static String accountLoginKey(String email) {
+        return "rate:login-account:" + sha256(email.toLowerCase(Locale.ROOT));
     }
 
     private static String sha256(String value) {

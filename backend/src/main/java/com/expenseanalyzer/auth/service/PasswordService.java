@@ -1,6 +1,7 @@
 package com.expenseanalyzer.auth.service;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import com.expenseanalyzer.audit.model.AuditAction;
 import com.expenseanalyzer.audit.service.AuditService;
 import com.expenseanalyzer.auth.config.RateLimiter;
@@ -52,6 +53,7 @@ public class PasswordService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Request could not be completed");
         }
         user.setPasswordHash(passwordEncoder.encode(newPassword));
+        user.setPasswordChangedAt(Instant.now());
         userRepository.save(user);
         refreshTokenService.revokeAll(user.getId());
         auditService.record(AuditAction.AUTH_PASSWORD_CHANGED, user.getId());

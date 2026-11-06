@@ -111,6 +111,12 @@ app:
     max-rows: ${PARSER_MAX_ROWS:50000}
     max-columns: ${PARSER_MAX_COLUMNS:50}
     timeout: ${PARSER_TIMEOUT:30s}
+    max-inflated-bytes: ${PARSER_MAX_INFLATED_BYTES:104857600}
+  # Attempts per 5-minute window. Fail open if Redis is down.
+  rate-limit:
+    max-register-attempts: ${RATE_LIMIT_MAX_REGISTER_ATTEMPTS:10}
+    max-uploads: ${RATE_LIMIT_MAX_UPLOADS:30}
+    max-account-login-attempts: ${RATE_LIMIT_MAX_ACCOUNT_LOGIN_ATTEMPTS:20}
   worker:
     concurrency: ${WORKER_CONCURRENCY:2}
   # S3-compatible statement storage (RustFS locally). Credentials have no defaults.

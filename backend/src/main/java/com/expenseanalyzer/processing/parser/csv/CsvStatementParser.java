@@ -38,8 +38,11 @@ public class CsvStatementParser {
             Iterator<CSVRecord> it = csv.iterator();
             // Bank exports (e.g. Axis) put account details above the header; skip rows until it appears.
             StatementRowMapper mapper = null;
+            ParserLimits.Budget budget = limits.new Budget();
             while (it.hasNext() && mapper == null) {
-                List<String> header = new ArrayList<>(it.next().toList());
+                CSVRecord first = it.next();
+                budget.checkPreambleRow(first.size());
+                List<String> header = new ArrayList<>(first.toList());
                 if (!header.isEmpty() && header.get(0).startsWith("\uFEFF")) {
                     header.set(0, header.get(0).substring(1));
                 }
@@ -51,7 +54,6 @@ public class CsvStatementParser {
             }
             List<ParsedTransaction> txns = new ArrayList<>();
             List<RowError> errors = new ArrayList<>();
-            ParserLimits.Budget budget = limits.new Budget();
             while (it.hasNext()) {
                 CSVRecord rec = it.next();
                 budget.checkRow(rec.size());
