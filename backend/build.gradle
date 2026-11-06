@@ -59,7 +59,7 @@ dependencies {
 	// Redis for rate limiting
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 
-	implementation 'org.apache.commons:commons-csv:1.12.0'
+	implementation 'org.apache.commons:commons-csv:1.14.1'
 	implementation 'org.apache.poi:poi-ooxml:6.0.0'
 	implementation 'org.apache.pdfbox:pdfbox:3.0.8'
 
