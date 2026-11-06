@@ -290,7 +290,7 @@ services:
   # Grafana
   # ============================================================
   grafana:
-    image: grafana/grafana:13.2.5-slim
+    image: grafana/grafana:13.3.0-slim
     container_name: grafana
     restart: unless-stopped
     profiles:
