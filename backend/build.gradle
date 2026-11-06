@@ -61,7 +61,7 @@ dependencies {
 
 	implementation 'org.apache.commons:commons-csv:1.12.0'
 	implementation 'org.apache.poi:poi-ooxml:6.0.0'
-	implementation 'org.apache.pdfbox:pdfbox:3.0.5'
+	implementation 'org.apache.pdfbox:pdfbox:3.0.8'
 
 	// Object storage (S3 API; RustFS locally)
 	implementation 'software.amazon.awssdk:s3'
