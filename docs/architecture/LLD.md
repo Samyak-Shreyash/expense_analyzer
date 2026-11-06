@@ -595,7 +595,7 @@ This subsection describes what `CsvStatementParser` and `StatementRowMapper` do 
 
 **Not implemented**
 
-A configurable delimiter, header aliases, currency columns, a running balance check, a row-count limit and spreadsheet formula-injection handling do not exist in the CSV parser. `Balance` columns are ignored.
+A configurable delimiter, header aliases, currency columns, a running balance check and spreadsheet formula-injection handling do not exist in the CSV parser. `Balance` columns are ignored.
 
 ## 8.3 PDF Parser
 
@@ -619,9 +619,16 @@ OCR is not part of the initial mandatory implementation.
 | Data rows | 50,000 (`app.parser.max-rows`) | `ParserLimits.Budget` | whole file fails `TOO_MANY_ROWS` |
 | Cells per row | 50 (`app.parser.max-columns`) | `ParserLimits.Budget` (Excel: checked before cells are materialised) | whole file fails `TOO_MANY_COLUMNS` |
 | Description length | 2,048 chars | `StatementRowMapper` | row error `DESCRIPTION_TOO_LONG` |
-| Wall-clock time | 30 s (`app.parser.timeout`) | checked per row | whole file fails `PARSE_TIMEOUT` |
-| XLSX decompression | POI `ZipSecureFile` defaults (min inflate ratio 0.01) | POI | `UNREADABLE_FILE` |
+| Preamble rows (above the header) | same as data rows, counted separately | `ParserLimits.Budget` | whole file fails `TOO_MANY_ROWS` |
+| Wall-clock time | 30 s (`app.parser.timeout`) | checked per row (PDF: per page) | whole file fails `PARSE_TIMEOUT` |
+| XLSX inflated size | 100 MB (`app.parser.max-inflated-bytes`), bytes actually inflated | `ExcelStatementParser`, before the workbook is opened | whole file fails `TOO_MANY_ROWS` |
+| XLSX decompression ratio | POI `ZipSecureFile` defaults (min inflate ratio 0.01) | POI | `UNREADABLE_FILE` |
+| PDF pages | 1,000 (`PdfStatementParser.MAX_PAGES`, not configurable) | `PdfStatementParser` | whole file fails `TOO_MANY_ROWS` |
+| PDF decoded streams | temp file, not heap | PDFBox stream cache | n/a |
 | Concurrency | Kafka listener concurrency (`app.worker.concurrency`, default 2) | worker | queued, not rejected |
+| Uploads | 30 per user per 5 minutes (`app.rate-limit.max-uploads`) | `RateLimiter` | `429` |
+
+Security requirements and known gaps for these limits are in `docs/architecture/ADR/SECURITY-REQUIREMENTS.md`, section 20.2.
 
 Only the first sheet of a workbook is read. Limit breaches fail the whole file rather than importing a prefix, because a partial import would understate spending.
 
