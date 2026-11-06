@@ -71,4 +71,11 @@ class ClientAddressTest {
 
         assertThat(yaml.getObject().getProperty("server.forward-headers-strategy")).isEqualTo("native");
     }
+
+    @Test
+    void registerIsLimitedOnTheClientAddress() throws Exception {
+        post("/api/auth/register", "{\"email\":\"new-client-address@example.com\",\"password\":\"long-enough-1\"}");
+
+        verify(rateLimiter).checkRegister(CLIENT);
+    }
 }

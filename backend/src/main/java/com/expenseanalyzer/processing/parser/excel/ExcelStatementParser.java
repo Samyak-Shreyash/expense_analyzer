@@ -6,10 +6,13 @@ import com.expenseanalyzer.processing.parser.common.ParsedTransaction;
 import com.expenseanalyzer.processing.parser.common.RowError;
 import com.expenseanalyzer.processing.parser.common.RowErrorCode;
 import com.expenseanalyzer.processing.parser.common.StatementRowMapper;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.zip.ZipInputStream;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.DateUtil;
@@ -17,18 +20,41 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /** Parses the first sheet of an XLS or XLSX bank statement. Caller owns the stream. Never logs cell values. */
 @Component
 public class ExcelStatementParser {
 
+    // POI loads the XLSX XML into memory, so bound it before opening. The default is roomy for 50k rows of a normal statement.
+    private final long maxInflatedBytes;
+
+    ExcelStatementParser() {
+        this(104857600);
+    }
+
+    @Autowired
+    public ExcelStatementParser(@Value("${app.parser.max-inflated-bytes:104857600}") long maxInflatedBytes) {
+        this.maxInflatedBytes = maxInflatedBytes;
+    }
+
     public ParsedStatement parse(InputStream in) {
         return parse(in, ParserLimits.DEFAULTS);
     }
 
     public ParsedStatement parse(InputStream in, ParserLimits limits) {
-        try (Workbook wb = WorkbookFactory.create(in)) {
+        byte[] file;
+        try {
+            file = in.readAllBytes();
+            if (inflatesPastCap(file)) {
+                return ParsedStatement.failed(new RowError(0, RowErrorCode.TOO_MANY_ROWS, null));
+            }
+        } catch (IOException e) { // corrupt zip; the size check does not apply to XLS, which is not a zip
+            return ParsedStatement.failed(new RowError(0, RowErrorCode.UNREADABLE_FILE, null));
+        }
+        try (Workbook wb = WorkbookFactory.create(new ByteArrayInputStream(file))) {
             Sheet sheet = wb.getSheetAt(0);
             StatementRowMapper mapper = null;
             List<ParsedTransaction> txns = new ArrayList<>();
@@ -36,7 +62,9 @@ public class ExcelStatementParser {
             ParserLimits.Budget budget = limits.new Budget();
             for (Row row : sheet) {
                 if (mapper != null) {
-                    budget.checkRow(Math.max(row.getLastCellNum(), 0)); // data rows only, before materialising cells
+                    budget.checkRow(Math.max(row.getLastCellNum(), 0)); // before materialising cells
+                } else {
+                    budget.checkPreambleRow(Math.max(row.getLastCellNum(), 0));
                 }
                 List<String> cells = cells(row);
                 if (cells.stream().allMatch(String::isEmpty)) {
@@ -71,6 +99,24 @@ public class ExcelStatementParser {
         } catch (Exception e) { // corrupt/non-Excel input: POI throws assorted runtime exceptions
             return ParsedStatement.failed(new RowError(0, RowErrorCode.UNREADABLE_FILE, null));
         }
+    }
+
+    /** Counts bytes actually inflated, stopping at the cap, rather than trusting sizes the zip declares. */
+    private boolean inflatesPastCap(byte[] file) throws IOException {
+        long total = 0;
+        byte[] buffer = new byte[8192];
+        try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(file))) {
+            while (zip.getNextEntry() != null) {
+                int n;
+                while ((n = zip.read(buffer)) > 0) {
+                    total += n;
+                    if (total > maxInflatedBytes) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     private static List<String> cells(Row row) {

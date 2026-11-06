@@ -18,8 +18,20 @@ public record ParserLimits(int maxRows, int maxColumns, Duration timeout) {
     public final class Budget {
         private final long deadlineNanos = System.nanoTime() + timeout.toNanos();
         private int rows;
+        private int preambleRows;
 
         public Budget() {
+        }
+
+        /** Rows above the header: counted apart, so a preamble does not eat into the data row limit. */
+        public void checkPreambleRow(int columns) {
+            checkTime();
+            if (columns > maxColumns) {
+                throw new LimitExceeded(RowErrorCode.TOO_MANY_COLUMNS);
+            }
+            if (++preambleRows > maxRows) {
+                throw new LimitExceeded(RowErrorCode.TOO_MANY_ROWS);
+            }
         }
 
         public void checkTime() {

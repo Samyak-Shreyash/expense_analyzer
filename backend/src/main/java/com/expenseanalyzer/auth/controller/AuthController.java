@@ -95,7 +95,9 @@ public class AuthController {
      * POST /api/auth/register
      */
     @PostMapping("/register")
-    public ResponseEntity<String> register(@Valid @RequestBody RegisterRequest request) {
+    public ResponseEntity<String> register(@Valid @RequestBody RegisterRequest request,
+            HttpServletRequest servletRequest) {
+        rateLimiter.checkRegister(servletRequest.getRemoteAddr());
         try {
             // Call AuthService to create the user and save to database
             User user = authService.register(request);

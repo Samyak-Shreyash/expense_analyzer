@@ -1,13 +1,13 @@
 plugins {
 	id 'java'
-	id 'org.springframework.boot' version '4.1.1'
+	id 'org.springframework.boot' version '4.1.2'
 	id 'io.spring.dependency-management' version '1.1.7'
 }
 
 ext {
 	// Centralized version management
 	awsSdkVersion = '2.57.6'
-	springSecurityVersion = '7.2.0-M2' // Spring Security 7.x
+	set('opentelemetry.version', '1.67.0') // above Boot's version for GHSA-ccrj-gw8r-854m
 }
 
 group = 'com.expenseanalyzer'
@@ -24,18 +24,24 @@ repositories {
 }
 
 dependencies {
+	// Transitive via kafka-clients; versions with the published advisories fixed
+	constraints {
+		implementation 'at.yawk.lz4:lz4-java:1.11.4'
+		implementation 'org.xerial.snappy:snappy-java:1.1.10.9'
+	}
+
 	// Spring Boot Starters
 	implementation 'org.springframework.boot:spring-boot-starter-web'
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 
-	// Spring Security 7.x (7.2.0-M2) - Core, OAuth2 JWT, Resource Server, Web, Config
-	implementation "org.springframework.security:spring-security-core:${springSecurityVersion}"
-	implementation "org.springframework.security:spring-security-oauth2-jose:${springSecurityVersion}"
-	implementation "org.springframework.security:spring-security-oauth2-resource-server:${springSecurityVersion}"
-	implementation "org.springframework.security:spring-security-web:${springSecurityVersion}"
-	implementation "org.springframework.security:spring-security-config:${springSecurityVersion}"
+	// Spring Security (version managed by Spring Boot) - Core, OAuth2 JWT, Resource Server, Web, Config
+	implementation 'org.springframework.security:spring-security-core'
+	implementation 'org.springframework.security:spring-security-oauth2-jose'
+	implementation 'org.springframework.security:spring-security-oauth2-resource-server'
+	implementation 'org.springframework.security:spring-security-web'
+	implementation 'org.springframework.security:spring-security-config'
 
 	implementation 'io.micrometer:micrometer-registry-prometheus'
 
@@ -54,7 +60,7 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 
 	implementation 'org.apache.commons:commons-csv:1.12.0'
-	implementation 'org.apache.poi:poi-ooxml:5.3.0'
+	implementation 'org.apache.poi:poi-ooxml:5.5.1'
 	implementation 'org.apache.pdfbox:pdfbox:3.0.5'
 
 	// Object storage (S3 API; RustFS locally)

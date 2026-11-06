@@ -70,4 +70,46 @@ class RateLimiterTest {
         limiter.reset("pwd", userId);
         verify(redis).delete("rate:pwd:" + userId);
     }
+
+    @Test
+    void registerAllowsTenPerWindowThen429() {
+        for (long n = 1; n <= 10; n++) {
+            count(n);
+            assertThatCode(() -> limiter.checkRegister("10.0.0.1")).doesNotThrowAnyException();
+        }
+        count(11);
+        assertThatThrownBy(() -> limiter.checkRegister("10.0.0.1"))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        e -> assertThat(e.getStatusCode().value()).isEqualTo(429));
+    }
+
+    @Test
+    void uploadAllowsThirtyPerWindowThen429() {
+        for (long n = 1; n <= 30; n++) {
+            count(n);
+            assertThatCode(() -> limiter.checkUpload(userId)).doesNotThrowAnyException();
+        }
+        count(31);
+        assertThatThrownBy(() -> limiter.checkUpload(userId))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        e -> assertThat(e.getStatusCode().value()).isEqualTo(429));
+    }
+
+    @Test
+    void loginIsLimitedPerAccountAcrossAddresses() {
+        when(redis.execute(any(RedisScript.class), anyList(), any(Object[].class)))
+                .thenAnswer(inv -> ((List<String>) inv.getArgument(1)).get(0).startsWith("rate:login-account:") ? 21L : 1L);
+        assertThatThrownBy(() -> limiter.checkLogin("a@example.com", "10.0.0.1"))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        e -> assertThat(e.getStatusCode().value()).isEqualTo(429));
+    }
+
+    @Test
+    void usesConfiguredRegisterLimit() {
+        RateLimiter configured = new RateLimiter(redis, 2, 30, 20);
+        count(3);
+        assertThatThrownBy(() -> configured.checkRegister("10.0.0.1"))
+                .isInstanceOfSatisfying(ResponseStatusException.class,
+                        e -> assertThat(e.getStatusCode().value()).isEqualTo(429));
+    }
 }
