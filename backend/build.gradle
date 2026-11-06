@@ -27,7 +27,7 @@ dependencies {
 	// Transitive via kafka-clients; versions with the published advisories fixed
 	constraints {
 		implementation 'at.yawk.lz4:lz4-java:1.12.1'
-		implementation 'org.xerial.snappy:snappy-java:1.1.10.9'
+		implementation 'org.xerial.snappy:snappy-java:1.1.10.12'
 	}
 
 	// Spring Boot Starters
