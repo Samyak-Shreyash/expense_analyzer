@@ -1097,14 +1097,35 @@ Parser
 
 ## 20.2 Resource Limits
 
-Apply limits for:
+Every parse runs under a per-file budget (SEC-016, issue #127). The values, defaults and setting names are in LLD section 8.4, the single source for numbers. This section states what each limit must guarantee.
 
-- execution time;
-- memory;
-- file size;
-- number of rows;
-- PDF pages/objects where applicable;
-- decompression expansion.
+| Category | Requirement | Status |
+|---|---|---|
+| File size | Reject above 20 MB at upload, before anything is stored (`413`). Configurable. | Implemented: `StatementFileValidator` plus the multipart limit |
+| Rows | Bound data rows, and rows above the header separately, so a long preamble cannot bypass the cap. | Implemented: `ParserLimits.Budget` (CSV, XLS/XLSX, PDF) |
+| Cells | Bound cells per row; for Excel, check the row's cell count before cells are read. | Implemented: `ParserLimits.Budget` |
+| Cell size | Bound stored description length. | Implemented: 2,048 characters, row error `DESCRIPTION_TOO_LONG`. The raw CSV cell is not bounded before it is read (see gaps). |
+| Memory | Bound what a file may expand to in the heap. XLSX: count bytes actually inflated (never the sizes the zip declares) and fail above the cap. PDF: decoded streams go to a temp file, not the heap. | Implemented for XLSX and PDF. XLS and CSV rely on the 20 MB file cap. |
+| Decompression | Fail zip bombs before the workbook is opened. | Implemented: inflated-bytes cap, plus POI `ZipSecureFile` defaults |
+| Time | 30 s wall-clock per file. | Implemented, checked between rows (CSV, Excel) and between pages (PDF). Not pre-emptive (see gaps). |
+| Nesting / complexity | Only the first sheet is read. Formulas are never evaluated: only their cached results are used. PDF pages are capped (`PdfStatementParser.MAX_PAGES`, 1,000). External entities in XLSX XML are not resolved (POI default). | Implemented. There is no explicit PDF object or nesting limit beyond PDFBox defaults. |
+| Concurrency | At most `app.worker.concurrency` files are parsed at once per instance (default 2); extra uploads queue in Kafka and are not rejected. Uploads are rate limited per user (`app.rate-limit.max-uploads` per 5 minutes; fails open if Redis is unavailable). | Implemented |
+
+Failure behaviour:
+
+- A limit breach fails the whole file (statement `FAILED` with the limit code) and is never a partial import, because a partial import would understate spending.
+- Limit breaches and malformed files are deterministic: the event is acknowledged and not retried. Only transient errors, such as storage being unavailable, are redelivered.
+- Failure codes and statement ids may be logged. File contents, cell values and descriptions must not be.
+
+Known gaps (target, not yet implemented):
+
+1. **Time limit is cooperative.** A single slow step, such as opening a large workbook or extracting one PDF page, is not interrupted. Target: run the parse on a bounded executor and cancel it at the deadline.
+2. **`OutOfMemoryError` is retried.** It is not caught as a file failure, so a file that exhausts the heap is redelivered for up to 5 minutes (`KafkaConsumerConfig` back-off). Target: treat it as a deterministic failure and alert.
+3. **CSV cell length is unbounded until mapping.** One huge cell, up to the 20 MB file size, is read into memory before the 2,048-character check.
+4. **Error codes.** The XLSX inflated-size cap and the PDF page cap report `TOO_MANY_ROWS`, which is misleading for diagnostics.
+5. **PDF page cap is not configurable**, unlike the other limits.
+
+Tests: `CsvStatementParserTest` and `ExcelStatementParserTest` cover the row, preamble, column and timeout limits; `ExcelStatementParserTest` also covers the inflated-size cap, default and configured; `StatementRowMapperTest` covers description length. The PDF page cap has no test yet. Gaps 1 and 2 need resilience tests when they are fixed.
 
 ## 20.3 Libraries
 
@@ -1846,7 +1867,7 @@ The security-design task is complete when:
 - [ ] Audit events are documented.
 - [ ] Audit retention requirements are identified.
 - [ ] File-upload security requirements are documented.
-- [ ] Parser/resource limits are documented.
+- [x] Parser/resource limits are documented (section 20.2).
 - [ ] Async/event security requirements are documented.
 - [ ] AI authorization is documented.
 - [ ] AI data minimization is documented.
