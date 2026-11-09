@@ -52,6 +52,8 @@ export type Transaction = {
   transferPairId: string | null
   /** The refund of a failed payment, or the payment a refund reversed, when paired; both are left out of analytics. */
   reversalPairId: string | null
+  /** Marked as a failed payment (or its refund) whose other half isn't paired yet. */
+  reversalPending: boolean
 }
 
 type Totals = {
@@ -222,6 +224,8 @@ export type TransactionQuery = {
   category?: string
   /** 'true' keeps only transfers between your accounts. */
   transfer?: string
+  /** 'true' keeps only rows marked as failed or refunded but not paired yet. */
+  reversalPending?: string
   minAmount?: number
   maxAmount?: number
   page?: number
@@ -415,14 +419,21 @@ export const setTransfer = (
     },
   )
 
-/** Pairs a failed payment with the refund that reversed it; null pairWithId unpairs. */
-export const setReversal = (id: string, pairWithId: string | null) =>
+/**
+ * Pairs a failed payment with the refund that reversed it; null pairWithId unpairs. Unpaired, pending keeps it
+ * marked as failed so it is offered when you pair its other half.
+ */
+export const setReversal = (
+  id: string,
+  pairWithId: string | null,
+  pending = false,
+) =>
   write<Transaction>(
     'PUT',
     `/transactions/${id}/reversal`,
-    { pairWithId },
+    { pairWithId, pending },
     {
-      400: 'A refund pairs money out and money in of the same amount, or a payment up to 10% above the refund.',
+      400: 'A refund pairs money out with money in of the same or a smaller amount.',
       404: 'That transaction no longer exists. Reload the page.',
     },
   )

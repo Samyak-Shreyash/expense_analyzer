@@ -45,6 +45,7 @@ const swiggy: Transaction = {
   transfer: false,
   transferPairId: null,
   reversalPairId: null,
+  reversalPending: false,
 }
 
 const categories: finance.Category[] = [
@@ -288,9 +289,12 @@ describe('TransactionsPage', () => {
     })
     fireEvent.click(toggle)
     expect(toggle.getAttribute('aria-expanded')).toBe('true')
-    fireEvent.pointerDown(screen.getByText('As shown on your statement'))
+    fireEvent.click(screen.getByText('As shown on your statement'))
     expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    // Dragging the scrollbar or starting a touch scroll must not close them.
     fireEvent.pointerDown(document.body)
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    fireEvent.click(document.body)
     expect(toggle.getAttribute('aria-expanded')).toBe('false')
   })
 
@@ -1070,10 +1074,9 @@ describe('TransactionsPage', () => {
         totalItems: 1,
         totalPages: 1,
       }))
-      vi.mocked(finance.setReversal).mockResolvedValue({
-        ...swiggy,
-        reversalPairId: 't2',
-      })
+      vi.mocked(finance.setReversal)
+        .mockResolvedValueOnce({ ...swiggy, reversalPending: true })
+        .mockResolvedValueOnce({ ...swiggy, reversalPairId: 't2' })
       renderPage()
       fireEvent.click(
         await screen.findByRole('button', { name: /SWIGGY ORDER/ }),
@@ -1082,14 +1085,20 @@ describe('TransactionsPage', () => {
         screen.getByRole('button', { name: 'Mark as failed and refunded' }),
       )
       await waitFor(() =>
-        expect(finance.listTransactions).toHaveBeenLastCalledWith({
+        expect(finance.listTransactions).toHaveBeenCalledWith({
+          reversalPending: 'true',
           direction: 'CREDIT',
-          minAmount: 450,
           maxAmount: 450,
-          from: '2025-11-18',
-          to: '2026-02-16',
         }),
       )
+      expect(finance.setReversal).toHaveBeenCalledWith('t1', null, true)
+      expect(finance.listTransactions).toHaveBeenCalledWith({
+        direction: 'CREDIT',
+        minAmount: 450,
+        maxAmount: 450,
+        from: '2025-11-03',
+        to: '2026-03-03',
+      })
       expect(
         (await screen.findByRole('combobox', { name: 'The refund' }))
           .textContent,
@@ -1119,10 +1128,9 @@ describe('TransactionsPage', () => {
         totalItems: 1,
         totalPages: 1,
       }))
-      vi.mocked(finance.setReversal).mockResolvedValue({
-        ...refund,
-        reversalPairId: 't1',
-      })
+      vi.mocked(finance.setReversal)
+        .mockResolvedValueOnce({ ...refund, reversalPending: true })
+        .mockResolvedValueOnce({ ...refund, reversalPairId: 't1' })
       renderPage()
       fireEvent.click(
         await screen.findByRole('button', { name: /SWIGGY REFUND/ }),
@@ -1139,6 +1147,84 @@ describe('TransactionsPage', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Pair them' }))
       await waitFor(() =>
         expect(finance.setReversal).toHaveBeenCalledWith('t2', 't1'),
+      )
+    })
+
+    it('offers a payment marked as failed at any date and a flat fee, like IRCTC', async () => {
+      const refund: Transaction = {
+        ...swiggy,
+        id: 't2',
+        direction: 'CREDIT',
+        amount: 300,
+        normalizedDescription: 'IRCTC REFUND',
+      }
+      const ticket: Transaction = {
+        ...swiggy,
+        date: '2025-06-07',
+        amount: 500,
+        normalizedDescription: 'IRCTC TICKET',
+        reversalPending: true,
+      }
+      vi.mocked(finance.listTransactions).mockImplementation(async (q) => ({
+        items: !q.direction ? [refund] : q.reversalPending ? [ticket] : [],
+        page: 0,
+        size: 50,
+        totalItems: 1,
+        totalPages: 1,
+      }))
+      vi.mocked(finance.setReversal)
+        .mockResolvedValueOnce({ ...refund, reversalPending: true })
+        .mockResolvedValueOnce({ ...refund, reversalPairId: 't1' })
+      renderPage()
+      fireEvent.click(
+        await screen.findByRole('button', { name: /IRCTC REFUND/ }),
+      )
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: 'Mark as the refund of a failed payment',
+        }),
+      )
+      expect(
+        (await screen.findByRole('combobox', { name: 'The failed payment' }))
+          .textContent,
+      ).toContain('IRCTC TICKET')
+      expect(finance.listTransactions).toHaveBeenCalledWith({
+        reversalPending: 'true',
+        direction: 'DEBIT',
+        minAmount: 300,
+      })
+      fireEvent.click(screen.getByRole('button', { name: 'Pair them' }))
+      await waitFor(() =>
+        expect(finance.setReversal).toHaveBeenCalledWith('t2', 't1'),
+      )
+    })
+
+    it('keeps a payment marked as failed when no refund is found yet', async () => {
+      vi.mocked(finance.listTransactions).mockImplementation(async (q) => ({
+        items: q.direction ? [] : [swiggy],
+        page: 0,
+        size: 50,
+        totalItems: 1,
+        totalPages: 1,
+      }))
+      vi.mocked(finance.setReversal)
+        .mockResolvedValueOnce({ ...swiggy, reversalPending: true })
+        .mockResolvedValueOnce(swiggy)
+      renderPage()
+      fireEvent.click(
+        await screen.findByRole('button', { name: /SWIGGY ORDER/ }),
+      )
+      fireEvent.click(
+        screen.getByRole('button', { name: 'Mark as failed and refunded' }),
+      )
+      expect(await screen.findByText(/It stays marked/)).toBeTruthy()
+      fireEvent.click(
+        screen.getByRole('button', {
+          name: 'Not a failed payment and refund',
+        }),
+      )
+      await waitFor(() =>
+        expect(finance.setReversal).toHaveBeenLastCalledWith('t1', null),
       )
     })
 

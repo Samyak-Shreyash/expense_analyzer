@@ -169,6 +169,11 @@ public class Transaction {
     @Column(name = "reversal_charge_paise")
     private BigDecimal reversalChargePaise;
 
+    /** Marked by the user as a failed payment (or its refund) whose other half isn't paired yet. */
+    @ColumnDefault("false")
+    @Column(name = "reversal_pending", nullable = false)
+    private boolean reversalPending;
+
     // ---- Lifecycle hooks ----
 
     /**

@@ -19,14 +19,16 @@ import java.util.UUID;
  * merchant or the P2A/P2P person), set while the transaction has neither a merchant nor a person; null otherwise.
  * {@code payeeType} says which it is (MERCHANT or PERSON), null with no payeeName. {@code transfer} marks money moved
  * between the caller's own accounts; {@code transferPairId} is its other half, if paired.
- * {@code reversalPairId} is the refund of a failed payment (or the payment a refund reversed), if paired.
+ * {@code reversalPairId} is the refund of a failed payment (or the payment a refund reversed), if paired;
+ * {@code reversalPending} is true while it is marked as failed or refunded but not paired yet.
  */
 public record TransactionResponse(UUID id, LocalDate date, String description, String normalizedDescription,
                                   BigDecimal amount, String currency, String direction, UUID merchantId,
                                   String merchantName, UUID categoryId, String category, boolean categoryOverridden,
                                   UUID statementId, UUID personId, String personName,
                                   String suggestedMerchantName, String payeeName, String payeeType,
-                                  boolean transfer, UUID transferPairId, UUID reversalPairId) {
+                                  boolean transfer, UUID transferPairId, UUID reversalPairId,
+                                  boolean reversalPending) {
 
     /**
      * @param merchant  the transaction's merchant, or null when it has none
@@ -45,7 +47,8 @@ public record TransactionResponse(UUID id, LocalDate date, String description, S
                 effective == null ? SpendingAnalyticsService.UNCATEGORIZED : effective.getName(),
                 t.getCategoryId() != null, t.getStatementId(), t.getPersonId(),
                 person == null ? null : person.getName(), suggested, payee == null ? null : payee.name(),
-                payee == null ? null : payee.type(), t.isTransfer(), t.getTransferPairId(), t.getReversalPairId());
+                payee == null ? null : payee.type(), t.isTransfer(), t.getTransferPairId(), t.getReversalPairId(),
+                t.isReversalPending());
     }
 
     private record Payee(String name, String type) {
