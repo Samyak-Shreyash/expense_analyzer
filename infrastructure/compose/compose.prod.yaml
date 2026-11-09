@@ -4,11 +4,14 @@
 #   docker compose -f compose.yaml -f compose.prod.yaml up -d --build
 #   (or just run infrastructure/scripts/deploy.sh)
 #
-# - Only the frontend is published, and only on 127.0.0.1. Put Tailscale
-#   Serve or a Cloudflare Tunnel in front of it for HTTPS; never open it
-#   directly. HTTPS is required: the refresh cookie is Secure.
-# - Postgres, Redis, Kafka, RustFS and the backend are reachable only on
-#   the internal Docker network.
+# - Only the backend is published, and only on 127.0.0.1. Put Tailscale
+#   Funnel in front of it for HTTPS; never open it directly. HTTPS is
+#   required: the refresh cookie is Secure.
+# - The frontend is hosted on Vercel (frontend/vercel.json forwards /api to
+#   the Funnel URL), so it doesn't run here. To run it here anyway, add
+#   --profile local-frontend.
+# - Postgres, Redis, Kafka and RustFS are reachable only on the internal
+#   Docker network.
 # - Observability services (profile "observability") stay off.
 # Requires Docker Compose >= 2.24 for !reset / !override.
 # ============================================================
@@ -35,7 +38,8 @@ services:
       RUSTFS_CONSOLE_ENABLE: "false"
 
   backend:
-    ports: !reset []
+    ports: !override
+      - "127.0.0.1:${SERVER_PORT}:${SERVER_PORT}"
     environment:
       APP_BASE_URL: ${APP_BASE_URL:?set APP_BASE_URL in .env to the public https origin}
       # No collector running in prod yet: don't sample or export telemetry.
@@ -43,5 +47,7 @@ services:
       MANAGEMENT_OTLP_METRICS_EXPORT_ENABLED: "false"
 
   frontend:
+    profiles:
+      - local-frontend
     ports: !override
       - "127.0.0.1:${FRONTEND_PORT:-3001}:80"

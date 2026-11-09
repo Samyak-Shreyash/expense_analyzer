@@ -44,31 +44,32 @@ bash infrastructure/scripts/deploy.sh v0.1.0   # or a tag/SHA
 ```
 
 It checks `.env`, rebuilds, starts the stack with `compose.prod.yaml`, and waits for
-`/actuator/health/readiness`. Only the frontend listens, on `127.0.0.1:${FRONTEND_PORT}`.
+`/actuator/health/readiness`. Only the backend listens, on `127.0.0.1:${SERVER_PORT}`.
+The frontend runs on Vercel (step 4), not here.
 
-Check that nothing else is exposed: `sudo ss -tlnp` should show only sshd and `127.0.0.1:3001`.
+Check that nothing else is exposed: `sudo ss -tlnp` should show only sshd and `127.0.0.1:${SERVER_PORT}`.
 
 ## 4. HTTPS in front
 
 HTTPS is mandatory: the refresh-token cookie is `Secure`, so plain `http://<ip>` logins won't stay signed in.
 
-**Private (you + testers): Tailscale**
+**Backend: Tailscale Funnel** (public HTTPS, no domain needed). Funnel only the backend
+port; Postgres, Redis, Kafka and RustFS stay on the internal Docker network.
 ```bash
 curl -fsSL https://tailscale.com/install.sh | sh
 sudo tailscale up
-sudo tailscale serve --bg 3001      # https://<host>.<tailnet>.ts.net
+sudo tailscale funnel --bg 8080     # your SERVER_PORT -> https://<host>.<tailnet>.ts.net
 ```
 
-**Public URL: Cloudflare Tunnel** (needs a domain on Cloudflare)
-```bash
-cloudflared tunnel login
-cloudflared tunnel create expense-analyzer
-cloudflared tunnel route dns expense-analyzer expenses.example.com
-# ~/.cloudflared/config.yml: ingress -> service: http://127.0.0.1:3001
-sudo cloudflared service install
-```
+**Frontend: Vercel.** Import the repo with Root Directory `frontend` and keep "Include files
+outside the root directory" on (the app uses `packages/api-client`). In `frontend/vercel.json`,
+replace `REPLACE-WITH-FUNNEL-HOST.ts.net` with the Funnel host. Vercel then forwards `/api/*`
+to the backend, so the browser sees one origin (no CORS, and the refresh cookie keeps working).
 
-Set `APP_BASE_URL` to whichever URL you use, then redeploy.
+Set `APP_BASE_URL` to the **Vercel** URL (the origin users open), then redeploy.
+
+To serve the frontend from this host instead, add `--profile local-frontend` and point Funnel
+at `${FRONTEND_PORT:-3001}`.
 
 ## 5. Backups
 
