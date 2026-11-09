@@ -3,7 +3,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://REPLACE-WITH-FUNNEL-HOST.ts.net/api/:path*"
+      "destination": "https://expense-analyzer.fawn-silverside.ts.net/api/:path*"
     },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
