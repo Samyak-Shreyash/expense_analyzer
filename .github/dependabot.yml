@@ -5,11 +5,20 @@ updates:
     schedule:
       interval: weekly
   - package-ecosystem: npm
-    directories:
-      - /frontend
-      - /mobile
+    directory: /frontend
     schedule:
       interval: weekly
+  - package-ecosystem: npm
+    directory: /mobile
+    schedule:
+      interval: weekly
+    ignore:
+      # eslint-config-expo's bundled eslint-plugin-react crashes on ESLint 10.
+      - dependency-name: eslint
+        versions: [">=10"]
+      # typescript-eslint (via ts-api-utils) doesn't support the TypeScript 7 API yet.
+      - dependency-name: typescript
+        versions: [">=7"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
