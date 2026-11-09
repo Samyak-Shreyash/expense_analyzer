@@ -1,7 +1,8 @@
 # Deploying to a single VPS
 
-Interim setup: the whole Compose stack on one Linux VM, reachable only over HTTPS
-through Tailscale Serve or a Cloudflare Tunnel. No public ports.
+Interim setup: the backend Compose stack on one Linux VM, reachable only over HTTPS
+through a Cloudflare Tunnel. No public ports. The web frontend is hosted on Vercel, which
+proxies `/api/*` to the tunnel so the browser sees a single origin.
 
 ## 1. Server
 
@@ -30,9 +31,10 @@ Same keys as local dev, plus these production-only ones:
 
 | Key | Example | Purpose |
 |---|---|---|
-| `APP_BASE_URL` | `https://expenses.your-tailnet.ts.net` | Public HTTPS origin |
+| `APP_BASE_URL` | `https://expenses.example.com` | Public HTTPS origin users open (the Vercel domain) |
 | `RUSTFS_TAG` | the RustFS version you test with locally | Pins the RustFS image |
-| `FRONTEND_PORT` | `3001` (optional) | Loopback port the tunnel points at |
+| `CLOUDFLARE_TUNNEL_TOKEN` | from the Cloudflare dashboard (step 4) | Runs the `cloudflared` container |
+| `PROXY_SHARED_SECRET` | `openssl rand -hex 32` | Same value as in Vercel (step 5); lets the backend trust the user IP Vercel forwards |
 
 Back up the `.env` somewhere safe. Losing `RUSTFS_SSE_S3_MASTER_KEY` makes stored statements unreadable.
 
@@ -44,33 +46,34 @@ bash infrastructure/scripts/deploy.sh v0.1.0   # or a tag/SHA
 ```
 
 It checks `.env`, rebuilds, starts the stack with `compose.prod.yaml`, and waits for
-`/actuator/health/readiness`. Only the frontend listens, on `127.0.0.1:${FRONTEND_PORT}`.
+`/actuator/health/readiness`. No container publishes a host port; the backend is reached
+only through the `cloudflared` container.
 
-Check that nothing else is exposed: `sudo ss -tlnp` should show only sshd and `127.0.0.1:3001`.
+Check that nothing is exposed: `sudo ss -tlnp` should show only sshd.
 
-## 4. HTTPS in front
+## 4. Cloudflare Tunnel (HTTPS for the API)
 
-HTTPS is mandatory: the refresh-token cookie is `Secure`, so plain `http://<ip>` logins won't stay signed in.
+HTTPS is mandatory: the refresh-token cookie is `Secure`. Needs a domain on Cloudflare.
 
-**Private (you + testers): Tailscale**
-```bash
-curl -fsSL https://tailscale.com/install.sh | sh
-sudo tailscale up
-sudo tailscale serve --bg 3001      # https://<host>.<tailnet>.ts.net
-```
+1. Cloudflare dashboard → Zero Trust → Networks → Tunnels → **Create a tunnel** (cloudflared).
+2. Copy the token into `.env` as `CLOUDFLARE_TUNNEL_TOKEN`. Skip the install command it shows;
+   the `cloudflared` service in `compose.prod.yaml` runs the connector.
+3. Add a public hostname, e.g. `api.example.com`, with service `http://backend:<SERVER_PORT>`.
+4. Redeploy.
 
-**Public URL: Cloudflare Tunnel** (needs a domain on Cloudflare)
-```bash
-cloudflared tunnel login
-cloudflared tunnel create expense-analyzer
-cloudflared tunnel route dns expense-analyzer expenses.example.com
-# ~/.cloudflared/config.yml: ingress -> service: http://127.0.0.1:3001
-sudo cloudflared service install
-```
+## 5. Frontend on Vercel
 
-Set `APP_BASE_URL` to whichever URL you use, then redeploy.
+1. Import the repo in Vercel. Set **Root Directory** to `frontend` and enable
+   **Include files outside the root directory** (the build needs `packages/`).
+2. Add environment variables (Production): `API_ORIGIN` = your tunnel hostname
+   (`https://api.example.com`) and `PROXY_SHARED_SECRET` = the same value as the VM's `.env`.
+   `frontend/middleware.ts` proxies `/api/*` there with the user's IP and that secret.
+3. Add your domain (e.g. `expenses.example.com`) and set `APP_BASE_URL` in the VM's `.env`
+   to it, then redeploy the backend.
 
-## 5. Backups
+`frontend/vercel.json` also sets the security headers the nginx image used to send.
+
+## 6. Backups
 
 ```bash
 sudo crontab -e
@@ -89,3 +92,4 @@ docker exec -i postgres pg_restore -U "$DB_USER" -d "$DB_NAME" --clean < postgre
 
 Observability stack (start it with `--profile observability` once its image tags are pinned),
 CI-driven deploys, and Redis auth (Redis is internal-only here).
+
