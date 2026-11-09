@@ -18,7 +18,7 @@ import styles from './TransactionsPage.module.css'
 const PICK = ''
 const CLEAR = '__clear'
 /** How far from a failed payment its refund is looked for, either way. */
-const REFUND_DAYS = 7
+const REFUND_DAYS = 45
 /** How far a payment can be above its refund: the rest is charges. Same limit as the server. */
 const REFUND_CHARGE_PERCENT = 10
 

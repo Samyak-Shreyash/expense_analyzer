@@ -1086,8 +1086,8 @@ describe('TransactionsPage', () => {
           direction: 'CREDIT',
           minAmount: 450,
           maxAmount: 450,
-          from: '2025-12-26',
-          to: '2026-01-09',
+          from: '2025-11-18',
+          to: '2026-02-16',
         }),
       )
       expect(
