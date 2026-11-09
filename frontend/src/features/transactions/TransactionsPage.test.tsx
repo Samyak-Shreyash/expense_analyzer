@@ -1089,6 +1089,7 @@ describe('TransactionsPage', () => {
           reversalPending: 'true',
           direction: 'CREDIT',
           maxAmount: 450,
+          from: '2026-01-02',
         }),
       )
       expect(finance.setReversal).toHaveBeenCalledWith('t1', null, true)
@@ -1096,7 +1097,7 @@ describe('TransactionsPage', () => {
         direction: 'CREDIT',
         minAmount: 450,
         maxAmount: 450,
-        from: '2025-11-03',
+        from: '2026-01-02',
         to: '2026-03-03',
       })
       expect(
@@ -1150,7 +1151,7 @@ describe('TransactionsPage', () => {
       )
     })
 
-    it('offers a payment marked as failed at any date and a flat fee, like IRCTC', async () => {
+    it('offers a payment marked as failed at any earlier date and a flat fee, like IRCTC', async () => {
       const refund: Transaction = {
         ...swiggy,
         id: 't2',
@@ -1192,6 +1193,7 @@ describe('TransactionsPage', () => {
         reversalPending: 'true',
         direction: 'DEBIT',
         minAmount: 300,
+        to: '2026-01-02',
       })
       fireEvent.click(screen.getByRole('button', { name: 'Pair them' }))
       await waitFor(() =>

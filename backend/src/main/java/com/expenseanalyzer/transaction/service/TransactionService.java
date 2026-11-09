@@ -61,7 +61,7 @@ import org.springframework.web.server.ResponseStatusException;
 public class TransactionService {
 
     private static final String REFUND_MISMATCH =
-            "A refund pairs money out with money in of the same or a smaller amount";
+            "A refund pairs money out with money in of the same or a smaller amount, on the same day or later";
     private final TransactionRepository transactionRepository;
     private final UserRepository userRepository;
     private final MerchantRepository merchantRepository;
@@ -190,7 +190,7 @@ public class TransactionService {
     /**
      * Pairs a failed payment with the refund that reversed it, or unpairs it when {@code pairWithId} is null. The
      * other half must be the caller's, in the other direction, in the same currency, with a refund no larger than the
-     * payment (else 400): cancellation fees can be flat, as with IRCTC, so there is no percentage limit. Both are then left out of analytics except
+     * payment and not dated before it (else 400): cancellation fees can be flat, as with IRCTC, so there is no percentage limit. Both are then left out of analytics except
      * the difference, which is the charges and stays spending; any earlier partner of either is released, and a transfer mark is cleared (the
      * user's choice, so automatic transfer matching leaves them alone). Pairing clears the pending mark on both;
      * unpairing sets it to {@code pending}, so the row is offered when the user pairs its other half. Not yours: 404.
@@ -210,7 +210,7 @@ public class TransactionService {
             Transaction payment = "DEBIT".equals(t.getType()) ? t : other;
             Transaction refund = payment == t ? other : t;
             BigDecimal charge = payment.getAmountCents().subtract(refund.getAmountCents());
-            if (charge.signum() < 0) {
+            if (charge.signum() < 0 || refund.getDate().isBefore(payment.getDate())) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, REFUND_MISMATCH);
             }
             unpairReversal(other, userId, now);

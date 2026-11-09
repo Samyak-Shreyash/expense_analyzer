@@ -17,6 +17,7 @@ import com.expenseanalyzer.user.model.User;
 import com.expenseanalyzer.user.model.UserRole;
 import com.expenseanalyzer.user.repository.UserRepository;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -81,10 +82,14 @@ class ReversalTest {
     }
 
     private UUID tx(User owner, String type, String amount) {
+        return tx(owner, type, amount, JAN_10);
+    }
+
+    private UUID tx(User owner, String type, String amount, Instant date) {
         Transaction t = new Transaction();
         t.setRawDescription("row");
         t.setAmountCents(new BigDecimal(amount).movePointRight(2));
-        t.setDate(JAN_10);
+        t.setDate(date);
         t.setType(type);
         t.setUserId(owner.getId());
         t.setStatementId(account);
@@ -195,6 +200,16 @@ class ReversalTest {
         pair(ALICE, failed, larger, 400);
         pair(ALICE, failed, bobs, 404);
         pair(BOB, failed, bobs, 404);
+        assertThat(reload(failed).getReversalPairId()).isNull();
+    }
+
+    @Test
+    void rejectsARefundDatedBeforeThePayment() throws Exception {
+        UUID failed = tx(alice, "DEBIT", "50000.00");
+        UUID early = tx(alice, "CREDIT", "50000.00", JAN_10.minus(Duration.ofDays(1)));
+
+        pair(ALICE, failed, early, 400);
+        pair(ALICE, early, failed, 400);
         assertThat(reload(failed).getReversalPairId()).isNull();
     }
 

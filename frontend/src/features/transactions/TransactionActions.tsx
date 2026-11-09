@@ -17,7 +17,7 @@ import styles from './TransactionsPage.module.css'
 
 const PICK = ''
 const CLEAR = '__clear'
-/** How far from a failed payment its refund is looked for, either way. */
+/** How long after a failed payment its refund is looked for (never before it). */
 const REFUND_DAYS = 60
 /**
  * With no exact match, how far above its refund a payment is looked for. Only
@@ -278,14 +278,18 @@ export function TransactionActions({
                   if (!t.reversalPending)
                     onSaved(await setReversal(t.id, null, true))
                   const opposite = t.direction === 'DEBIT' ? 'CREDIT' : 'DEBIT'
+                  // A refund is never dated before its payment.
+                  const after =
+                    t.direction === 'DEBIT' ? { from: t.date } : { to: t.date }
                   const search = async (minAmount: number, maxAmount: number) =>
                     (
                       await listTransactions({
                         direction: opposite,
                         minAmount,
                         maxAmount,
-                        from: shift(t.date, -REFUND_DAYS),
-                        to: shift(t.date, REFUND_DAYS),
+                        ...(t.direction === 'DEBIT'
+                          ? { from: t.date, to: shift(t.date, REFUND_DAYS) }
+                          : { from: shift(t.date, -REFUND_DAYS), to: t.date }),
                       })
                     ).items.filter((x) => x.id !== t.id)
                   let found = await search(t.amount, t.amount)
@@ -301,11 +305,12 @@ export function TransactionActions({
                             Math.floor(paise * scale) / 100,
                           )
                   }
-                  // Rows marked as failed, at any date and any smaller refund.
+                  // Rows marked as failed, at any valid date and any smaller refund.
                   const marked = (
                     await listTransactions({
                       direction: opposite,
                       reversalPending: 'true',
+                      ...after,
                       ...(t.direction === 'DEBIT'
                         ? { maxAmount: t.amount }
                         : { minAmount: t.amount }),
@@ -338,8 +343,8 @@ export function TransactionActions({
             <span className={shared.muted}>
               No {t.direction === 'DEBIT' ? 'money in' : 'money out'} of{' '}
               {rupees(t.amount)}, or close to it after charges, within{' '}
-              {REFUND_DAYS} days of this one. It stays marked, so it is offered
-              when you open the{' '}
+              {REFUND_DAYS} days {t.direction === 'DEBIT' ? 'after' : 'before'}{' '}
+              this one. It stays marked, so it is offered when you open the{' '}
               {t.direction === 'DEBIT' ? 'refund' : 'failed payment'} and pair
               it.
             </span>
