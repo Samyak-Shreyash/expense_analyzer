@@ -56,10 +56,11 @@ public class TransactionController {
             @RequestParam(required = false) String category,
             @RequestParam(required = false) Boolean transfer,
             @RequestParam(required = false) UUID personId,
+            @RequestParam(required = false) Boolean reversalPending,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
         TransactionFilter filter = new TransactionFilter(q, statementId, from, to, merchantId, direction, minAmount, maxAmount,
-                category, transfer, personId);
+                category, transfer, personId, reversalPending);
         PageRequest pageable = PageRequest.of(Math.max(page, 0), Math.clamp(size, 1, MAX_PAGE_SIZE), NEWEST_FIRST);
         return PageResponse.of(transactionService.list(jwt.getSubject(), filter, pageable), r -> r);
     }

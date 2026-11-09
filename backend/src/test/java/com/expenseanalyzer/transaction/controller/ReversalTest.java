@@ -185,18 +185,57 @@ class ReversalTest {
     }
 
     @Test
-    void rejectsSameDirectionDifferentAmountsAndOtherUsersRows() throws Exception {
+    void rejectsSameDirectionALargerRefundAndOtherUsersRows() throws Exception {
         UUID failed = tx(alice, "DEBIT", "50000.00");
         UUID sameWay = tx(alice, "DEBIT", "50000.00");
-        UUID smaller = tx(alice, "CREDIT", "44000.00");
         UUID larger = tx(alice, "CREDIT", "50001.00");
         UUID bobs = tx(bob, "CREDIT", "50000.00");
 
         pair(ALICE, failed, sameWay, 400);
-        pair(ALICE, failed, smaller, 400);
         pair(ALICE, failed, larger, 400);
         pair(ALICE, failed, bobs, 404);
         pair(BOB, failed, bobs, 404);
         assertThat(reload(failed).getReversalPairId()).isNull();
+    }
+
+    @Test
+    void aFlatCancellationFeeOfAnySizeIsCharges() throws Exception {
+        UUID ticket = tx(alice, "DEBIT", "500.00");
+        UUID refund = tx(alice, "CREDIT", "260.00");
+
+        pair(ALICE, refund, ticket, 200);
+
+        assertThat(reload(ticket).getReversalChargePaise()).isEqualByComparingTo("24000");
+    }
+
+    @Test
+    void markingAsFailedKeepsItPendingAndListable() throws Exception {
+        UUID failed = tx(alice, "DEBIT", "500.00");
+        tx(alice, "DEBIT", "300.00");
+
+        mockMvc.perform(put("/api/transactions/" + failed + "/reversal").header("Authorization", bearer(ALICE))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"pairWithId\":null,\"pending\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reversalPending").value(true));
+
+        mockMvc.perform(get("/api/transactions").param("reversalPending", "true").header("Authorization", bearer(ALICE)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].id").value(failed.toString()));
+    }
+
+    @Test
+    void pairingClearsThePendingMark() throws Exception {
+        UUID failed = tx(alice, "DEBIT", "500.00");
+        UUID refund = tx(alice, "CREDIT", "500.00");
+
+        mockMvc.perform(put("/api/transactions/" + failed + "/reversal").header("Authorization", bearer(ALICE))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"pairWithId\":null,\"pending\":true}"))
+                .andExpect(status().isOk());
+
+        pair(ALICE, refund, failed, 200);
+
+        assertThat(reload(failed).isReversalPending()).isFalse();
+        assertThat(reload(failed).getReversalPairId()).isEqualTo(refund);
     }
 }
