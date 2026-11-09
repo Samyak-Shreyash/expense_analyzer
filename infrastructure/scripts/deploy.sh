@@ -15,7 +15,8 @@ cd "$ROOT"
 # Fail early on missing settings instead of half-starting the stack.
 required=(DB_NAME DB_USER DB_USER_PASSWORD SERVER_PORT JWT_SECRET JWT_EXPIRATION_SECONDS
           JWT_REFRESH_SECONDS OAUTH_SECRET RUSTFS_ACCESS_KEY RUSTFS_SECRET_KEY
-          RUSTFS_SSE_S3_MASTER_KEY RUSTFS_TAG APP_BASE_URL)
+          RUSTFS_SSE_S3_MASTER_KEY RUSTFS_TAG APP_BASE_URL CLOUDFLARE_TUNNEL_TOKEN
+          PROXY_SHARED_SECRET)
 missing=()
 for key in "${required[@]}"; do
   grep -Eq "^${key}=.+" "$ENV_FILE" || missing+=("$key")
