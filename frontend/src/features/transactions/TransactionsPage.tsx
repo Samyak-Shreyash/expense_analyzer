@@ -99,17 +99,18 @@ export function TransactionsPage() {
     ;(button ?? tableWrap.current)?.focus()
   }, [result])
 
-  // A press outside the open details (and outside its own toggle) closes them.
+  // A click outside the open details (and outside its own toggle) closes them. Not pointerdown:
+  // that also fires when dragging the scrollbar or starting a touch scroll.
   useEffect(() => {
     if (!open) return
-    function onPointerDown(e: PointerEvent) {
+    function onClick(e: MouseEvent) {
       const target = e.target as Node
       const toggle = document.getElementById(`describe-${open}`)
       if (detail.current?.contains(target) || toggle?.contains(target)) return
       setOpen(null)
     }
-    document.addEventListener('pointerdown', onPointerDown)
-    return () => document.removeEventListener('pointerdown', onPointerDown)
+    document.addEventListener('click', onClick)
+    return () => document.removeEventListener('click', onClick)
   }, [open])
 
   function update(changes: Record<string, string>) {

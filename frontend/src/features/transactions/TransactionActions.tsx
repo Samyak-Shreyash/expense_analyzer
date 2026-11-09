@@ -18,8 +18,12 @@ import styles from './TransactionsPage.module.css'
 const PICK = ''
 const CLEAR = '__clear'
 /** How far from a failed payment its refund is looked for, either way. */
-const REFUND_DAYS = 7
-/** How far a payment can be above its refund: the rest is charges. Same limit as the server. */
+const REFUND_DAYS = 60
+/**
+ * With no exact match, how far above its refund a payment is looked for. Only
+ * the search: rows marked as failed are offered at any smaller refund (flat
+ * fees like IRCTC's), which is all the server requires.
+ */
 const REFUND_CHARGE_PERCENT = 10
 
 const shift = (date: string, days: number) => {
@@ -74,6 +78,21 @@ export function TransactionActions({
       })
     }
   }
+
+  const unmark = (
+    <button
+      type="button"
+      className={shared.quiet}
+      onClick={() =>
+        save(async () => {
+          onSaved(await setReversal(t.id, null))
+          setCandidates(null)
+        }, 'No longer marked as failed and refunded.')
+      }
+    >
+      Not a failed payment and refund
+    </button>
+  )
 
   const options = categories.map((c) => (
     <option key={c.id} value={c.id}>
@@ -249,51 +268,83 @@ export function TransactionActions({
             Not a failed payment and refund
           </button>
         ) : candidates === null ? (
-          <button
-            type="button"
-            className={shared.button}
-            onClick={() =>
-              save(async () => {
-                const search = async (minAmount: number, maxAmount: number) =>
-                  (
+          <>
+            <button
+              type="button"
+              className={shared.button}
+              onClick={() =>
+                save(async () => {
+                  // Marked first, so it is offered when its other half is paired later.
+                  if (!t.reversalPending)
+                    onSaved(await setReversal(t.id, null, true))
+                  const opposite = t.direction === 'DEBIT' ? 'CREDIT' : 'DEBIT'
+                  const search = async (minAmount: number, maxAmount: number) =>
+                    (
+                      await listTransactions({
+                        direction: opposite,
+                        minAmount,
+                        maxAmount,
+                        from: shift(t.date, -REFUND_DAYS),
+                        to: shift(t.date, REFUND_DAYS),
+                      })
+                    ).items.filter((x) => x.id !== t.id)
+                  let found = await search(t.amount, t.amount)
+                  if (found.length === 0) {
+                    // No exact match: the refund may have come back less charges.
+                    const paise = Math.round(t.amount * 100)
+                    const scale = 1 + REFUND_CHARGE_PERCENT / 100
+                    found =
+                      t.direction === 'DEBIT'
+                        ? await search(Math.ceil(paise / scale) / 100, t.amount)
+                        : await search(
+                            t.amount,
+                            Math.floor(paise * scale) / 100,
+                          )
+                  }
+                  // Rows marked as failed, at any date and any smaller refund.
+                  const marked = (
                     await listTransactions({
-                      direction: t.direction === 'DEBIT' ? 'CREDIT' : 'DEBIT',
-                      minAmount,
-                      maxAmount,
-                      from: shift(t.date, -REFUND_DAYS),
-                      to: shift(t.date, REFUND_DAYS),
+                      direction: opposite,
+                      reversalPending: 'true',
+                      ...(t.direction === 'DEBIT'
+                        ? { maxAmount: t.amount }
+                        : { minAmount: t.amount }),
                     })
-                  ).items.filter((x) => x.id !== t.id)
-                let found = await search(t.amount, t.amount)
-                if (found.length === 0) {
-                  // No exact match: the refund may have come back less charges.
-                  const paise = Math.round(t.amount * 100)
-                  const scale = 1 + REFUND_CHARGE_PERCENT / 100
-                  found = (
-                    t.direction === 'DEBIT'
-                      ? await search(Math.ceil(paise / scale) / 100, t.amount)
-                      : await search(t.amount, Math.floor(paise * scale) / 100)
-                  ).sort(
+                  ).items.filter(
+                    (x) => x.id !== t.id && !found.some((f) => f.id === x.id),
+                  )
+                  found = [...marked, ...found].sort(
                     (a, b) =>
                       Math.abs(a.amount - t.amount) -
                       Math.abs(b.amount - t.amount),
                   )
-                }
-                setCandidates(found)
-                setPartner(found[0]?.id ?? PICK)
-              }, '')
-            }
-          >
-            {t.direction === 'DEBIT'
-              ? 'Mark as failed and refunded'
-              : 'Mark as the refund of a failed payment'}
-          </button>
+                  setCandidates(found)
+                  setPartner(found[0]?.id ?? PICK)
+                }, '')
+              }
+            >
+              {t.reversalPending
+                ? t.direction === 'DEBIT'
+                  ? 'Find the refund'
+                  : 'Find the failed payment'
+                : t.direction === 'DEBIT'
+                  ? 'Mark as failed and refunded'
+                  : 'Mark as the refund of a failed payment'}
+            </button>
+            {t.reversalPending && unmark}
+          </>
         ) : candidates.length === 0 ? (
-          <span className={shared.muted}>
-            No {t.direction === 'DEBIT' ? 'money in' : 'money out'} of{' '}
-            {rupees(t.amount)}, or close to it after charges, within{' '}
-            {REFUND_DAYS} days of this one.
-          </span>
+          <>
+            <span className={shared.muted}>
+              No {t.direction === 'DEBIT' ? 'money in' : 'money out'} of{' '}
+              {rupees(t.amount)}, or close to it after charges, within{' '}
+              {REFUND_DAYS} days of this one. It stays marked, so it is offered
+              when you open the{' '}
+              {t.direction === 'DEBIT' ? 'refund' : 'failed payment'} and pair
+              it.
+            </span>
+            {unmark}
+          </>
         ) : (
           <>
             <label>

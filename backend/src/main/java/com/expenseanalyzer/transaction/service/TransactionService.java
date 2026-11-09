@@ -60,9 +60,8 @@ import org.springframework.web.server.ResponseStatusException;
 @RequiredArgsConstructor
 public class TransactionService {
 
-    private static final int MAX_REFUND_CHARGE_PERCENT = 10;
     private static final String REFUND_MISMATCH =
-            "A refund pairs money out and money in of the same amount, or a payment up to 10% above the refund";
+            "A refund pairs money out with money in of the same or a smaller amount";
     private final TransactionRepository transactionRepository;
     private final UserRepository userRepository;
     private final MerchantRepository merchantRepository;
@@ -102,6 +101,9 @@ public class TransactionService {
         }
         if (f.transfer() != null) {
             spec = spec.and((root, q, cb) -> cb.equal(root.get("transfer"), f.transfer()));
+        }
+        if (f.reversalPending() != null) {
+            spec = spec.and((root, q, cb) -> cb.equal(root.get("reversalPending"), f.reversalPending()));
         }
         if (f.direction() != null) {
             spec = spec.and((root, q, cb) -> cb.equal(root.get("type"), f.direction().name()));
@@ -187,10 +189,11 @@ public class TransactionService {
 
     /**
      * Pairs a failed payment with the refund that reversed it, or unpairs it when {@code pairWithId} is null. The
-     * other half must be the caller's, in the other direction, in the same currency, with the same amount or a payment
-     * at most {@link #MAX_REFUND_CHARGE_PERCENT}% above the refund (else 400). Both are then left out of analytics except
+     * other half must be the caller's, in the other direction, in the same currency, with a refund no larger than the
+     * payment (else 400): cancellation fees can be flat, as with IRCTC, so there is no percentage limit. Both are then left out of analytics except
      * the difference, which is the charges and stays spending; any earlier partner of either is released, and a transfer mark is cleared (the
-     * user's choice, so automatic transfer matching leaves them alone). Not yours: 404.
+     * user's choice, so automatic transfer matching leaves them alone). Pairing clears the pending mark on both;
+     * unpairing sets it to {@code pending}, so the row is offered when the user pairs its other half. Not yours: 404.
      */
     @Transactional
     public TransactionResponse setReversal(String email, UUID id, ReversalRequest request) {
@@ -207,8 +210,7 @@ public class TransactionService {
             Transaction payment = "DEBIT".equals(t.getType()) ? t : other;
             Transaction refund = payment == t ? other : t;
             BigDecimal charge = payment.getAmountCents().subtract(refund.getAmountCents());
-            if (charge.signum() < 0 || charge.multiply(BigDecimal.valueOf(100))
-                    .compareTo(refund.getAmountCents().multiply(BigDecimal.valueOf(MAX_REFUND_CHARGE_PERCENT))) > 0) {
+            if (charge.signum() < 0) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, REFUND_MISMATCH);
             }
             unpairReversal(other, userId, now);
@@ -219,9 +221,13 @@ public class TransactionService {
             }
             t.setReversalPairId(other.getId());
             other.setReversalPairId(t.getId());
+            t.setReversalPending(false);
+            other.setReversalPending(false);
             payment.setReversalChargePaise(charge.signum() == 0 ? null : charge);
             other.setUpdatedAt(now);
             transactionRepository.save(other);
+        } else {
+            t.setReversalPending(Boolean.TRUE.equals(request.pending()));
         }
         t.setUpdatedAt(now);
         return response(transactionRepository.save(t), userId);
