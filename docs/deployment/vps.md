@@ -46,32 +46,32 @@ bash infrastructure/scripts/deploy.sh v0.1.0   # or a tag/SHA
 ```
 
 It checks `.env`, rebuilds, starts the stack with `compose.prod.yaml`, and waits for
-`/actuator/health/readiness`. No container publishes a host port; the backend is reached
-only through the `cloudflared` container.
+`/actuator/health/readiness`. Only the backend listens, on `127.0.0.1:${SERVER_PORT}`.
+The frontend runs on Vercel (step 4), not here.
 
-Check that nothing is exposed: `sudo ss -tlnp` should show only sshd.
+Check that nothing else is exposed: `sudo ss -tlnp` should show only sshd and `127.0.0.1:${SERVER_PORT}`.
 
 ## 4. Cloudflare Tunnel (HTTPS for the API)
 
 HTTPS is mandatory: the refresh-token cookie is `Secure`. Needs a domain on Cloudflare.
 
-1. Cloudflare dashboard → Zero Trust → Networks → Tunnels → **Create a tunnel** (cloudflared).
-2. Copy the token into `.env` as `CLOUDFLARE_TUNNEL_TOKEN`. Skip the install command it shows;
-   the `cloudflared` service in `compose.prod.yaml` runs the connector.
-3. Add a public hostname, e.g. `api.example.com`, with service `http://backend:<SERVER_PORT>`.
-4. Redeploy.
+**Backend: Tailscale Funnel** (public HTTPS, no domain needed). Funnel only the backend
+port; Postgres, Redis, Kafka and RustFS stay on the internal Docker network.
+```bash
+curl -fsSL https://tailscale.com/install.sh | sh
+sudo tailscale up
+sudo tailscale funnel --bg 8080     # your SERVER_PORT -> https://<host>.<tailnet>.ts.net
+```
 
-## 5. Frontend on Vercel
+**Frontend: Vercel.** Import the repo with Root Directory `frontend` and keep "Include files
+outside the root directory" on (the app uses `packages/api-client`). In `frontend/vercel.json`,
+replace `REPLACE-WITH-FUNNEL-HOST.ts.net` with the Funnel host. Vercel then forwards `/api/*`
+to the backend, so the browser sees one origin (no CORS, and the refresh cookie keeps working).
 
-1. Import the repo in Vercel. Set **Root Directory** to `frontend` and enable
-   **Include files outside the root directory** (the build needs `packages/`).
-2. Add environment variables (Production): `API_ORIGIN` = your tunnel hostname
-   (`https://api.example.com`) and `PROXY_SHARED_SECRET` = the same value as the VM's `.env`.
-   `frontend/middleware.ts` proxies `/api/*` there with the user's IP and that secret.
-3. Add your domain (e.g. `expenses.example.com`) and set `APP_BASE_URL` in the VM's `.env`
-   to it, then redeploy the backend.
+Set `APP_BASE_URL` to the **Vercel** URL (the origin users open), then redeploy.
 
-`frontend/vercel.json` also sets the security headers the nginx image used to send.
+To serve the frontend from this host instead, add `--profile local-frontend` and point Funnel
+at `${FRONTEND_PORT:-3001}`.
 
 ## 6. Backups
 
