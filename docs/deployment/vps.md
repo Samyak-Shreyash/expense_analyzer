@@ -1,7 +1,8 @@
 # Deploying to a single VPS
 
-Interim setup: the whole Compose stack on one Linux VM, reachable only over HTTPS
-through Tailscale Serve or a Cloudflare Tunnel. No public ports.
+Interim setup: the backend Compose stack on one Linux VM, reachable only over HTTPS
+through a Cloudflare Tunnel. No public ports. The web frontend is hosted on Vercel, which
+proxies `/api/*` to the tunnel so the browser sees a single origin.
 
 ## 1. Server
 
@@ -30,9 +31,10 @@ Same keys as local dev, plus these production-only ones:
 
 | Key | Example | Purpose |
 |---|---|---|
-| `APP_BASE_URL` | `https://expenses.your-tailnet.ts.net` | Public HTTPS origin |
+| `APP_BASE_URL` | `https://expenses.example.com` | Public HTTPS origin users open (the Vercel domain) |
 | `RUSTFS_TAG` | the RustFS version you test with locally | Pins the RustFS image |
-| `FRONTEND_PORT` | `3001` (optional) | Loopback port the tunnel points at |
+| `CLOUDFLARE_TUNNEL_TOKEN` | from the Cloudflare dashboard (step 4) | Runs the `cloudflared` container |
+| `PROXY_SHARED_SECRET` | `openssl rand -hex 32` | Same value as in Vercel (step 5); lets the backend trust the user IP Vercel forwards |
 
 Back up the `.env` somewhere safe. Losing `RUSTFS_SSE_S3_MASTER_KEY` makes stored statements unreadable.
 
@@ -49,9 +51,9 @@ The frontend runs on Vercel (step 4), not here.
 
 Check that nothing else is exposed: `sudo ss -tlnp` should show only sshd and `127.0.0.1:${SERVER_PORT}`.
 
-## 4. HTTPS in front
+## 4. Cloudflare Tunnel (HTTPS for the API)
 
-HTTPS is mandatory: the refresh-token cookie is `Secure`, so plain `http://<ip>` logins won't stay signed in.
+HTTPS is mandatory: the refresh-token cookie is `Secure`. Needs a domain on Cloudflare.
 
 **Backend: Tailscale Funnel** (public HTTPS, no domain needed). Funnel only the backend
 port; Postgres, Redis, Kafka and RustFS stay on the internal Docker network.
@@ -71,7 +73,7 @@ Set `APP_BASE_URL` to the **Vercel** URL (the origin users open), then redeploy.
 To serve the frontend from this host instead, add `--profile local-frontend` and point Funnel
 at `${FRONTEND_PORT:-3001}`.
 
-## 5. Backups
+## 6. Backups
 
 ```bash
 sudo crontab -e
@@ -90,3 +92,4 @@ docker exec -i postgres pg_restore -U "$DB_USER" -d "$DB_NAME" --clean < postgre
 
 Observability stack (start it with `--profile observability` once its image tags are pinned),
 CI-driven deploys, and Redis auth (Redis is internal-only here).
+

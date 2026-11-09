@@ -117,6 +117,8 @@ app:
     max-register-attempts: ${RATE_LIMIT_MAX_REGISTER_ATTEMPTS:10}
     max-uploads: ${RATE_LIMIT_MAX_UPLOADS:30}
     max-account-login-attempts: ${RATE_LIMIT_MAX_ACCOUNT_LOGIN_ATTEMPTS:20}
+    # Shared with the Vercel proxy (frontend/middleware.ts); empty disables X-Client-IP.
+    proxy-secret: ${PROXY_SHARED_SECRET:}
   worker:
     concurrency: ${WORKER_CONCURRENCY:2}
   # S3-compatible statement storage (RustFS locally). Credentials have no defaults.
