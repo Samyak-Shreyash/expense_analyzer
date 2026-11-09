@@ -237,7 +237,7 @@ services:
   # OpenTelemetry Collector
   # ============================================================
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.164.0
+    image: otel/opentelemetry-collector-contrib:0.164.0-386
     container_name: otel-collector
     restart: unless-stopped
     profiles:
