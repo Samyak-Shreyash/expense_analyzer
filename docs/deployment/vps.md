@@ -1,8 +1,8 @@
 # Deploying to a single VPS
 
 Interim setup: the backend Compose stack on one Linux VM, reachable only over HTTPS
-through a Cloudflare Tunnel. No public ports. The web frontend is hosted on Vercel, which
-proxies `/api/*` to the tunnel so the browser sees a single origin.
+through Tailscale Funnel. No public ports. The web frontend is hosted on Vercel, which
+proxies `/api/*` to the Funnel host so the browser sees a single origin.
 
 ## 1. Server
 
@@ -33,8 +33,7 @@ Same keys as local dev, plus these production-only ones:
 |---|---|---|
 | `APP_BASE_URL` | `https://expenses.example.com` | Public HTTPS origin users open (the Vercel domain) |
 | `RUSTFS_TAG` | the RustFS version you test with locally | Pins the RustFS image |
-| `CLOUDFLARE_TUNNEL_TOKEN` | from the Cloudflare dashboard (step 4) | Runs the `cloudflared` container |
-| `PROXY_SHARED_SECRET` | `openssl rand -hex 32` | Same value as in Vercel (step 5); lets the backend trust the user IP Vercel forwards |
+| `PROXY_SHARED_SECRET` | `openssl rand -hex 32` | Same value as in Vercel (step 4); lets the backend trust the user IP Vercel forwards |
 
 Back up the `.env` somewhere safe. Losing `RUSTFS_SSE_S3_MASTER_KEY` makes stored statements unreadable.
 
@@ -51,9 +50,9 @@ The frontend runs on Vercel (step 4), not here.
 
 Check that nothing else is exposed: `sudo ss -tlnp` should show only sshd and `127.0.0.1:${SERVER_PORT}`.
 
-## 4. Cloudflare Tunnel (HTTPS for the API)
+## 4. HTTPS in front
 
-HTTPS is mandatory: the refresh-token cookie is `Secure`. Needs a domain on Cloudflare.
+HTTPS is mandatory: the refresh-token cookie is `Secure`.
 
 **Backend: Tailscale Funnel** (public HTTPS, no domain needed). Funnel only the backend
 port; Postgres, Redis, Kafka and RustFS stay on the internal Docker network.
@@ -64,16 +63,24 @@ sudo tailscale funnel --bg 8080     # your SERVER_PORT -> https://<host>.<tailne
 ```
 
 **Frontend: Vercel.** Import the repo with Root Directory `frontend` and keep "Include files
-outside the root directory" on (the app uses `packages/api-client`). In `frontend/vercel.json`,
-replace `REPLACE-WITH-FUNNEL-HOST.ts.net` with the Funnel host. Vercel then forwards `/api/*`
-to the backend, so the browser sees one origin (no CORS, and the refresh cookie keeps working).
+outside the root directory" on (the app uses `packages/api-client`). Set these Vercel
+environment variables for Production:
+
+| Key | Value |
+|---|---|
+| `API_ORIGIN` | The Funnel origin only, e.g. `https://<host>.<tailnet>.ts.net` (no `/api`) |
+| `PROXY_SHARED_SECRET` | Same value as in `.env` |
+
+`frontend/middleware.ts` then forwards `/api/*` to the backend, so the browser sees one origin
+(no CORS, and the refresh cookie keeps working). Without `API_ORIGIN` every `/api` call fails
+with a 500.
 
 Set `APP_BASE_URL` to the **Vercel** URL (the origin users open), then redeploy.
 
 To serve the frontend from this host instead, add `--profile local-frontend` and point Funnel
 at `${FRONTEND_PORT:-3001}`.
 
-## 6. Backups
+## 5. Backups
 
 ```bash
 sudo crontab -e
