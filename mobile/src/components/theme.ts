@@ -70,6 +70,14 @@ function makeStyles(c: Colors) {
       borderColor: c.rule,
       paddingHorizontal: space.lg,
     },
+    /** Inset surface for an expanded detail or filter panel. */
+    panel: {
+      padding: space.md,
+      gap: space.sm,
+      borderRadius: radius.md,
+      backgroundColor: c.surface,
+    },
+    chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm },
     row: {
       flexDirection: 'row',
       alignItems: 'center',

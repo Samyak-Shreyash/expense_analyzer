@@ -2,7 +2,11 @@ package com.expenseanalyzer.transaction.controller;
 
 import com.expenseanalyzer.auth.dto.JwtTokenProvider;
 import com.expenseanalyzer.merchant.model.Merchant;
+import com.expenseanalyzer.merchant.model.Person;
+import com.expenseanalyzer.merchant.model.UserMerchantAlias;
 import com.expenseanalyzer.merchant.repository.MerchantRepository;
+import com.expenseanalyzer.merchant.repository.PersonRepository;
+import com.expenseanalyzer.merchant.repository.UserMerchantAliasRepository;
 import com.expenseanalyzer.transaction.model.Transaction;
 import com.expenseanalyzer.transaction.repository.TransactionRepository;
 import com.expenseanalyzer.user.model.User;
@@ -22,6 +26,7 @@ import org.springframework.web.context.WebApplicationContext;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -46,6 +51,10 @@ class TransactionControllerTest {
     private TransactionRepository transactionRepository;
     @Autowired
     private MerchantRepository merchantRepository;
+    @Autowired
+    private PersonRepository personRepository;
+    @Autowired
+    private UserMerchantAliasRepository aliasRepository;
 
     @MockitoBean
     private UserRepository userRepository;
@@ -158,6 +167,32 @@ class TransactionControllerTest {
                 .andExpect(jsonPath("$.totalItems").value(0));
         mockMvc.perform(get("/api/transactions").param("q", "_").header("Authorization", bearer(ALICE)))
                 .andExpect(jsonPath("$.totalItems").value(0));
+    }
+
+    @Test
+    void textSearchMatchesMerchantOwnMerchantAndPersonNamesWithEveryWord() throws Exception {
+        Merchant m = merchantRepository.save(new Merchant("Bundl Technologies", null));
+        Person p = personRepository.save(new Person(alice, "535804014266/Rahul Sharma"));
+        personRepository.save(new Person(bob, "Rahul Bob"));
+        aliasRepository.save(new UserMerchantAlias(alice, "SWIGGY", m.getId(), "My Food App"));
+        List<Transaction> rows = transactionRepository.findByUserId(alice);
+        rows.stream().filter(x -> x.getRawDescription().equals("Swiggy order")).forEach(x -> x.setMerchantId(m.getId()));
+        rows.stream().filter(x -> x.getRawDescription().equals("Rent")).forEach(x -> x.setPersonId(p.getId()));
+        transactionRepository.saveAll(rows);
+        try {
+            for (String q : List.of("bundl", "food app", "rahul", "535804014266", "sharma rahul")) {
+                mockMvc.perform(get("/api/transactions").param("q", q).header("Authorization", bearer(ALICE)))
+                        .andExpect(jsonPath("$.items[*].description",
+                                containsInAnyOrder(q.contains("rahul") || q.startsWith("5358") ? "Rent" : "Swiggy order")));
+            }
+            mockMvc.perform(get("/api/transactions").param("q", "rahul bundl").header("Authorization", bearer(ALICE)))
+                    .andExpect(jsonPath("$.totalItems").value(0));
+            mockMvc.perform(get("/api/transactions").param("q", "food app").header("Authorization", bearer(BOB)))
+                    .andExpect(jsonPath("$.totalItems").value(0));
+        } finally {
+            aliasRepository.deleteAll();
+            personRepository.deleteAll();
+        }
     }
 
     @Test

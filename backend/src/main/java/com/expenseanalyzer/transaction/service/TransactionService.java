@@ -81,11 +81,10 @@ public class TransactionService {
         UUID userId = currentUser(email).getId();
         Resolution resolution = categoryResolver.forUser(userId);
         Specification<Transaction> spec = (root, q, cb) -> cb.equal(root.get("userId"), userId);
-        if (f.q() != null && !f.q().isBlank()) {
-            String pattern = "%" + escapeLike(f.q().trim().toLowerCase(Locale.ROOT)) + "%";
-            spec = spec.and((root, q, cb) -> cb.or(
-                    cb.like(cb.lower(root.get("rawDescription")), pattern, '\\'),
-                    cb.like(cb.lower(root.get("normalizedDescription")), pattern, '\\')));
+        if (f.q() != null && !f.q().isBlank()) { // every word must match somewhere, in any order
+            for (String word : f.q().trim().toLowerCase(Locale.ROOT).split("\\s+")) {
+                spec = spec.and(matches("%" + escapeLike(word) + "%", userId));
+            }
         }
         if (f.statementId() != null) {
             spec = spec.and((root, q, cb) -> cb.equal(root.get("statementId"), f.statementId()));
@@ -570,6 +569,32 @@ public class TransactionService {
         Root<Category> c = names.from(Category.class);
         names.select(cb.lower(c.get("name"))).where(cb.equal(c.get("userId"), userId));
         return sq.select(m.get("id")).where(hint.in(names));
+    }
+
+    /**
+     * The description, the merchant's name, the user's own name for that merchant or the person's name contains
+     * {@code pattern}.
+     */
+    private static Specification<Transaction> matches(String pattern, UUID userId) {
+        return (root, q, cb) -> {
+            Subquery<UUID> merchants = q.subquery(UUID.class);
+            Root<Merchant> m = merchants.from(Merchant.class);
+            merchants.select(m.get("id")).where(cb.like(cb.lower(m.get("canonicalName")), pattern, '\\'));
+            Subquery<UUID> aliases = q.subquery(UUID.class);
+            Root<UserMerchantAlias> a = aliases.from(UserMerchantAlias.class);
+            aliases.select(a.get("merchantId")).where(cb.equal(a.get("userId"), userId),
+                    cb.like(cb.lower(a.get("displayName")), pattern, '\\'));
+            Subquery<UUID> people = q.subquery(UUID.class);
+            Root<Person> p = people.from(Person.class);
+            people.select(p.get("id")).where(cb.equal(p.get("userId"), userId),
+                    cb.like(cb.lower(p.get("name")), pattern, '\\'));
+            return cb.or(
+                    cb.like(cb.lower(root.get("rawDescription")), pattern, '\\'),
+                    cb.like(cb.lower(root.get("normalizedDescription")), pattern, '\\'),
+                    root.<UUID>get("merchantId").in(merchants),
+                    root.<UUID>get("merchantId").in(aliases),
+                    root.<UUID>get("personId").in(people));
+        };
     }
 
     /** Escapes LIKE wildcards so user text matches literally (escape character is a backslash). */

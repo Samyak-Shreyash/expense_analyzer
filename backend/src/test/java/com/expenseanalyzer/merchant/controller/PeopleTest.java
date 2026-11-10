@@ -313,8 +313,8 @@ class PeopleTest {
         assertThat(other.getMerchantId()).isEqualTo(swiggy);
     }
 
-    private static final String RAHUL_1 = "UPI/P2A/412345678901/RAHUL SHARMA/HDFC";
-    private static final String RAHUL_2 = "UPI/P2A/412345678902/RAHUL S/SBI";
+    private static final String RAHUL_1 = "UPI/P2P/412345678901/RAHUL SHARMA/HDFC";
+    private static final String RAHUL_2 = "UPI/P2P/412345678902/RAHUL S/SBI";
 
     @Test
     void mergingGroupsPayeesAndFutureTransfersFollowThenMovingAPayeeOutUndoesIt() throws Exception {

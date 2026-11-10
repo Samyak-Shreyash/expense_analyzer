@@ -302,9 +302,12 @@ describe('TransactionsPage', () => {
     renderPage()
     await screen.findByText('Swiggy')
 
-    fireEvent.change(screen.getByLabelText('Search descriptions'), {
-      target: { value: 'swiggy' },
-    })
+    fireEvent.change(
+      screen.getByLabelText('Search descriptions, merchants or people'),
+      {
+        target: { value: 'swiggy' },
+      },
+    )
     fireEvent.change(screen.getByLabelText('From'), {
       target: { value: '2026-01-01' },
     })
@@ -327,7 +330,7 @@ describe('TransactionsPage', () => {
     )
   })
 
-  it('filters by category from the table and clears it with the chip', async () => {
+  it('filters by category from the table and clears it from the form', async () => {
     renderPage()
     fireEvent.click(
       await screen.findByRole('button', {
@@ -342,12 +345,58 @@ describe('TransactionsPage', () => {
         expect.objectContaining({ category: 'Food & Dining' }),
       ),
     )
-    expect(screen.getByText(/Category: Food & Dining/)).toBeTruthy()
+    await waitFor(() =>
+      expect(
+        (screen.getByLabelText('Category') as HTMLSelectElement).value,
+      ).toBe('Food & Dining'),
+    )
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show all categories' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Clear all filters' }))
     await waitFor(() =>
       expect(screen.getByTestId('location').textContent).toBe(''),
     )
+  })
+
+  it('filters by amount, category and transfers from the form', async () => {
+    renderPage()
+    await screen.findByRole('button', {
+      name: 'Change category, now Food & Dining',
+    })
+    fireEvent.change(screen.getByLabelText('Min amount (₹)'), {
+      target: { value: '100' },
+    })
+    fireEvent.change(screen.getByLabelText('Max amount (₹)'), {
+      target: { value: '500' },
+    })
+    fireEvent.change(screen.getByLabelText('Transfers'), {
+      target: { value: 'false' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Apply filters' }))
+    await waitFor(() =>
+      expect(finance.listTransactions).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          minAmount: '100',
+          maxAmount: '500',
+          transfer: 'false',
+        }),
+      ),
+    )
+  })
+
+  it('applies a date shortcut', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-03-15T12:00:00Z'))
+    try {
+      renderPage()
+      fireEvent.click(await screen.findByRole('button', { name: 'Last month' }))
+      await waitFor(() =>
+        expect(finance.listTransactions).toHaveBeenLastCalledWith(
+          expect.objectContaining({ from: '2026-02-01', to: '2026-02-28' }),
+        ),
+      )
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('filters uncategorised transactions', async () => {
@@ -767,7 +816,9 @@ describe('TransactionsPage', () => {
       })
       fireEvent.click(screen.getByRole('button', { name: 'Save' }))
       await screen.findByText(/could not/i)
-      const search = screen.getByLabelText('Search descriptions')
+      const search = screen.getByLabelText(
+        'Search descriptions, merchants or people',
+      )
       search.focus()
 
       vi.mocked(finance.listTransactions).mockResolvedValue({
@@ -1261,8 +1312,8 @@ describe('TransactionsPage', () => {
         ),
       )
       expect(
-        screen.getByText(/Showing transfers between your accounts/),
-      ).toBeTruthy()
+        (screen.getByLabelText('Transfers') as HTMLSelectElement).value,
+      ).toBe('true')
     })
 
     it('sets the category for all of a merchant and refetches', async () => {

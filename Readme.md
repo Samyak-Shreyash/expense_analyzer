@@ -22,6 +22,32 @@ This project is currently in active development with a working Spring Boot backe
 
 ---
 
+## 📱 Install on Android
+
+### Option 1: Install the web app from Chrome (no build needed)
+
+The web frontend ships a web app manifest, so Chrome can install it like an app with its own icon and window.
+
+1. Open the deployed frontend URL in **Chrome** on your Android phone and sign in.
+2. Tap the **⋮** menu, then **Add to Home screen** (or **Install app**).
+3. Confirm with **Install**. **Expense Analyzer** now appears on your home screen and app drawer.
+
+To remove it, long-press the icon and choose **Uninstall**.
+
+### Option 2: Run the native app (Expo) on your phone
+
+Needs Node.js, and either an Android emulator or a phone with USB debugging enabled (**Settings → About phone → tap Build number 7 times**, then **Developer options → USB debugging**).
+
+1. Start the backend from `backend/` with `./gradlew bootRun`.
+2. In `mobile/`, run `npm ci` and copy `.env.example` to `.env.local`. Set `EXPO_PUBLIC_API_BASE_URL`:
+   - Android emulator: `http://10.0.2.2:8080/api`
+   - Physical phone on the same Wi-Fi: `http://<your PC's LAN address>:8080/api`
+3. Connect the phone (or start the emulator) and run `npm run android`.
+
+Plain `http` works only in development builds. A release build requires an `https` API URL, such as the backend's Tailscale Funnel host. See [mobile/README.md](mobile/README.md) for details.
+
+---
+
 # 1. Vision
 
 The long-term vision is to build a **personal AI financial analyst**.

@@ -13,21 +13,21 @@ class PersonNameParserTest {
     @ParameterizedTest
     @CsvSource(delimiter = '~', value = {
             // Axis
-            "UPI/P2A/412345678901/RAHUL SHARMA/HDFC BANK/rent~Rahul Sharma",
+            "UPI/P2A/412345678901/RAHUL SHARMA/HDFC BANK/rent~412345678901/Rahul Sharma",
             "UPI/P2P/503312345678/priya k nair/Axis Bank/gift~Priya K Nair",
             // HDFC
-            "UPI-P2A-412345678902-ANITA DESAI-anita@okhdfcbank-HDFC0001234~Anita Desai",
+            "UPI-P2A-412345678902-ANITA DESAI-anita@okhdfcbank-HDFC0001234~412345678902/Anita Desai",
             // SBI
-            "TRANSFER TO UPI/DR/412345678903/P2A/MOHAMMED ALI/SBIN/mali@sbi~Mohammed Ali",
+            "TRANSFER TO UPI/DR/412345678903/P2A/MOHAMMED ALI/SBIN/mali@sbi~412345678903/Mohammed Ali",
             "BY TRANSFER-UPI/CR/412345678904/P2P/SUNITA RAO/SBIN~Sunita Rao",
             // ICICI
-            "UPI/412345678905/P2A/VIKRAM SINGH/ICIC0000123/UPI~Vikram Singh",
-            "UPI/P2A/412345678906/ ANNA  D'SOUZA /ICICI Bank~Anna D'Souza",
+            "UPI/412345678905/P2A/VIKRAM SINGH/ICIC0000123/UPI~412345678905/Vikram Singh",
+            "UPI/P2A/412345678906/ ANNA  D'SOUZA /ICICI Bank~412345678906/Anna D'Souza",
             // a dash is part of the name when the description uses / or | delimiters
-            "UPI/P2A/412345678907/MARY-ANNE JOSEPH/HDFC BANK~Mary-Anne Joseph",
-            "UPI|P2A|412345678908|D'SOUTA-RAO|HDFC BANK~D'Souta-Rao",
+            "UPI/P2A/412345678907/MARY-ANNE JOSEPH/HDFC BANK~412345678907/Mary-Anne Joseph",
+            "UPI|P2A|412345678908|D'SOUTA-RAO|HDFC BANK~412345678908/D'Souta-Rao",
             // the delimiter is the one around the reference, not whichever character appears anywhere
-            "UPI-P2A-412345678902-ANITA DESAI-x@okhdfcbank-HDFC0001234-pay/rent~Anita Desai"})
+            "UPI-P2A-412345678902-ANITA DESAI-x@okhdfcbank-HDFC0001234-pay/rent~412345678902/Anita Desai"})
     void extractsTitleCasedName(String description, String expected) {
         assertThat(PersonNameParser.parse(description)).contains(expected);
     }

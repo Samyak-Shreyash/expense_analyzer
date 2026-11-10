@@ -13,6 +13,11 @@ Expo (managed workflow), TypeScript strict and Expo Router, for iOS and Android.
 
 Staging and production builds set `EXPO_PUBLIC_API_BASE_URL` in their build profile. `EXPO_PUBLIC_` values are compiled into the app, so never put secrets in them.
 
+## Install on your iPhone
+
+To install a standalone build on a physical iPhone from a Mac (free Apple ID, no Expo Go), follow
+[docs/deployment/ios-device.md](../docs/deployment/ios-device.md).
+
 ## Checks
 
 `npm run ci` runs ESLint, Prettier, the type check and Jest.

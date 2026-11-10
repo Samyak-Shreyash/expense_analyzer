@@ -182,13 +182,13 @@ class StatementProcessorTest {
         processor.process(event(s));
 
         List<Person> people = personRepository.findByUserIdOrderByNameAsc(user);
-        assertThat(people).extracting(Person::getName).containsExactly("Rahul Sharma");
+        assertThat(people).extracting(Person::getName).containsExactly("412345678901/Rahul Sharma", "Rahul Sharma");
         List<Transaction> txns = transactionRepository.findByUserId(user);
-        assertThat(txns).filteredOn(t -> t.getRawDescription().contains("/P2A/") || t.getRawDescription().contains("/P2P/"))
-                .hasSize(2).allSatisfy(t -> {
-                    assertThat(t.getPersonId()).isEqualTo(people.get(0).getId());
-                    assertThat(t.getMerchantId()).isNull();
-                });
+        assertThat(txns).filteredOn(t -> t.getRawDescription().contains("/P2A/"))
+                .singleElement().satisfies(t -> assertThat(t.getPersonId()).isEqualTo(people.get(0).getId()));
+        assertThat(txns).filteredOn(t -> t.getRawDescription().contains("/P2P/"))
+                .singleElement().satisfies(t -> assertThat(t.getPersonId()).isEqualTo(people.get(1).getId()));
+        assertThat(txns).filteredOn(t -> t.getPersonId() != null).allSatisfy(t -> assertThat(t.getMerchantId()).isNull());
         Transaction p2m = txns.stream().filter(t -> t.getRawDescription().contains("/P2M/")).findFirst().orElseThrow();
         assertThat(p2m.getPersonId()).isNull();
         assertThat(p2m.getMerchantId()).isNotNull();
@@ -196,7 +196,7 @@ class StatementProcessorTest {
         Statement other = queued(UUID.randomUUID());
         fileContains(other, "Date,Description,Amount\n2026-01-02,UPI/P2A/412345678901/RAHUL SHARMA/HDFC BANK/rent,-1.00\n");
         processor.process(event(other));
-        assertThat(personRepository.count()).isEqualTo(2);
+        assertThat(personRepository.count()).isEqualTo(3);
     }
 
     @Test
