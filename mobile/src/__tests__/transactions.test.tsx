@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from '@testing-library/react-native'
 import { listTransactions } from '@expense-analyzer/api-client'
+import { useLocalSearchParams } from 'expo-router'
 import Transactions from '../app/(tabs)/transactions'
 
 jest.mock('@expense-analyzer/api-client', () => ({
@@ -15,6 +16,8 @@ jest.mock('@expense-analyzer/api-client', () => ({
   ]),
   setTransactionCategory: jest.fn(),
 }))
+
+jest.mock('expo-router', () => ({ useLocalSearchParams: jest.fn(() => ({})) }))
 
 const lastQuery = () => jest.mocked(listTransactions).mock.lastCall?.[0]
 
@@ -63,4 +66,10 @@ it('applies the filter panel and counts active filters', async () => {
     category: undefined,
   })
   expect(screen.getByText('Filters')).toBeTruthy()
+})
+
+it('opens filtered to the category it was opened for', async () => {
+  jest.mocked(useLocalSearchParams).mockReturnValueOnce({ category: 'Food' })
+  await render(<Transactions />)
+  expect(lastQuery()).toMatchObject({ category: 'Food' })
 })

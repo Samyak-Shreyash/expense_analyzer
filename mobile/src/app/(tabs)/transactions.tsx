@@ -5,6 +5,7 @@ import {
   setTransactionCategory,
   type Transaction,
 } from '@expense-analyzer/api-client'
+import { useLocalSearchParams } from 'expo-router'
 import { useCallback, useEffect, useState } from 'react'
 import { FlatList, Pressable, Text, TextInput, View } from 'react-native'
 import {
@@ -147,11 +148,17 @@ export default function Transactions() {
     return r.from === filters.from && r.to === filters.to
   })
 
+  // Set when opened from a category; replaces the filters each time it changes.
+  const { category } = useLocalSearchParams<{ category?: string }>()
   useEffect(() => {
-    fetchPage(0)
-    // Only on mount; searching is explicit (submit).
+    const f = category ? { ...NO_FILTERS, category } : filters
+    fetchPage(0, f).then(() => {
+      setFilters(f)
+      setDraft(f)
+    })
+    // On mount and when opened for another category; searching is explicit (submit).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [category])
 
   useEffect(() => {
     listCategories().then(setCategories, () => {})
