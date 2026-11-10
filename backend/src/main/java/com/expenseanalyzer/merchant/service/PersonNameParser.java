@@ -9,7 +9,8 @@ import java.util.regex.Pattern;
 /**
  * Pulls the payee's name out of a UPI person-to-person description. A description is a transfer to a person
  * only when it has a P2A or P2P segment (P2M is a merchant and never matches). The name is the segment right
- * after the 9+ digit UPI reference number, title-cased. Pure; nothing is logged.
+ * after the 9+ digit UPI reference number, title-cased. A P2A (transfer to an account) name is prefixed with that number,
+ * the account number, as "535804014266/Dummy Name", so transfers group by account and name. Pure; nothing is logged.
  */
 public final class PersonNameParser {
 
@@ -26,8 +27,24 @@ public final class PersonNameParser {
             if (name.contains("@") || name.chars().noneMatch(Character::isLetter)) {
                 return Optional.empty();
             }
-            return Optional.of(titleCase(name.length() > MAX_LENGTH ? name.substring(0, MAX_LENGTH) : name));
+            String title = titleCase(name.length() > MAX_LENGTH ? name.substring(0, MAX_LENGTH) : name);
+            return Optional.of(accountNumber(rawDescription).map(a -> a + "/" + title).orElse(title));
         });
+    }
+
+    /** The 9+ digit number of a P2A description; empty for P2P. */
+    private static Optional<String> accountNumber(String rawDescription) {
+        String[] parts = ANY_SPLIT.split(rawDescription.trim());
+        boolean p2a = false;
+        String number = null;
+        for (String part : parts) {
+            String p = part.trim();
+            p2a |= p.equalsIgnoreCase("P2A");
+            if (number == null && REFERENCE.matcher(p).matches()) {
+                number = p;
+            }
+        }
+        return p2a ? Optional.ofNullable(number) : Optional.empty();
     }
 
     /** True when the description has a P2A or P2P token anywhere, whether or not a name can be parsed from it. */

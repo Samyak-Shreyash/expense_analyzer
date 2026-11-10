@@ -26,7 +26,7 @@ class PayeeKeyTest {
     @ParameterizedTest
     @CsvSource(delimiter = '~', value = {
             "POS 4521XXXX1234 CORNER SHOP~corner  shop~CORNER SHOP",
-            "UPI/P2A/412345678901/RAHUL SHARMA/HDFC~p2a rahul sharma~RAHUL SHARMA",
+            "UPI/P2A/412345678901/RAHUL SHARMA/HDFC~p2a rahul sharma~412345678901/RAHUL SHARMA",
             "UPI/P2M/not-a-reference~ upi shop ~UPI SHOP"})
     void otherwiseUsesNormalizedDescription(String raw, String normalized, String expected) {
         assertThat(PayeeKey.of(raw, normalized)).isEqualTo(expected);
@@ -39,10 +39,11 @@ class PayeeKeyTest {
     }
 
     @Test
-    void personTransferIsKeyedByPayeeSoRemarksDoNotMatter() {
+    void accountTransferIsKeyedByAccountAndPayeeSoRemarksDoNotMatter() {
         assertThat(PayeeKey.of("UPI/P2A/412345678901/INDIAN RAILWAYS/ticket one", "UPI P2A INDIAN RAILWAYS TICKET ONE"))
-                .isEqualTo("INDIAN RAILWAYS")
-                .isEqualTo(PayeeKey.of("UPI/P2A/412345678999/INDIAN RAILWAYS/refund two", "UPI P2A INDIAN RAILWAYS REFUND TWO"));
+                .isEqualTo("412345678901/INDIAN RAILWAYS")
+                .isEqualTo(PayeeKey.of("UPI/P2A/412345678901/INDIAN RAILWAYS/refund two", "UPI P2A INDIAN RAILWAYS REFUND TWO"))
+                .isNotEqualTo(PayeeKey.of("UPI/P2A/412345678999/INDIAN RAILWAYS/ticket", "UPI P2A INDIAN RAILWAYS TICKET"));
     }
 
     @Test

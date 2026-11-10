@@ -21,15 +21,45 @@ import { RenameOnHover } from './RenameOnHover'
 import { TransactionActions } from './TransactionActions'
 import styles from './TransactionsPage.module.css'
 
-// Filters edited in the form; merchantId, personId, statementId, category and transfer are set by links.
-const FORM_KEYS = ['q', 'from', 'to', 'direction'] as const
-const LINK_KEYS = [
-  'merchantId',
-  'personId',
-  'statementId',
+// Filters edited in the form; merchantId, personId and statementId are set by links.
+const FORM_KEYS = [
+  'q',
+  'from',
+  'to',
+  'direction',
   'category',
   'transfer',
+  'minAmount',
+  'maxAmount',
 ] as const
+const LINK_KEYS = ['merchantId', 'personId', 'statementId'] as const
+
+const today = () => new Date().toISOString().slice(0, 10)
+
+/** From/to for a date shortcut: the first of a month `back` months ago through today, or that whole month. */
+const monthRange = (back: number, whole: boolean) => {
+  const now = new Date()
+  const start = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - back, 1),
+  )
+  const end = whole
+    ? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - back + 1, 0))
+    : null
+  return {
+    from: start.toISOString().slice(0, 10),
+    to: end ? end.toISOString().slice(0, 10) : today(),
+  }
+}
+
+const DATE_SHORTCUTS = [
+  { label: 'This month', range: () => monthRange(0, false) },
+  { label: 'Last month', range: () => monthRange(1, true) },
+  { label: 'Last 3 months', range: () => monthRange(2, false) },
+  {
+    label: 'This year',
+    range: () => ({ from: `${today().slice(0, 4)}-01-01`, to: today() }),
+  },
+]
 
 /** The day `days` from an ISO date (YYYY-MM-DD). */
 const shift = (date: string, days: number) => {
@@ -58,6 +88,13 @@ export function TransactionsPage() {
 
   const page = Number(params.get('page') ?? 0)
   const filterKey = params.toString()
+
+  // Links (a category chip, a payee name) change the URL: show those values in the form too.
+  const [draftKey, setDraftKey] = useState(filterKey)
+  if (draftKey !== filterKey) {
+    setDraftKey(filterKey)
+    setDraft(Object.fromEntries(FORM_KEYS.map((k) => [k, params.get(k) ?? ''])))
+  }
 
   useEffect(() => {
     listCategories()
@@ -163,7 +200,9 @@ export function TransactionsPage() {
         onSubmit={submit}
       >
         <label className={styles.search}>
-          <span className={shared.label}>Search descriptions</span>
+          <span className={shared.label}>
+            Search descriptions, merchants or people
+          </span>
           <input
             className={shared.input}
             type="search"
@@ -201,16 +240,93 @@ export function TransactionsPage() {
             <option value="CREDIT">Money in</option>
           </select>
         </label>
+        <label>
+          <span className={shared.label}>Category</span>
+          <select
+            className={shared.input}
+            value={draft.category}
+            onChange={(e) => setDraft({ ...draft, category: e.target.value })}
+          >
+            <option value="">All categories</option>
+            <option value="Uncategorized">Uncategorized</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.name}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span className={shared.label}>Transfers</span>
+          <select
+            className={shared.input}
+            value={draft.transfer}
+            onChange={(e) => setDraft({ ...draft, transfer: e.target.value })}
+          >
+            <option value="">Include transfers</option>
+            <option value="false">Hide transfers</option>
+            <option value="true">Only transfers</option>
+          </select>
+        </label>
+        <label>
+          <span className={shared.label}>Min amount (₹)</span>
+          <input
+            className={shared.input}
+            type="number"
+            min="0"
+            step="0.01"
+            inputMode="decimal"
+            value={draft.minAmount}
+            onChange={(e) => setDraft({ ...draft, minAmount: e.target.value })}
+          />
+        </label>
+        <label>
+          <span className={shared.label}>Max amount (₹)</span>
+          <input
+            className={shared.input}
+            type="number"
+            min="0"
+            step="0.01"
+            inputMode="decimal"
+            value={draft.maxAmount}
+            onChange={(e) => setDraft({ ...draft, maxAmount: e.target.value })}
+          />
+        </label>
         <button className={shared.button} type="submit">
           Apply filters
         </button>
+        <div className={styles.shortcuts}>
+          {DATE_SHORTCUTS.map((s) => (
+            <button
+              key={s.label}
+              type="button"
+              className={shared.quiet}
+              onClick={() => update({ ...draft, ...s.range() })}
+            >
+              {s.label}
+            </button>
+          ))}
+          {filtered && (
+            <button
+              type="button"
+              className={shared.quiet}
+              onClick={() =>
+                update(
+                  Object.fromEntries(
+                    [...FORM_KEYS, ...LINK_KEYS].map((k) => [k, '']),
+                  ),
+                )
+              }
+            >
+              Clear all filters
+            </button>
+          )}
+        </div>
       </form>
 
       {(params.get('merchantId') ||
         params.get('personId') ||
-        params.get('statementId') ||
-        params.get('category') ||
-        params.get('transfer')) && (
+        params.get('statementId')) && (
         <p className={styles.chips}>
           {params.get('merchantId') && (
             <span>
@@ -245,30 +361,6 @@ export function TransactionsPage() {
                 onClick={() => update({ statementId: '' })}
               >
                 Show all statements
-              </button>
-            </span>
-          )}
-          {params.get('category') && (
-            <span>
-              Category: {params.get('category')}.{' '}
-              <button
-                type="button"
-                className={shared.quiet}
-                onClick={() => update({ category: '' })}
-              >
-                Show all categories
-              </button>
-            </span>
-          )}
-          {params.get('transfer') && (
-            <span>
-              Showing transfers between your accounts.{' '}
-              <button
-                type="button"
-                className={shared.quiet}
-                onClick={() => update({ transfer: '' })}
-              >
-                Show all transactions
               </button>
             </span>
           )}

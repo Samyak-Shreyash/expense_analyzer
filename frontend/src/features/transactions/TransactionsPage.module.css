@@ -12,8 +12,15 @@
 
 @media (min-width: 48rem) {
   .filters {
-    grid-template-columns: 2fr repeat(3, 1fr) auto;
+    grid-template-columns: 2fr repeat(3, 1fr);
   }
+}
+
+.shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  grid-column: 1 / -1;
 }
 
 .chips {
