@@ -174,6 +174,10 @@ public class Transaction {
     @Column(name = "reversal_pending", nullable = false)
     private boolean reversalPending;
 
+    /** The 12-digit UPI reference (RRN) in the row; links a UPI app's row to the bank's row for the same payment. */
+    @Column(name = "upi_ref", length = 12)
+    private String upiRef;
+
     // ---- Lifecycle hooks ----
 
     /**

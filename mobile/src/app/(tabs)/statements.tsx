@@ -1,13 +1,16 @@
 import {
   deleteStatement,
   listStatements,
+  STATEMENT_SOURCES,
   uploadStatement,
+  type StatementSource,
 } from '@expense-analyzer/api-client'
 import * as DocumentPicker from 'expo-document-picker'
 import { useState } from 'react'
 import { Alert, FlatList, Text, View } from 'react-native'
 import {
   Button,
+  Chip,
   ErrorText,
   Field,
   Row,
@@ -30,11 +33,17 @@ export default function Statements() {
   // A password-protected PDF waits here until its password is entered.
   const [locked, setLocked] = useState<Picked | null>(null)
   const [password, setPassword] = useState('')
+  const [source, setSource] = useState<StatementSource>('BANK')
 
   async function send(file: Picked, pdfPassword?: string) {
     setMessage(null)
     setProgress(0)
-    const outcome = await uploadStatement(file, setProgress, pdfPassword)
+    const outcome = await uploadStatement(
+      file,
+      setProgress,
+      pdfPassword,
+      source,
+    )
     setProgress(null)
     if (outcome.ok) {
       setLocked(null)
@@ -88,6 +97,20 @@ export default function Statements() {
 
   return (
     <View style={[styles.screen, { paddingBottom: 0 }]}>
+      <Text style={styles.label}>Statement from</Text>
+      <View style={styles.chipRow} accessibilityRole="radiogroup">
+        {STATEMENT_SOURCES.map((s) => (
+          <Chip
+            key={s.value}
+            label={s.label}
+            selected={source === s.value}
+            onPress={() => setSource(s.value)}
+          />
+        ))}
+      </View>
+      <Text style={styles.muted}>
+        {STATEMENT_SOURCES.find((s) => s.value === source)!.hint}
+      </Text>
       <Button
         title={
           progress !== null

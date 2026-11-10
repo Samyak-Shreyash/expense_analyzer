@@ -6,7 +6,9 @@ import { dayLabel, validateStatementFile } from '../../lib/format'
 import {
   deleteStatement,
   listStatements,
+  STATEMENT_SOURCES,
   uploadStatement,
+  type StatementSource,
   type Statement,
 } from '../../services/finance'
 import styles from './StatementsPage.module.css'
@@ -58,6 +60,8 @@ export function StatementsPage() {
   // A password-protected PDF waiting for its password.
   const [locked, setLocked] = useState<File | null>(null)
   const [password, setPassword] = useState('')
+  const [source, setSource] = useState<StatementSource>('BANK')
+  const picked = STATEMENT_SOURCES.find((s) => s.value === source)!
   const input = useRef<HTMLInputElement>(null)
   // Bumped to refetch: after an upload or delete, and while polling.
   const [version, setVersion] = useState(0)
@@ -90,7 +94,12 @@ export function StatementsPage() {
     setUploadError(invalid)
     if (invalid) return
     setProgress(0)
-    const outcome = await uploadStatement(file, setProgress, pdfPassword)
+    const outcome = await uploadStatement(
+      file,
+      setProgress,
+      pdfPassword,
+      source,
+    )
     setProgress(null)
     setPassword('')
     if (input.current) input.current.value = ''
@@ -123,9 +132,25 @@ export function StatementsPage() {
     <>
       <h1 className={shared.title}>Statements</h1>
       <p className={shared.lead}>
-        Upload a CSV, Excel or PDF statement from your bank. Each transaction is
-        read once, even if your statements overlap.
+        Upload a CSV, Excel or PDF statement from your bank, or a Google Pay
+        statement. Each payment is counted once, even if your files overlap.
       </p>
+
+      <fieldset className={styles.sources} disabled={progress !== null}>
+        <legend>Statement from</legend>
+        {STATEMENT_SOURCES.map((s) => (
+          <label key={s.value} className={styles.source}>
+            <input
+              type="radio"
+              name="source"
+              value={s.value}
+              checked={source === s.value}
+              onChange={() => setSource(s.value)}
+            />
+            {s.label}
+          </label>
+        ))}
+      </fieldset>
 
       <div
         className={styles.drop}
@@ -148,7 +173,7 @@ export function StatementsPage() {
           <input
             ref={input}
             type="file"
-            accept=".csv,.xls,.xlsx,.pdf"
+            accept={source === 'BANK' ? '.csv,.xls,.xlsx,.pdf' : '.pdf'}
             className={shared.visuallyHidden}
             disabled={progress !== null}
             onChange={(e) => {
@@ -157,7 +182,7 @@ export function StatementsPage() {
             }}
           />
         </label>
-        <p className={styles.hint}>CSV, .xls, .xlsx or PDF, up to 20 MB</p>
+        <p className={styles.hint}>{picked.hint}, up to 20 MB</p>
         {progress !== null && (
           <div className={styles.progress}>
             <progress value={progress} max={1} aria-label="Upload progress" />

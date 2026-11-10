@@ -13,10 +13,27 @@ export type Page<T> = {
 export type StatementStatus =
   'UPLOADED' | 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED'
 
+/** Which app exported the file; picks the parser on the server. */
+export type StatementSource = 'BANK' | 'GPAY'
+
+export const STATEMENT_SOURCES: {
+  value: StatementSource
+  label: string
+  hint: string
+}[] = [
+  { value: 'BANK', label: 'Bank statement', hint: 'CSV, .xls, .xlsx or PDF' },
+  {
+    value: 'GPAY',
+    label: 'Google Pay',
+    hint: 'The PDF statement from Google Pay',
+  },
+]
+
 export type Statement = {
   id: string
   fileName: string
   format: 'CSV' | 'XLS' | 'XLSX' | 'PDF'
+  source: StatementSource
   status: StatementStatus
   processingError: string | null
   createdAt: string
@@ -165,15 +182,14 @@ export async function uploadStatement(
   file: UploadFile,
   onProgress: (fraction: number) => void,
   password?: string,
+  source: StatementSource = 'BANK',
 ): Promise<UploadOutcome> {
   let res
   try {
-    res = await apiUpload(
-      '/statements',
-      file,
-      onProgress,
-      password ? { password } : {},
-    )
+    res = await apiUpload('/statements', file, onProgress, {
+      ...(password ? { password } : {}),
+      ...(source !== 'BANK' ? { source } : {}),
+    })
   } catch {
     return {
       ok: false,

@@ -3,6 +3,7 @@ package com.expenseanalyzer.statement.model;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.ColumnDefault;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
@@ -124,6 +125,12 @@ public class Statement {
     @Enumerated(EnumType.STRING)
     @Column(name = "format", length = 10)
     private StatementFormat format;
+
+    /** Which app exported the file; picks the parser. */
+    @Enumerated(EnumType.STRING)
+    @ColumnDefault("'BANK'")
+    @Column(name = "source", nullable = false, length = 16)
+    private StatementSource source = StatementSource.BANK;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "status", nullable = false, length = 20)

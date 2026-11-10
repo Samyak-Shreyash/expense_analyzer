@@ -15,9 +15,11 @@ import com.expenseanalyzer.processing.parser.common.RowError;
 import com.expenseanalyzer.processing.parser.common.RowErrorCode;
 import com.expenseanalyzer.processing.parser.csv.CsvStatementParser;
 import com.expenseanalyzer.processing.parser.excel.ExcelStatementParser;
+import com.expenseanalyzer.processing.parser.pdf.GPayStatementParser;
 import com.expenseanalyzer.processing.parser.pdf.PdfStatementParser;
 import com.expenseanalyzer.processing.repository.ProcessedEventRepository;
 import com.expenseanalyzer.statement.model.Statement;
+import com.expenseanalyzer.statement.model.StatementSource;
 import com.expenseanalyzer.statement.model.StatementStatus;
 import com.expenseanalyzer.statement.repository.StatementRepository;
 import com.expenseanalyzer.statement.service.StatementObjectNotFoundException;
@@ -37,9 +39,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -74,6 +78,7 @@ public class StatementProcessor {
     private final CsvStatementParser csvParser;
     private final ExcelStatementParser excelParser;
     private final PdfStatementParser pdfParser;
+    private final GPayStatementParser gpayParser;
     private final JsonMapper jsonMapper;
     private final MerchantNormalizer merchantNormalizer;
     private final MerchantService merchantService;
@@ -84,7 +89,8 @@ public class StatementProcessor {
     public StatementProcessor(StatementRepository statementRepository, TransactionRepository transactionRepository,
                               ProcessedEventRepository processedEventRepository, S3StatementStorage storage,
                               CsvStatementParser csvParser, ExcelStatementParser excelParser,
-                              PdfStatementParser pdfParser, JsonMapper jsonMapper,
+                              PdfStatementParser pdfParser, GPayStatementParser gpayParser,
+                              JsonMapper jsonMapper,
                               MerchantNormalizer merchantNormalizer, MerchantService merchantService,
                               PersonService personService, TransferService transferService,
                               @Value("${app.parser.max-rows:50000}") int maxRows,
@@ -97,6 +103,7 @@ public class StatementProcessor {
         this.csvParser = csvParser;
         this.excelParser = excelParser;
         this.pdfParser = pdfParser;
+        this.gpayParser = gpayParser;
         this.jsonMapper = jsonMapper;
         this.merchantNormalizer = merchantNormalizer;
         this.merchantService = merchantService;
@@ -140,7 +147,8 @@ public class StatementProcessor {
             parsed = switch (s.getFormat()) {
                 case CSV -> csvParser.parse(in, limits);
                 case XLS, XLSX -> excelParser.parse(in, limits);
-                case PDF -> pdfParser.parse(in, limits);
+                case PDF -> s.getSource() == StatementSource.GPAY
+                        ? gpayParser.parse(in, limits) : pdfParser.parse(in, limits);
             };
         } catch (StatementObjectNotFoundException ex) {
             fail(s, "FILE_MISSING");
@@ -182,6 +190,7 @@ public class StatementProcessor {
                 fresh.add(t);
             }
         });
+        int merged = mergeUpiDuplicates(s, fresh);
         transactionRepository.saveAll(fresh);
         transferService.match(s.getUserId());
 
@@ -190,8 +199,8 @@ public class StatementProcessor {
         s.setProcessingError(skipped == 0 ? null : "SKIPPED_ROWS:" + skipped);
         s.onUpdate();
         statementRepository.save(s);
-        log.info("Statement processed: statementId={} inserted={} alreadyPresent={} skipped={}",
-                s.getId(), fresh.size(), byFingerprint.size() - fresh.size(), skipped);
+        log.info("Statement processed: statementId={} inserted={} alreadyPresent={} skipped={} mergedUpi={}",
+                s.getId(), fresh.size(), byFingerprint.size() - fresh.size() - merged, skipped, merged);
     }
 
     private static Transaction toTransaction(Statement s, ParsedTransaction p, BigDecimal cents, String fingerprint) {
@@ -199,7 +208,75 @@ public class StatementProcessor {
                 p.date().atStartOfDay(ZoneOffset.UTC).toInstant(), p.type());
         t.setStatementId(s.getId());
         t.setTransactionFingerprint(fingerprint);
+        t.setUpiRef(UpiReference.find(p.rawDescription()));
+        if (s.getSource() == StatementSource.GPAY && p.rawDescription().startsWith(GPayStatementParser.SELF_TRANSFER)) {
+            t.setTransfer(true); // between the user's own accounts: never spending or income
+        }
         return t;
+    }
+
+    /**
+     * One payment can arrive twice: in a bank statement and in a UPI app's export, sharing a UPI reference. The bank
+     * row always wins. Importing a UPI app file drops its rows already in a bank statement; importing a bank statement
+     * replaces earlier UPI app rows. Either way the kept row takes the other's category, person and merchant where it
+     * has none, so the user's edits survive. A reference held by more than one row on either side, or rows whose
+     * amount or direction differ, are left alone. Removes dropped rows from {@code fresh}; returns how many merged.
+     */
+    private int mergeUpiDuplicates(Statement s, List<Transaction> fresh) {
+        Map<String, List<Transaction>> incoming = fresh.stream().filter(t -> t.getUpiRef() != null)
+                .collect(Collectors.groupingBy(Transaction::getUpiRef));
+        if (incoming.isEmpty()) {
+            return 0;
+        }
+        List<Transaction> stored = transactionRepository.findByUserIdAndUpiRefIn(s.getUserId(), incoming.keySet());
+        Map<UUID, StatementSource> sources = statementRepository.findAllById(stored.stream()
+                        .map(Transaction::getStatementId).filter(Objects::nonNull).collect(Collectors.toSet())).stream()
+                .collect(Collectors.toMap(Statement::getId, Statement::getSource));
+        Map<String, List<Transaction>> byRef = stored.stream().collect(Collectors.groupingBy(Transaction::getUpiRef));
+
+        boolean fromApp = s.getSource() != StatementSource.BANK;
+        List<Transaction> dropped = new ArrayList<>();
+        List<Transaction> updated = new ArrayList<>();
+        List<Transaction> replaced = new ArrayList<>();
+        incoming.forEach((ref, mine) -> {
+            List<Transaction> theirs = byRef.getOrDefault(ref, List.of());
+            if (mine.size() != 1 || theirs.size() != 1) {
+                return;
+            }
+            Transaction in = mine.getFirst();
+            Transaction old = theirs.getFirst();
+            boolean oldFromApp = sources.getOrDefault(old.getStatementId(), StatementSource.BANK) != StatementSource.BANK;
+            if (fromApp == oldFromApp || !in.getType().equals(old.getType())
+                    || in.getAmountCents().compareTo(old.getAmountCents()) != 0) {
+                return;
+            }
+            if (fromApp) { // the bank row is already stored: keep it
+                adoptLabels(old, in);
+                old.onUpdate();
+                updated.add(old);
+                dropped.add(in);
+            } else { // the new bank row replaces the app row
+                adoptLabels(in, old);
+                replaced.add(old);
+            }
+        });
+        fresh.removeAll(dropped);
+        transactionRepository.saveAll(updated);
+        transactionRepository.deleteAll(replaced);
+        transactionRepository.flush();
+        return dropped.size() + replaced.size();
+    }
+
+    /** Fills what {@code kept} lacks from {@code other}: the category, and the payee (merchant or person) as a pair. */
+    private static void adoptLabels(Transaction kept, Transaction other) {
+        if (kept.getCategoryId() == null) {
+            kept.setCategoryId(other.getCategoryId());
+        }
+        if (kept.getMerchantId() == null && kept.getPersonId() == null) {
+            kept.setMerchantId(other.getMerchantId());
+            kept.setMerchantConfidence(other.getMerchantConfidence());
+            kept.setPersonId(other.getPersonId());
+        }
     }
 
     /**
