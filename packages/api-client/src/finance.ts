@@ -519,8 +519,9 @@ export type Profile = {
 }
 
 export const getProfile = () => getJson<Profile>('/user/me')
+/** A null `fullName` leaves the name unchanged. */
 export const updateProfile = (
-  fullName: string,
+  fullName: string | null,
   preferences: Profile['preferences'],
 ) =>
   write<Profile>(
@@ -529,6 +530,18 @@ export const updateProfile = (
     { fullName, preferences },
     {
       400: 'Use a name of 1 to 255 characters.',
+    },
+  )
+
+/** Also signs out every session: the server revokes all refresh tokens. */
+export const changePassword = (currentPassword: string, newPassword: string) =>
+  write<null>(
+    'PUT',
+    '/user/me/password',
+    { currentPassword, newPassword },
+    {
+      400: 'Check your current password. The new one needs at least 8 characters.',
+      429: 'Too many attempts. Try again in a few minutes.',
     },
   )
 
