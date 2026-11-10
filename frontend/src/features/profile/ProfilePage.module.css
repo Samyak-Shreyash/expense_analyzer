@@ -9,12 +9,12 @@
   display: block;
   box-sizing: border-box;
   width: 100%;
-  height: 2.75rem;
+  height: var(--control-height);
   margin-top: 0.25rem;
   padding: 0 0.75rem;
   font: inherit;
   color: var(--ink);
   background: var(--surface);
   border: 1px solid var(--ink-muted);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
 }

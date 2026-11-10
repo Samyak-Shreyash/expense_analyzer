@@ -65,7 +65,7 @@
 .figureOut,
 .figureNet {
   font-family: var(--font-display);
-  font-size: 2rem;
+  font-size: var(--text-figure);
   font-weight: 600;
   line-height: 1.2;
   font-variant-numeric: tabular-nums;
@@ -100,7 +100,7 @@
   max-height: 22rem;
   padding: 1rem 0;
   background: var(--night);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
 }
 
 .baseline {
@@ -214,6 +214,19 @@
   height: 100%;
   background: var(--debit);
   border-radius: 4px;
+  transform-origin: left;
+}
+
+@keyframes grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .fill {
+    animation: grow 0.5s var(--ease-out) both;
+  }
 }
 
 /* Non-spending categories, with the people behind each. */
