@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { Fragment, useEffect, useId, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import shared from '../../components/shared.module.css'
 import {
@@ -35,6 +35,8 @@ export function MerchantNamesPanel({ categories }: { categories: Category[] }) {
   const [loadError, setLoadError] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [confirming, setConfirming] = useState(false)
+  // Merchants whose details are open; everything else shows one summary row.
+  const [open, setOpen] = useState<Set<string>>(new Set())
   const toggle = useRef<HTMLInputElement>(null)
   const explainId = useId()
 
@@ -90,12 +92,17 @@ export function MerchantNamesPanel({ categories }: { categories: Category[] }) {
   data.items.forEach((i) => {
     if (!merchants.has(i.merchantId)) merchants.set(i.merchantId, i.name)
   })
-  const order = [...merchants.keys()]
-  const grouped = [...data.items].sort(
-    (a, b) => order.indexOf(a.merchantId) - order.indexOf(b.merchantId),
-  )
-  const groupSize = (merchantId: string) =>
-    data.items.filter((x) => x.merchantId === merchantId).length
+  const groups = [...merchants].map(([merchantId, name]) => ({
+    merchantId,
+    name,
+    items: data.items.filter((x) => x.merchantId === merchantId),
+  }))
+  const toggleOpen = (merchantId: string) =>
+    setOpen((o) => {
+      const next = new Set(o)
+      if (!next.delete(merchantId)) next.add(merchantId)
+      return next
+    })
 
   return (
     <>
@@ -171,116 +178,183 @@ export function MerchantNamesPanel({ categories }: { categories: Category[] }) {
           <table className={shared.table}>
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Payee</th>
-                <th>Move to</th>
-                <th>Transactions</th>
-                <th>Default categories</th>
-                <th>Share</th>
+                <th>Merchant</th>
+                <th className={shared.num}>Payees</th>
+                <th className={shared.num}>Transactions</th>
               </tr>
             </thead>
             <tbody>
-              {grouped.map((i) => (
-                <tr key={i.id}>
-                  <td>
-                    <span className={styles.name}>
-                      <EditableName
-                        id={i.id}
-                        name={i.name}
-                        label="merchant"
-                        onSave={async (name) => {
-                          setError(null)
-                          try {
-                            setData(await renameMerchantName(i.id, name))
-                          } catch (e) {
-                            setError(message(e))
-                            throw e
-                          }
-                        }}
-                      />
-                      {i.reported && (
-                        <span className={shared.error}>Reported</span>
-                      )}
-                    </span>
-                  </td>
-                  <td>
-                    {i.payee}
-                    {groupSize(i.merchantId) > 1 && (
-                      <span className={shared.muted}>
-                        {' '}
-                        · one of {groupSize(i.merchantId)} payees of this
-                        merchant
-                      </span>
+              {groups.map((g) => {
+                const expanded = open.has(g.merchantId)
+                const detailsId = `merchant-details-${g.merchantId}`
+                const first = g.items[0]
+                return (
+                  <Fragment key={g.merchantId}>
+                    <tr>
+                      <td>
+                        <span className={styles.name}>
+                          <button
+                            type="button"
+                            className={styles.disclosure}
+                            aria-expanded={expanded}
+                            aria-controls={detailsId}
+                            onClick={() => toggleOpen(g.merchantId)}
+                          >
+                            <svg
+                              aria-hidden="true"
+                              className={styles.chevron}
+                              viewBox="0 0 16 16"
+                              width="16"
+                              height="16"
+                            >
+                              <path
+                                d="M6 4l4 4-4 4"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                            {g.name}
+                          </button>
+                          {g.items.some((i) => i.reported) && (
+                            <span className={shared.error}>Reported</span>
+                          )}
+                        </span>
+                      </td>
+                      <td className={shared.num}>{g.items.length}</td>
+                      <td className={shared.num}>
+                        {g.items.reduce((n, i) => n + i.transactionCount, 0)}
+                      </td>
+                    </tr>
+                    {expanded && (
+                      <tr id={detailsId}>
+                        <td colSpan={3}>
+                          <div className={styles.details}>
+                            <div>
+                              <h3 className={styles.detailsHeading}>
+                                Default categories
+                              </h3>
+                              <DirectionDefaults
+                                name={g.name}
+                                out={first.categoryId}
+                                into={first.creditCategoryId}
+                                categories={categories}
+                                onChange={(credit, categoryId) =>
+                                  run(async () => {
+                                    await setMerchantCategory(
+                                      g.merchantId,
+                                      categoryId,
+                                      credit,
+                                    )
+                                    const field = credit
+                                      ? 'creditCategoryId'
+                                      : 'categoryId'
+                                    // Names sharing a merchant share its categories.
+                                    setData((d) => ({
+                                      ...d!,
+                                      items: d!.items.map((x) =>
+                                        x.merchantId === g.merchantId
+                                          ? { ...x, [field]: categoryId }
+                                          : x,
+                                      ),
+                                    }))
+                                  })
+                                }
+                              />
+                            </div>
+                            <div>
+                              <h3 className={styles.detailsHeading}>
+                                {g.items.length === 1
+                                  ? 'Payee'
+                                  : `${g.items.length} payees of this merchant`}
+                              </h3>
+                              <ul className={styles.payeeList}>
+                                {g.items.map((i) => (
+                                  <li key={i.id} className={styles.payeeItem}>
+                                    <span className={styles.name}>
+                                      <EditableName
+                                        id={i.id}
+                                        name={i.name}
+                                        label="merchant"
+                                        onSave={async (name) => {
+                                          setError(null)
+                                          try {
+                                            setData(
+                                              await renameMerchantName(
+                                                i.id,
+                                                name,
+                                              ),
+                                            )
+                                          } catch (e) {
+                                            setError(message(e))
+                                            throw e
+                                          }
+                                        }}
+                                      />
+                                      <span className={shared.muted}>
+                                        {i.payee} · {i.transactionCount}{' '}
+                                        {i.transactionCount === 1
+                                          ? 'transaction'
+                                          : 'transactions'}
+                                        {g.items.length > 1 &&
+                                          ` · one of ${g.items.length} payees of this merchant`}
+                                      </span>
+                                    </span>
+                                    <span className={styles.name}>
+                                      <select
+                                        className={shared.input}
+                                        aria-label={`Move ${i.payee} to merchant`}
+                                        value=""
+                                        disabled={merchants.size < 2}
+                                        onChange={(e) =>
+                                          run(async () =>
+                                            setData(
+                                              await renameMerchantName(
+                                                i.id,
+                                                e.target.value,
+                                              ),
+                                            ),
+                                          )
+                                        }
+                                      >
+                                        <option value="">Move to…</option>
+                                        {[...merchants]
+                                          .filter(([id]) => id !== i.merchantId)
+                                          .map(([id, name]) => (
+                                            <option key={id} value={name}>
+                                              {name}
+                                            </option>
+                                          ))}
+                                      </select>
+                                      <ShareCell
+                                        item={i}
+                                        on={on}
+                                        revoked={revoked}
+                                        onSave={(sharedNow) =>
+                                          run(async () =>
+                                            replace(
+                                              await setMerchantNameShared(
+                                                i.id,
+                                                sharedNow,
+                                              ),
+                                            ),
+                                          )
+                                        }
+                                      />
+                                    </span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
                     )}
-                  </td>
-                  <td>
-                    <select
-                      className={shared.input}
-                      aria-label={`Move ${i.payee} to merchant`}
-                      value=""
-                      disabled={merchants.size < 2}
-                      onChange={(e) =>
-                        run(async () =>
-                          setData(
-                            await renameMerchantName(i.id, e.target.value),
-                          ),
-                        )
-                      }
-                    >
-                      <option value="">Move to…</option>
-                      {[...merchants]
-                        .filter(([id]) => id !== i.merchantId)
-                        .map(([id, name]) => (
-                          <option key={id} value={name}>
-                            {name}
-                          </option>
-                        ))}
-                    </select>
-                  </td>
-                  <td>{i.transactionCount}</td>
-                  <td>
-                    <DirectionDefaults
-                      name={i.name}
-                      out={i.categoryId}
-                      into={i.creditCategoryId}
-                      categories={categories}
-                      onChange={(credit, categoryId) =>
-                        run(async () => {
-                          await setMerchantCategory(
-                            i.merchantId,
-                            categoryId,
-                            credit,
-                          )
-                          const field = credit
-                            ? 'creditCategoryId'
-                            : 'categoryId'
-                          // Names sharing a merchant share its categories.
-                          setData((d) => ({
-                            ...d!,
-                            items: d!.items.map((x) =>
-                              x.merchantId === i.merchantId
-                                ? { ...x, [field]: categoryId }
-                                : x,
-                            ),
-                          }))
-                        })
-                      }
-                    />
-                  </td>
-                  <td>
-                    <ShareCell
-                      item={i}
-                      on={on}
-                      revoked={revoked}
-                      onSave={(sharedNow) =>
-                        run(async () =>
-                          replace(await setMerchantNameShared(i.id, sharedNow)),
-                        )
-                      }
-                    />
-                  </td>
-                </tr>
-              ))}
+                  </Fragment>
+                )
+              })}
             </tbody>
           </table>
         </div>
