@@ -5,20 +5,23 @@ import {
 } from '@expense-analyzer/api-client'
 import * as DocumentPicker from 'expo-document-picker'
 import { useState } from 'react'
+import { Alert, FlatList, Text, View } from 'react-native'
 import {
   Button,
-  FlatList,
-  Pressable,
-  Text,
-  TextInput,
-  View,
-} from 'react-native'
-import { ErrorText, Row, styles } from '../../components/ui'
+  ErrorText,
+  Field,
+  Row,
+  TextAction,
+  useColors,
+  useStyles,
+} from '../../components/ui'
 import { useLoad } from '../../lib/useLoad'
 
 type Picked = { uri: string; name: string; type: string }
 
 export default function Statements() {
+  const styles = useStyles()
+  const c = useColors()
   const { data, error, loading, reload } = useLoad(listStatements)
   const [progress, setProgress] = useState<number | null>(null)
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(
@@ -60,6 +63,17 @@ export default function Statements() {
     })
   }
 
+  function confirmRemove(id: string, fileName: string) {
+    Alert.alert(
+      'Delete statement?',
+      `${fileName} and its transactions will be removed.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => remove(id) },
+      ],
+    )
+  }
+
   async function remove(id: string) {
     try {
       await deleteStatement(id)
@@ -73,23 +87,40 @@ export default function Statements() {
   }
 
   return (
-    <View style={styles.screen}>
+    <View style={[styles.screen, { paddingBottom: 0 }]}>
       <Button
-        title="Upload a statement"
+        title={
+          progress !== null
+            ? `Uploading… ${Math.round(progress * 100)}%`
+            : 'Upload a statement'
+        }
         onPress={choose}
-        disabled={progress !== null}
+        busy={progress !== null}
       />
       {progress !== null && (
-        <Text style={styles.muted}>
-          Uploading… {Math.round(progress * 100)}%
-        </Text>
+        <View
+          style={{ height: 4, borderRadius: 2, backgroundColor: c.rule }}
+          accessibilityRole="progressbar"
+          accessibilityValue={{
+            min: 0,
+            max: 100,
+            now: Math.round(progress * 100),
+          }}
+        >
+          <View
+            style={{
+              height: 4,
+              borderRadius: 2,
+              width: `${Math.round(progress * 100)}%`,
+              backgroundColor: c.ledger,
+            }}
+          />
+        </View>
       )}
       {locked && (
-        <View style={{ gap: 8, marginTop: 8 }}>
-          <TextInput
-            style={styles.input}
-            placeholder="PDF password"
-            accessibilityLabel="PDF password"
+        <View style={{ gap: 8 }}>
+          <Field
+            label="PDF password"
             secureTextEntry
             value={password}
             onChangeText={setPassword}
@@ -103,42 +134,42 @@ export default function Statements() {
       )}
       {message &&
         (message.ok ? (
-          <Text style={[styles.muted, { marginTop: 8 }]}>{message.text}</Text>
+          <Text style={styles.muted}>{message.text}</Text>
         ) : (
           <ErrorText>{message.text}</ErrorText>
         ))}
       {error && <ErrorText>{error}</ErrorText>}
       <FlatList
-        style={{ marginTop: 12 }}
         data={data?.items ?? []}
+        contentContainerStyle={{ paddingBottom: 16 }}
         keyExtractor={(s) => s.id}
         refreshing={loading}
         onRefresh={reload}
         ListEmptyComponent={
           loading ? undefined : (
-            <Text style={styles.muted}>No statements yet.</Text>
+            <Text style={[styles.muted, { paddingVertical: 24 }]}>
+              No statements yet. Upload a PDF or CSV from your bank.
+            </Text>
           )
         }
-        renderItem={({ item: s }) => (
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <View style={{ flex: 1 }}>
-              <Row
-                left={s.fileName}
-                sub={
-                  s.status === 'FAILED'
-                    ? (s.processingError ?? 'Failed')
-                    : s.status.toLowerCase()
-                }
+        renderItem={({ item: s, index }) => (
+          <Row
+            first={index === 0}
+            left={s.fileName}
+            sub={
+              s.status === 'FAILED'
+                ? `Failed: ${s.processingError ?? 'could not be read'}`
+                : s.status.charAt(0) + s.status.slice(1).toLowerCase()
+            }
+            action={
+              <TextAction
+                title="Delete"
+                danger
+                accessibilityLabel={`Delete ${s.fileName}`}
+                onPress={() => confirmRemove(s.id, s.fileName)}
               />
-            </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Delete ${s.fileName}`}
-              onPress={() => remove(s.id)}
-            >
-              <Text style={styles.debit}>Delete</Text>
-            </Pressable>
-          </View>
+            }
+          />
         )}
       />
     </View>

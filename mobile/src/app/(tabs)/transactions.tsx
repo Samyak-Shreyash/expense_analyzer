@@ -7,10 +7,12 @@ import {
 } from '@expense-analyzer/api-client'
 import { useCallback, useEffect, useState } from 'react'
 import { FlatList, Pressable, Text, TextInput, View } from 'react-native'
-import { ErrorText, styles } from '../../components/ui'
+import { Chip, ErrorText, useColors, useStyles } from '../../components/ui'
 import { rupees } from '../../lib/format'
 
 export default function Transactions() {
+  const styles = useStyles()
+  const c = useColors()
   const [q, setQ] = useState('')
   const [items, setItems] = useState<Transaction[]>([])
   const [page, setPage] = useState(0)
@@ -68,9 +70,11 @@ export default function Transactions() {
   }
 
   return (
-    <View style={styles.screen}>
+    <View style={[styles.screen, { paddingBottom: 0 }]}>
       <TextInput
         style={styles.input}
+        placeholderTextColor={c.inkMuted}
+        clearButtonMode="while-editing"
         placeholder="Search descriptions"
         accessibilityLabel="Search descriptions"
         value={q}
@@ -84,20 +88,30 @@ export default function Transactions() {
         keyExtractor={(t) => t.id}
         refreshing={loading && page === 0}
         onRefresh={() => load(0)}
+        contentContainerStyle={{ paddingBottom: 16 }}
         onEndReached={() => {
           if (hasMore && !loading) load(page + 1)
         }}
         ListEmptyComponent={
           loading ? undefined : (
-            <Text style={styles.muted}>No transactions found.</Text>
+            <Text style={[styles.muted, { paddingVertical: 24 }]}>
+              {q.trim()
+                ? 'No transactions match that search.'
+                : 'No transactions yet. Upload a statement to get started.'}
+            </Text>
           )
         }
         renderItem={({ item: t }) => (
-          <View>
+          <View style={styles.divider}>
             <Pressable
               accessibilityRole="button"
+              accessibilityState={{ expanded: open === t.id }}
+              accessibilityHint="Shows details and category options"
               onPress={() => setOpen(open === t.id ? null : t.id)}
-              style={styles.row}
+              style={({ pressed }) => [
+                styles.row,
+                pressed && { backgroundColor: c.ledgerTint },
+              ]}
             >
               <View style={{ flex: 1 }}>
                 <Text style={styles.rowText} numberOfLines={1}>
@@ -112,7 +126,7 @@ export default function Transactions() {
               </View>
               <Text
                 style={[
-                  styles.rowText,
+                  styles.amount,
                   t.direction === 'DEBIT' ? styles.debit : styles.credit,
                 ]}
               >
@@ -120,11 +134,19 @@ export default function Transactions() {
               </Text>
             </Pressable>
             {open === t.id && (
-              <View style={{ paddingVertical: 8, gap: 6 }}>
+              <View
+                style={{
+                  marginBottom: 12,
+                  padding: 12,
+                  gap: 8,
+                  borderRadius: 12,
+                  backgroundColor: c.surface,
+                }}
+              >
                 <Text style={styles.muted}>{t.description}</Text>
-                <Text style={styles.muted}>Category for this transaction</Text>
+                <Text style={styles.label}>Category for this transaction</Text>
                 <View
-                  style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}
+                  style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}
                 >
                   <Chip
                     label="Merchant/person default"
@@ -146,33 +168,5 @@ export default function Transactions() {
         )}
       />
     </View>
-  )
-}
-
-function Chip({
-  label,
-  selected,
-  onPress,
-}: {
-  label: string
-  selected: boolean
-  onPress: () => void
-}) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected }}
-      onPress={onPress}
-      style={{
-        paddingHorizontal: 10,
-        paddingVertical: 6,
-        borderRadius: 14,
-        borderWidth: 1,
-        borderColor: selected ? '#1f4e79' : '#ccc',
-        backgroundColor: selected ? '#1f4e79' : 'transparent',
-      }}
-    >
-      <Text style={{ color: selected ? '#fff' : '#222' }}>{label}</Text>
-    </Pressable>
   )
 }
