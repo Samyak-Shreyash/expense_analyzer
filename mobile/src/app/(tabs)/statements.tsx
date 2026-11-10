@@ -6,6 +6,7 @@ import {
   type StatementSource,
 } from '@expense-analyzer/api-client'
 import * as DocumentPicker from 'expo-document-picker'
+import { router } from 'expo-router'
 import { useState } from 'react'
 import { Alert, FlatList, Text, View } from 'react-native'
 import {
@@ -183,6 +184,19 @@ export default function Statements() {
               s.status === 'FAILED'
                 ? `Failed: ${s.processingError ?? 'could not be read'}`
                 : s.status.charAt(0) + s.status.slice(1).toLowerCase()
+            }
+            // Completed statements link to the transactions read from them, like the web page.
+            accessibilityHint={
+              s.status === 'COMPLETED' ? 'Shows its transactions' : undefined
+            }
+            onPress={
+              s.status === 'COMPLETED'
+                ? () =>
+                    router.push({
+                      pathname: '/transactions',
+                      params: { statementId: s.id },
+                    })
+                : undefined
             }
             action={
               <TextAction
