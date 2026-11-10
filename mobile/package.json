@@ -4,6 +4,7 @@
   "main": "expo-router/entry",
   "dependencies": {
     "@expense-analyzer/api-client": "file:../packages/api-client",
+    "@expo/vector-icons": "^15.0.2",
     "expo": "~58.0.22",
     "expo-constants": "~58.0.15",
     "expo-crypto": "~58.0.7",
