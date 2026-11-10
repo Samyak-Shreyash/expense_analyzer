@@ -6,13 +6,20 @@
   max-width: 40rem;
   padding: 2rem;
   border: 2px dashed var(--ink-muted);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
+  transition:
+    border-color var(--duration-base) var(--ease-out),
+    background-color var(--duration-base) var(--ease-out);
+}
+
+.drop:hover {
+  border-color: var(--ledger);
 }
 
 .drop[data-dragging] {
   border-color: var(--ledger);
-  background: #e3f1ec;
+  background: var(--ledger-tint);
 }
 
 .dropText {
