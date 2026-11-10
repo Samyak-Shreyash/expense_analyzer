@@ -73,6 +73,27 @@ public class TransactionService {
     private final MerchantNameService merchantNameService;
     private final UserMerchantAliasRepository aliasRepository;
 
+    /** Transactions per effective category id, counted as the list's category filter would find them. */
+    @Transactional // not readOnly: first access seeds the user's default categories
+    public Map<UUID, Long> categoryCounts(String email) {
+        UUID userId = currentUser(email).getId();
+        Resolution resolution = categoryResolver.forUser(userId);
+        List<Object[]> rows = transactionRepository.countByCategoryGroup(userId);
+        Map<UUID, Merchant> merchants = merchantRepository.findAllById(rows.stream().map(r -> (UUID) r[2])
+                        .filter(Objects::nonNull).collect(Collectors.toSet())).stream()
+                .collect(Collectors.toMap(Merchant::getId, Function.identity()));
+        Map<UUID, Long> counts = new HashMap<>();
+        for (Object[] r : rows) {
+            UUID merchantId = (UUID) r[2];
+            Category c = resolution.resolve((UUID) r[0], (UUID) r[1], merchantId, merchants.get(merchantId),
+                    "CREDIT".equals(r[3]));
+            if (c != null) {
+                counts.merge(c.getId(), (Long) r[4], Long::sum);
+            }
+        }
+        return counts;
+    }
+
     @Transactional // not readOnly: first access seeds the user's default categories
     public Page<TransactionResponse> list(String email, TransactionFilter f, Pageable pageable) {
         if (f.from() != null && f.to() != null && f.from().isAfter(f.to())) {

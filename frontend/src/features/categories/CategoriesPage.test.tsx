@@ -7,6 +7,7 @@ import { CategoriesPage } from './CategoriesPage'
 vi.mock('../../services/finance', async (orig) => ({
   ...(await orig<typeof import('../../services/finance')>()),
   listCategories: vi.fn(),
+  categoryCounts: vi.fn(),
   listPeople: vi.fn(),
   createCategory: vi.fn(),
   updateCategory: vi.fn(),
@@ -81,6 +82,7 @@ const loan = { id: 'c2', name: 'Loan', countsAsSpending: false }
 beforeEach(() => {
   vi.resetAllMocks()
   vi.mocked(finance.listCategories).mockResolvedValue([food, loan])
+  vi.mocked(finance.categoryCounts).mockResolvedValue({ c1: 12 })
   vi.mocked(finance.listPeople).mockResolvedValue([
     {
       id: 'p1',
@@ -101,6 +103,13 @@ describe('CategoriesPage', () => {
     expect((food as HTMLInputElement).checked).toBe(true)
     const loan = screen.getByRole('switch', { name: /Loan counts as spending/ })
     expect((loan as HTMLInputElement).checked).toBe(false)
+  })
+
+  it('links each category to its transactions with the count in brackets', async () => {
+    renderPage()
+    const foodLink = await screen.findByRole('link', { name: 'Food (12)' })
+    expect(foodLink.getAttribute('href')).toBe('/transactions?category=Food')
+    expect(screen.getByRole('link', { name: 'Loan (0)' })).toBeTruthy()
   })
 
   it('creates a category and shows it', async () => {

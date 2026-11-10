@@ -315,6 +315,9 @@ const PERSON_ERRORS = {
 }
 
 export const listCategories = () => getJson<Category[]>('/categories')
+/** Transactions per category id; a category with none is absent. */
+export const categoryCounts = () =>
+  getJson<Record<string, number>>('/transactions/category-counts')
 export const createCategory = (name: string, countsAsSpending: boolean) =>
   write<Category>(
     'POST',
