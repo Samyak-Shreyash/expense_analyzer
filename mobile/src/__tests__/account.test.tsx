@@ -34,6 +34,9 @@ jest.mock('@expense-analyzer/api-client', () => ({
 const showSection = (section: string) =>
   jest.mocked(useLocalSearchParams).mockReturnValue({ section })
 
+// The first test pays for loading the Modal and menu modules once; slow CI runners need more than 5 s.
+jest.setTimeout(20_000)
+
 beforeEach(() => jest.clearAllMocks())
 
 it('shows the name and a log out button, and opens account options', async () => {
