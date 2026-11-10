@@ -2,6 +2,7 @@ import Ionicons from '@expo/vector-icons/Ionicons'
 import { Tabs } from 'expo-router'
 import type { ComponentProps } from 'react'
 import type { ColorValue } from 'react-native'
+import { AccountMenu } from '../../components/AccountMenu'
 import { useColors } from '../../components/ui'
 
 type IconName = ComponentProps<typeof Ionicons>['name']
@@ -42,6 +43,7 @@ export default function TabLayout() {
         headerTintColor: c.ink,
         headerShadowVisible: false,
         sceneStyle: { backgroundColor: c.paper },
+        headerRight: () => <AccountMenu />,
       }}
     >
       <Tabs.Screen
@@ -59,10 +61,6 @@ export default function TabLayout() {
       <Tabs.Screen
         name="categories"
         options={{ title: 'Categories', tabBarIcon: icon('pricetags') }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{ title: 'Profile', tabBarIcon: icon('person-circle') }}
       />
     </Tabs>
   )

@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Profile } from '../../services/finance'
 import * as finance from '../../services/finance'
+import { MemoryRouter } from 'react-router'
 import { ProfilePage } from './ProfilePage'
 
 vi.mock('../auth/AuthContext', () => ({
@@ -27,7 +28,7 @@ describe('ProfilePage', () => {
   })
 
   it('shows the current details', async () => {
-    render(<ProfilePage />)
+    render(<ProfilePage />, { wrapper: MemoryRouter })
     expect(await screen.findByLabelText('Full name')).toHaveProperty(
       'value',
       'Alice',
@@ -41,7 +42,7 @@ describe('ProfilePage', () => {
     vi.mocked(finance.updateProfile).mockResolvedValue(
       profile({ fullName: 'Alice B' }),
     )
-    render(<ProfilePage />)
+    render(<ProfilePage />, { wrapper: MemoryRouter })
     fireEvent.change(await screen.findByLabelText('Full name'), {
       target: { value: 'Alice B' },
     })
@@ -59,7 +60,7 @@ describe('ProfilePage', () => {
 
   it('shows the error when saving fails', async () => {
     vi.mocked(finance.updateProfile).mockRejectedValue(new Error('Bad name.'))
-    render(<ProfilePage />)
+    render(<ProfilePage />, { wrapper: MemoryRouter })
     await screen.findByLabelText('Full name')
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
@@ -69,7 +70,7 @@ describe('ProfilePage', () => {
 
   it('shows an error when loading fails', async () => {
     vi.mocked(finance.getProfile).mockRejectedValue(new Error('x'))
-    render(<ProfilePage />)
+    render(<ProfilePage />, { wrapper: MemoryRouter })
     expect((await screen.findByRole('alert')).textContent).toMatch(
       /could not load/i,
     )

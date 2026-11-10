@@ -27,7 +27,7 @@ export function DeleteAccountSection() {
   }
 
   return (
-    <form className={styles.form} onSubmit={submit}>
+    <form id="delete-account" className={styles.form} onSubmit={submit}>
       <h2>Delete account</h2>
       <p className={shared.muted}>
         This deletes your account, statements and transactions and cannot be

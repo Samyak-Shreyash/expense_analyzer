@@ -1,12 +1,18 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
+import { useLocation } from 'react-router'
 import shared from '../../components/shared.module.css'
 import { getProfile, updateProfile, type Profile } from '../../services/finance'
+import { ChangePasswordSection } from './ChangePasswordSection'
 import { DeleteAccountSection } from './DeleteAccountSection'
 import styles from './ProfilePage.module.css'
 
-/** Shows the signed-in user's details and lets them edit name and preferences. */
+/** Fired after a save so the header can show the new name. */
+export const PROFILE_UPDATED = 'profile-updated'
+
+/** The signed-in user's details, preferences, password and account deletion; the URL hash picks the section. */
 export function ProfilePage() {
+  const { hash } = useLocation()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [loadError, setLoadError] = useState(false)
   const [fullName, setFullName] = useState('')
@@ -29,14 +35,32 @@ export function ProfilePage() {
     getProfile().then(show, () => setLoadError(true))
   }, [])
 
+  const loaded = profile !== null
+  useEffect(() => {
+    if (!loaded || !hash) return
+    const section = document.getElementById(hash.slice(1))
+    section?.scrollIntoView({ block: 'start' })
+    section
+      ?.querySelector<HTMLElement>('input, select')
+      ?.focus({ preventScroll: true })
+  }, [loaded, hash])
+
   async function save(e: FormEvent) {
     e.preventDefault()
     setSaving(true)
     setError(null)
     setSaved(false)
     try {
-      show(await updateProfile(fullName, { theme, currency, notifications }))
+      const updated = await updateProfile(fullName, {
+        theme,
+        currency,
+        notifications,
+      })
+      show(updated)
       setSaved(true)
+      window.dispatchEvent(
+        new CustomEvent(PROFILE_UPDATED, { detail: updated }),
+      )
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save that.')
     } finally {
@@ -54,7 +78,8 @@ export function ProfilePage() {
       )}
       {!profile && !loadError && <p className={shared.muted}>Loading...</p>}
       {profile && (
-        <form className={styles.form} onSubmit={save}>
+        <form id="details" className={styles.form} onSubmit={save}>
+          <h2>Your details</h2>
           <p className={shared.muted}>
             {profile.email} ({profile.role.toLowerCase()})
           </p>
@@ -68,37 +93,40 @@ export function ProfilePage() {
               onChange={(e) => setFullName(e.target.value)}
             />
           </label>
-          <label>
-            Theme
-            <select
-              className={styles.input}
-              value={theme}
-              onChange={(e) => setTheme(e.target.value)}
-            >
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
-            </select>
-          </label>
-          <label>
-            Currency
-            <select
-              className={styles.input}
-              value={currency}
-              onChange={(e) => setCurrency(e.target.value)}
-            >
-              <option value="inr">INR</option>
-              <option value="usd">USD</option>
-              <option value="eur">EUR</option>
-            </select>
-          </label>
-          <label>
-            <input
-              type="checkbox"
-              checked={notifications}
-              onChange={(e) => setNotifications(e.target.checked)}
-            />{' '}
-            Notifications
-          </label>
+          <fieldset id="preferences" className={styles.fieldset}>
+            <legend>Preferences</legend>
+            <label>
+              Theme
+              <select
+                className={styles.input}
+                value={theme}
+                onChange={(e) => setTheme(e.target.value)}
+              >
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+              </select>
+            </label>
+            <label>
+              Currency
+              <select
+                className={styles.input}
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value)}
+              >
+                <option value="inr">INR</option>
+                <option value="usd">USD</option>
+                <option value="eur">EUR</option>
+              </select>
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={notifications}
+                onChange={(e) => setNotifications(e.target.checked)}
+              />{' '}
+              Notifications
+            </label>
+          </fieldset>
           {error && (
             <p className={shared.error} role="alert">
               {error}
@@ -110,6 +138,7 @@ export function ProfilePage() {
           </button>
         </form>
       )}
+      {profile && <ChangePasswordSection />}
       {profile && <DeleteAccountSection />}
     </>
   )
