@@ -1,5 +1,8 @@
 package com.expenseanalyzer.processing.service;
 
+import com.expenseanalyzer.category.model.Category;
+import com.expenseanalyzer.category.service.CategoryService;
+import com.expenseanalyzer.category.service.EffectiveCategoryResolver;
 import com.expenseanalyzer.merchant.service.MerchantMatch;
 import com.expenseanalyzer.merchant.service.MerchantNormalizer;
 import com.expenseanalyzer.merchant.service.MerchantService;
@@ -85,6 +88,7 @@ public class StatementProcessor {
     private final PersonService personService;
     private final ParserLimits limits;
     private final TransferService transferService;
+    private final EffectiveCategoryResolver categoryResolver;
 
     public StatementProcessor(StatementRepository statementRepository, TransactionRepository transactionRepository,
                               ProcessedEventRepository processedEventRepository, S3StatementStorage storage,
@@ -93,6 +97,7 @@ public class StatementProcessor {
                               JsonMapper jsonMapper,
                               MerchantNormalizer merchantNormalizer, MerchantService merchantService,
                               PersonService personService, TransferService transferService,
+                              EffectiveCategoryResolver categoryResolver,
                               @Value("${app.parser.max-rows:50000}") int maxRows,
                               @Value("${app.parser.max-columns:50}") int maxColumns,
                               @Value("${app.parser.timeout:30s}") Duration timeout) {
@@ -109,6 +114,7 @@ public class StatementProcessor {
         this.merchantService = merchantService;
         this.personService = personService;
         this.transferService = transferService;
+        this.categoryResolver = categoryResolver;
         this.limits = new ParserLimits(maxRows, maxColumns, timeout);
     }
 
@@ -191,6 +197,7 @@ public class StatementProcessor {
             }
         });
         int merged = mergeUpiDuplicates(s, fresh);
+        markSelfAsTransfers(s.getUserId(), fresh);
         transactionRepository.saveAll(fresh);
         transferService.match(s.getUserId());
 
@@ -265,6 +272,25 @@ public class StatementProcessor {
         transactionRepository.deleteAll(replaced);
         transactionRepository.flush();
         return dropped.size() + replaced.size();
+    }
+
+    /**
+     * Rows whose effective category is the user's "Self" category (directly, or through their person or merchant)
+     * are money moved between the user's own accounts, so they are marked as transfers. Not a manual mark: the user
+     * can still unmark them.
+     */
+    private void markSelfAsTransfers(UUID userId, List<Transaction> fresh) {
+        EffectiveCategoryResolver.Resolution resolution = categoryResolver.forUser(userId);
+        Category self = resolution.named(CategoryService.SELF);
+        if (self == null) {
+            return;
+        }
+        fresh.stream().filter(t -> !t.isTransfer())
+                .filter(t -> {
+                    Category effective = resolution.resolve(t, null);
+                    return effective != null && self.getId().equals(effective.getId());
+                })
+                .forEach(t -> t.setTransfer(true));
     }
 
     /** Fills what {@code kept} lacks from {@code other}: the category, and the payee (merchant or person) as a pair. */

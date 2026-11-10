@@ -33,6 +33,8 @@ public class CategoryService {
 
     /** Default category for money in from a merchant. */
     public static final String REFUND = "Refund";
+    /** Money moved between the user's own accounts: imported rows that resolve to it are marked as transfers. */
+    public static final String SELF = "Self";
     private static final int MAX_NAME_LENGTH = 50;
     private static final List<String> NON_SPENDING_DEFAULTS = List.of("Repayment", "Loan");
 

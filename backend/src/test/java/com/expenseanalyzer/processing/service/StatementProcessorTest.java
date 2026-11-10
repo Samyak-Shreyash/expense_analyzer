@@ -1,5 +1,7 @@
 package com.expenseanalyzer.processing.service;
 
+import com.expenseanalyzer.category.model.Category;
+import com.expenseanalyzer.category.repository.CategoryRepository;
 import com.expenseanalyzer.merchant.model.Person;
 import com.expenseanalyzer.merchant.repository.MerchantRepository;
 import com.expenseanalyzer.merchant.repository.PersonPayeeRepository;
@@ -63,6 +65,8 @@ class StatementProcessorTest {
     private PersonRepository personRepository;
     @Autowired
     private PersonPayeeRepository personPayeeRepository;
+    @Autowired
+    private CategoryRepository categoryRepository;
 
     @MockitoBean
     private S3StatementStorage storage;
@@ -75,6 +79,7 @@ class StatementProcessorTest {
         merchantRepository.deleteAll();
         personPayeeRepository.deleteAll();
         personRepository.deleteAll();
+        categoryRepository.deleteAll();
     }
 
     private Statement queued(UUID userId) {
@@ -197,6 +202,32 @@ class StatementProcessorTest {
         fileContains(other, "Date,Description,Amount\n2026-01-02,UPI/P2A/412345678901/RAHUL SHARMA/HDFC BANK/rent,-1.00\n");
         processor.process(event(other));
         assertThat(personRepository.count()).isEqualTo(3);
+    }
+
+    @Test
+    void rowsWhosePersonIsCategorisedSelfAreImportedAsTransfers() {
+        UUID user = UUID.randomUUID();
+        Category self = categoryRepository.save(new Category(user, "Self", false));
+        Person me = new Person(user, "Rahul Sharma");
+        me.setCategoryId(self.getId());
+        personRepository.save(me);
+        Statement s = queued(user);
+        fileContains(s, """
+                Date,Description,Amount
+                2026-01-03,UPI/P2P/412345678902/rahul sharma/AXIS BANK/to savings,-500.00
+                2026-01-04,UPI/P2P/412345678903/ASHA RAO/AXIS BANK/dinner,-300.00
+                """);
+
+        processor.process(event(s));
+
+        List<Transaction> txns = transactionRepository.findByUserId(user);
+        assertThat(txns).filteredOn(t -> t.getRawDescription().contains("rahul sharma"))
+                .singleElement().satisfies(t -> {
+                    assertThat(t.isTransfer()).isTrue();
+                    assertThat(t.isTransferManual()).isFalse();
+                });
+        assertThat(txns).filteredOn(t -> t.getRawDescription().contains("ASHA RAO"))
+                .singleElement().satisfies(t -> assertThat(t.isTransfer()).isFalse());
     }
 
     @Test
