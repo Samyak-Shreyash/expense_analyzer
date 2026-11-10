@@ -315,17 +315,59 @@ describe('CategoriesPage', () => {
 
   describe('merchant names', () => {
     const open = () => renderPage('/categories?tab=merchant-names')
+    // Each merchant's details are collapsed until its name is clicked.
+    const openExpanded = async () => {
+      open()
+      for (const merchant of await screen.findAllByRole('button', {
+        expanded: false,
+      }))
+        fireEvent.click(merchant)
+    }
     const shareSwitch = () =>
       screen.findByRole('switch', {
         name: 'Share my merchant names to improve suggestions for other users',
       }) as Promise<HTMLInputElement>
+
+    it('shows one summary row per merchant and its options only when opened', async () => {
+      vi.mocked(finance.listMerchantNames).mockResolvedValue(names())
+      open()
+      const acmeButton = await screen.findByRole('button', {
+        name: 'Acme Store',
+      })
+      expect(acmeButton.getAttribute('aria-expanded')).toBe('false')
+      expect(
+        screen.queryByRole('combobox', { name: 'Move ACME STORE to merchant' }),
+      ).toBeNull()
+      expect(
+        screen.queryByRole('checkbox', { name: 'Share Acme Store' }),
+      ).toBeNull()
+
+      fireEvent.click(acmeButton)
+      expect(acmeButton.getAttribute('aria-expanded')).toBe('true')
+      expect(
+        screen.getByRole('combobox', { name: 'Move ACME STORE to merchant' }),
+      ).toBeTruthy()
+      expect(
+        screen.getByRole('combobox', {
+          name: 'Money out default for Acme Store',
+        }),
+      ).toBeTruthy()
+      expect(
+        screen.queryByRole('combobox', { name: 'Move BETA MART to merchant' }),
+      ).toBeNull()
+
+      fireEvent.click(acmeButton)
+      expect(
+        screen.queryByRole('combobox', { name: 'Move ACME STORE to merchant' }),
+      ).toBeNull()
+    })
 
     it('renames a merchant name inline', async () => {
       vi.mocked(finance.listMerchantNames).mockResolvedValue(names())
       vi.mocked(finance.renameMerchantName).mockResolvedValue(
         names({ items: [{ ...acme, name: 'Acme Mart' }, beta, rahul] }),
       )
-      open()
+      await openExpanded()
       fireEvent.click(
         await screen.findByRole('button', {
           name: 'Rename merchant Acme Store',
@@ -354,7 +396,7 @@ describe('CategoriesPage', () => {
           ],
         }),
       )
-      open()
+      await openExpanded()
       fireEvent.change(
         await screen.findByRole('combobox', {
           name: 'Move BETA MART to merchant',
@@ -375,7 +417,7 @@ describe('CategoriesPage', () => {
     it('shows and sets a merchant default category', async () => {
       vi.mocked(finance.listMerchantNames).mockResolvedValue(names())
       vi.mocked(finance.setMerchantCategory).mockResolvedValue(null)
-      open()
+      await openExpanded()
       const select = (await screen.findByRole('combobox', {
         name: 'Money out default for Acme Store',
       })) as HTMLSelectElement
@@ -398,7 +440,7 @@ describe('CategoriesPage', () => {
 
     it('is off by default with every row disabled', async () => {
       vi.mocked(finance.listMerchantNames).mockResolvedValue(names())
-      open()
+      await openExpanded()
       expect((await shareSwitch()).checked).toBe(false)
       const box = screen.getByRole('checkbox', {
         name: 'Share Acme Store',
@@ -416,7 +458,7 @@ describe('CategoriesPage', () => {
       vi.mocked(finance.setMerchantNameSharing).mockResolvedValue(
         names({ shareMerchantNames: true }),
       )
-      open()
+      await openExpanded()
       fireEvent.click(await shareSwitch())
       expect(screen.getByText('2 names will be shared.')).toBeTruthy()
       const cancel = screen.getByRole('button', { name: 'Cancel' })
@@ -446,7 +488,7 @@ describe('CategoriesPage', () => {
         ...acme,
         optedOut: true,
       })
-      open()
+      await openExpanded()
       const box = (await screen.findByRole('checkbox', {
         name: 'Share Acme Store',
       })) as HTMLInputElement
@@ -468,7 +510,7 @@ describe('CategoriesPage', () => {
           ],
         }),
       )
-      open()
+      await openExpanded()
       const box = (await screen.findByRole('checkbox', {
         name: 'Share Rahul Shop',
       })) as HTMLInputElement
@@ -494,7 +536,7 @@ describe('CategoriesPage', () => {
         optedOut: true,
         reported: true,
       })
-      open()
+      await openExpanded()
       expect(await screen.findByText('Reported')).toBeTruthy()
       const box = screen.getByRole('checkbox', {
         name: 'Unshare Acme Store',
@@ -525,7 +567,7 @@ describe('CategoriesPage', () => {
           items: [acme, { ...beta, shared: true }],
         }),
       )
-      open()
+      await openExpanded()
       const a = (await screen.findByRole('checkbox', {
         name: 'Share Acme Store',
       })) as HTMLInputElement
@@ -540,7 +582,7 @@ describe('CategoriesPage', () => {
       vi.mocked(finance.listMerchantNames).mockResolvedValue(
         names({ sharingRevoked: true }),
       )
-      open()
+      await openExpanded()
       expect((await shareSwitch()).disabled).toBe(true)
       expect(
         screen.getByText(/Sharing has been turned off for your account/),
