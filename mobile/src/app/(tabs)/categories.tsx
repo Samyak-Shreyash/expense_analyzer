@@ -1,9 +1,11 @@
 import {
+  categoryCounts,
   createCategory,
   deleteCategory,
   listCategories,
 } from '@expense-analyzer/api-client'
-import { useState } from 'react'
+import { router } from 'expo-router'
+import { useEffect, useState } from 'react'
 import { Alert, FlatList, Switch, Text, View } from 'react-native'
 import {
   Button,
@@ -24,6 +26,12 @@ export default function Categories() {
   const [name, setName] = useState('')
   const [spending, setSpending] = useState(true)
   const [saveError, setSaveError] = useState<string | null>(null)
+  // Transactions per category id; null until loaded (names show without counts).
+  const [counts, setCounts] = useState<Record<string, number> | null>(null)
+
+  useEffect(() => {
+    if (!loading) categoryCounts().then(setCounts, () => {})
+  }, [loading])
 
   async function run(task: () => Promise<unknown>) {
     setSaveError(null)
@@ -97,8 +105,20 @@ export default function Categories() {
         renderItem={({ item: cat, index }) => (
           <Row
             first={index === 0}
-            left={cat.name}
+            left={counts ? `${cat.name} (${counts[cat.id] ?? 0})` : cat.name}
             sub={cat.countsAsSpending ? undefined : 'Not counted as spending'}
+            accessibilityLabel={
+              counts
+                ? `${cat.name}, ${counts[cat.id] ?? 0} transactions`
+                : cat.name
+            }
+            accessibilityHint="Shows its transactions"
+            onPress={() =>
+              router.push({
+                pathname: '/transactions',
+                params: { category: cat.name },
+              })
+            }
             action={
               <TextAction
                 title="Delete"

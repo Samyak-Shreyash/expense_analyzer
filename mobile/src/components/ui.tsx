@@ -60,6 +60,9 @@ export function Row({
   first,
   rightStyle,
   action,
+  onPress,
+  accessibilityLabel,
+  accessibilityHint,
 }: {
   left: string
   right?: string
@@ -68,16 +71,38 @@ export function Row({
   first?: boolean
   rightStyle?: object
   action?: ReactNode
+  /** Makes the text part of the row a link. */
+  onPress?: () => void
+  accessibilityLabel?: string
+  accessibilityHint?: string
 }) {
   const styles = useStyles()
+  const text = (
+    <>
+      <Text style={styles.rowText} numberOfLines={1}>
+        {left}
+      </Text>
+      {sub ? <Text style={styles.muted}>{sub}</Text> : null}
+    </>
+  )
   return (
     <View style={[styles.row, !first && styles.divider]}>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.rowText} numberOfLines={1}>
-          {left}
-        </Text>
-        {sub ? <Text style={styles.muted}>{sub}</Text> : null}
-      </View>
+      {onPress ? (
+        <Pressable
+          style={({ pressed }) => [
+            { flex: 1, minHeight: TOUCH, justifyContent: 'center' },
+            pressed && { opacity: 0.6 },
+          ]}
+          accessibilityRole="link"
+          accessibilityLabel={accessibilityLabel}
+          accessibilityHint={accessibilityHint}
+          onPress={onPress}
+        >
+          {text}
+        </Pressable>
+      ) : (
+        <View style={{ flex: 1 }}>{text}</View>
+      )}
       {right ? (
         <Text style={[styles.amount, { color: styles.text.color }, rightStyle]}>
           {right}
