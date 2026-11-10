@@ -4,12 +4,13 @@ import {
   deleteCategory,
   listCategories,
 } from '@expense-analyzer/api-client'
-import { router } from 'expo-router'
+import { router, useLocalSearchParams } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { Alert, FlatList, Switch, Text, View } from 'react-native'
 import {
   Button,
   Card,
+  Chip,
   ErrorText,
   Field,
   Row,
@@ -17,12 +18,24 @@ import {
   useColors,
   useStyles,
 } from '../../components/ui'
+import { MerchantNames } from '../../features/categories/MerchantNames'
+import { People } from '../../features/categories/People'
 import { useLoad } from '../../lib/useLoad'
+
+const TABS = [
+  { id: 'categories', label: 'Categories' },
+  { id: 'people', label: 'People' },
+  { id: 'merchant-names', label: 'Merchant names' },
+] as const
+type Tab = (typeof TABS)[number]['id']
 
 export default function Categories() {
   const styles = useStyles()
   const c = useColors()
   const { data, error, loading, reload } = useLoad(listCategories)
+  // Same ?tab= values as the web page.
+  const param = useLocalSearchParams<{ tab?: string }>().tab
+  const tab: Tab = TABS.find((t) => t.id === param)?.id ?? 'categories'
   const [name, setName] = useState('')
   const [spending, setSpending] = useState(true)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -58,8 +71,36 @@ export default function Categories() {
     )
   }
 
+  const tabs = (
+    <View style={styles.chipRow} accessibilityRole="tablist">
+      {TABS.map((t) => (
+        <Chip
+          key={t.id}
+          label={t.label}
+          selected={tab === t.id}
+          onPress={() => router.setParams({ tab: t.id })}
+        />
+      ))}
+    </View>
+  )
+
+  if (tab !== 'categories')
+    return (
+      <View style={[styles.screen, { paddingBottom: 0 }]}>
+        {tabs}
+        {error && <ErrorText>{error}</ErrorText>}
+        {data &&
+          (tab === 'people' ? (
+            <People categories={data} />
+          ) : (
+            <MerchantNames categories={data} />
+          ))}
+      </View>
+    )
+
   return (
     <View style={[styles.screen, { paddingBottom: 0 }]}>
+      {tabs}
       <Card style={{ paddingVertical: 16, gap: 12 }}>
         <Field
           label="New category name"
