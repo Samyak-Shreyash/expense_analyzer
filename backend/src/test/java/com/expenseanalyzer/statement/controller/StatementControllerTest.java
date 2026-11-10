@@ -1,5 +1,6 @@
 package com.expenseanalyzer.statement.controller;
 
+import com.expenseanalyzer.processing.parser.pdf.GPayPdf;
 import com.expenseanalyzer.auth.dto.JwtTokenProvider;
 import com.expenseanalyzer.messaging.model.OutboxEvent;
 import com.expenseanalyzer.messaging.repository.OutboxEventRepository;
@@ -182,6 +183,41 @@ class StatementControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.reason").value("UNSUPPORTED_EXTENSION"));
         assertThat(statementRepository.count()).isZero();
+    }
+
+    @Test
+    void sourceDefaultsToBankAndGooglePayIsStored() throws Exception {
+        mockMvc.perform(multipart("/api/statements").file(csv(CSV)).header("Authorization", bearer(ALICE)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.source").value("BANK"));
+
+        MockMultipartFile pdf = new MockMultipartFile("file", "gpay.pdf", "application/pdf",
+                GPayPdf.of("01 May, 2026 Paid to CRED 285", "01:18 PM UPI Transaction ID: 612147423475"));
+        mockMvc.perform(multipart("/api/statements").file(pdf)
+                        .file(new MockMultipartFile("source", "", "text/plain", "gpay".getBytes(StandardCharsets.UTF_8)))
+                        .header("Authorization", bearer(ALICE)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.source").value("GPAY"));
+    }
+
+    @Test
+    void googlePaySourceNeedsAPdf() throws Exception {
+        mockMvc.perform(multipart("/api/statements").file(csv(CSV))
+                        .file(new MockMultipartFile("source", "", "text/plain", "GPAY".getBytes(StandardCharsets.UTF_8)))
+                        .header("Authorization", bearer(ALICE)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.reason").value("UNSUPPORTED_EXTENSION"));
+        assertThat(statementRepository.count()).isZero();
+    }
+
+    @Test
+    void unknownSourceIsRejected() throws Exception {
+        mockMvc.perform(multipart("/api/statements").file(csv(CSV))
+                        .file(new MockMultipartFile("source", "", "text/plain", "PAYTM".getBytes(StandardCharsets.UTF_8)))
+                        .header("Authorization", bearer(ALICE)))
+                .andExpect(status().isBadRequest());
+        assertThat(statementRepository.count()).isZero();
+        verify(storage, never()).store(anyString(), any(), anyLong(), anyString());
     }
 
     @Test

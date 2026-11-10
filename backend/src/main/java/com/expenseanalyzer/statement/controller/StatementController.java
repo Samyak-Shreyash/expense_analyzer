@@ -3,7 +3,9 @@ package com.expenseanalyzer.statement.controller;
 import com.expenseanalyzer.common.dto.PageResponse;
 import com.expenseanalyzer.statement.dto.StatementResponse;
 import com.expenseanalyzer.statement.dto.StatementStatusResponse;
+import com.expenseanalyzer.statement.model.StatementSource;
 import com.expenseanalyzer.statement.service.StatementService;
+import java.util.Locale;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -22,6 +24,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 /** Statement upload and owner-scoped metadata. Another user's statement answers 404, never 403. */
 @RequiredArgsConstructor
@@ -37,9 +40,22 @@ public class StatementController {
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<StatementResponse> upload(@AuthenticationPrincipal Jwt jwt,
                                                     @RequestPart("file") MultipartFile file,
-                                                    @RequestPart(value = "password", required = false) String password) {
+                                                    @RequestPart(value = "password", required = false) String password,
+                                                    @RequestPart(value = "source", required = false) String source) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(StatementResponse.from(statementService.upload(jwt.getSubject(), file, password)));
+                .body(StatementResponse.from(statementService.upload(jwt.getSubject(), file, password, source(source))));
+    }
+
+    /** The app the user picked; a bank statement when omitted. */
+    private static StatementSource source(String value) {
+        if (value == null || value.isBlank()) {
+            return StatementSource.BANK;
+        }
+        try {
+            return StatementSource.valueOf(value.trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown statement source");
+        }
     }
 
     @GetMapping

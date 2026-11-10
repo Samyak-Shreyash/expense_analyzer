@@ -82,6 +82,9 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
             + "WHERE t.userId = :userId AND t.transfer = TRUE AND t.date >= :from AND t.date < :to GROUP BY t.type")
     List<Object[]> sumTransfersByDirection(UUID userId, Instant from, Instant to);
 
+    /** The user's rows carrying any of these UPI references (a bank row and a UPI app row share one). */
+    List<Transaction> findByUserIdAndUpiRefIn(UUID userId, Collection<String> upiRefs);
+
     /** Ownership-scoped lookup: another user's transaction is indistinguishable from a missing one. */
     Optional<Transaction> findByIdAndUserId(UUID id, UUID userId);
 

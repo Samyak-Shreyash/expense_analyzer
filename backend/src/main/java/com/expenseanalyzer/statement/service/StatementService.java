@@ -8,6 +8,7 @@ import com.expenseanalyzer.messaging.service.OutboxService;
 import com.expenseanalyzer.common.exception.InvalidFileException.Reason;
 import com.expenseanalyzer.statement.model.Statement;
 import com.expenseanalyzer.statement.model.StatementFormat;
+import com.expenseanalyzer.statement.model.StatementSource;
 import com.expenseanalyzer.statement.model.StatementStatus;
 import com.expenseanalyzer.statement.repository.StatementRepository;
 import com.expenseanalyzer.transaction.repository.TransactionRepository;
@@ -70,11 +71,14 @@ public class StatementService {
      * A storage failure rolls the metadata back. Queues processing via the outbox.
      */
     @Transactional
-    public Statement upload(String email, MultipartFile file, String password) {
+    public Statement upload(String email, MultipartFile file, String password, StatementSource source) {
         User user = currentUser(email);
         rateLimiter.checkUpload(user.getId());
         validator.validate(file.getOriginalFilename(), file.getContentType(), file.getSize(), head(file));
         StatementFormat format = format(file.getOriginalFilename());
+        if (source == StatementSource.GPAY && format != StatementFormat.PDF) {
+            throw new InvalidFileException(Reason.UNSUPPORTED_EXTENSION, "Google Pay statements must be PDF files");
+        }
         String hash = sha256(file);
 
         Optional<Statement> existing = statementRepository.findByUserIdAndFileHash(user.getId(), hash);
@@ -89,6 +93,7 @@ public class StatementService {
         s.setFileName(file.getOriginalFilename());
         s.setFileHash(hash);
         s.setFormat(format);
+        s.setSource(source);
         s.setStatus(StatementStatus.UPLOADED);
         s.onCreate();
         s = statementRepository.saveAndFlush(s);

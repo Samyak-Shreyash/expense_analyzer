@@ -16,6 +16,7 @@ const statement = (over: Partial<Statement> = {}): Statement => ({
   id: 's1',
   fileName: 'jan.csv',
   format: 'CSV',
+  source: 'BANK',
   status: 'COMPLETED',
   processingError: null,
   createdAt: '2026-01-31T10:00:00Z',
@@ -79,6 +80,30 @@ describe('StatementsPage', () => {
     expect(screen.getByText('Processing')).toBeTruthy()
   })
 
+  it('sends the chosen app and limits Google Pay to PDF files', async () => {
+    vi.mocked(finance.uploadStatement).mockResolvedValue({
+      ok: true,
+      statement: statement({ source: 'GPAY' }),
+    })
+    renderPage()
+    const picker = screen.getByLabelText(/choose a file/i)
+    expect(picker.getAttribute('accept')).toBe('.csv,.xls,.xlsx,.pdf')
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Google Pay' }))
+    expect(picker.getAttribute('accept')).toBe('.pdf')
+    const pdf = new File(['%PDF-1.7'], 'gpay.pdf', { type: 'application/pdf' })
+    choose(pdf)
+
+    await waitFor(() =>
+      expect(finance.uploadStatement).toHaveBeenLastCalledWith(
+        pdf,
+        expect.any(Function),
+        undefined,
+        'GPAY',
+      ),
+    )
+  })
+
   it('asks for the password of a protected PDF and retries with it', async () => {
     vi.mocked(finance.uploadStatement)
       .mockResolvedValueOnce({
@@ -101,6 +126,7 @@ describe('StatementsPage', () => {
         pdf,
         expect.any(Function),
         '1234',
+        'BANK',
       ),
     )
     await waitFor(() =>
