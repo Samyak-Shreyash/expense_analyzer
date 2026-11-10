@@ -1,10 +1,20 @@
 import { getCategories, getSummary } from '@expense-analyzer/api-client'
 import { RefreshControl, ScrollView, Text, View } from 'react-native'
-import { ErrorText, Row, styles, Title } from '../../components/ui'
+import {
+  Card,
+  ErrorText,
+  Heading,
+  Row,
+  Title,
+  useColors,
+  useStyles,
+} from '../../components/ui'
 import { monthRange, rupees } from '../../lib/format'
 import { useLoad } from '../../lib/useLoad'
 
 export default function Dashboard() {
+  const styles = useStyles()
+  const c = useColors()
   const { data, error, loading, reload } = useLoad(async () => {
     const { from, to } = monthRange()
     const [summary, categories] = await Promise.all([
@@ -18,40 +28,58 @@ export default function Dashboard() {
     <ScrollView
       contentContainerStyle={styles.screen}
       refreshControl={
-        <RefreshControl refreshing={loading} onRefresh={reload} />
+        <RefreshControl
+          refreshing={loading}
+          onRefresh={reload}
+          tintColor={c.ledger}
+          colors={[c.ledger]}
+        />
       }
     >
       <Title>This month</Title>
       {error && <ErrorText>{error}</ErrorText>}
       {data && (
         <>
-          <View style={{ flexDirection: 'row', gap: 16, marginBottom: 16 }}>
-            <Figure
-              label="Money in"
-              value={data.summary.inflow}
-              style={styles.credit}
-            />
-            <Figure
-              label="Money out"
-              value={data.summary.outflow}
-              style={styles.debit}
-            />
-            <Figure label="Net" value={data.summary.net} />
-          </View>
-          <Text style={[styles.title, { fontSize: 18 }]}>
-            Spending by category
-          </Text>
-          {data.categories.items.length === 0 ? (
-            <Text style={styles.muted}>No spending yet this month.</Text>
-          ) : (
-            data.categories.items.map((c) => (
-              <Row
-                key={c.category}
-                left={c.category}
-                sub={`${c.transactionCount} transactions`}
-                right={rupees(c.spend)}
+          <View
+            style={{
+              backgroundColor: c.ledgerTint,
+              borderRadius: 12,
+              padding: 16,
+              gap: 12,
+            }}
+          >
+            <Figure label="Net" value={data.summary.net} large />
+            <View style={{ flexDirection: 'row', gap: 16 }}>
+              <Figure
+                label="Money in"
+                value={data.summary.inflow}
+                color={c.ledger}
               />
-            ))
+              <Figure
+                label="Money out"
+                value={data.summary.outflow}
+                color={c.debit}
+              />
+            </View>
+          </View>
+          <Heading>Spending by category</Heading>
+          {data.categories.items.length === 0 ? (
+            <Text style={styles.muted}>
+              No spending yet this month. Upload a statement to see where your
+              money goes.
+            </Text>
+          ) : (
+            <Card>
+              {data.categories.items.map((cat, i) => (
+                <Row
+                  key={cat.category}
+                  first={i === 0}
+                  left={cat.category}
+                  sub={`${cat.transactionCount} transactions`}
+                  right={rupees(cat.spend)}
+                />
+              ))}
+            </Card>
           )}
         </>
       )}
@@ -62,16 +90,28 @@ export default function Dashboard() {
 function Figure({
   label,
   value,
-  style,
+  color,
+  large,
 }: {
   label: string
   value: number
-  style?: object
+  color?: string
+  large?: boolean
 }) {
+  const styles = useStyles()
   return (
     <View style={{ flex: 1 }}>
       <Text style={styles.muted}>{label}</Text>
-      <Text style={[{ fontSize: 17, fontWeight: '700' }, style]}>
+      <Text
+        style={{
+          fontSize: large ? 30 : 18,
+          fontWeight: '700',
+          fontVariant: ['tabular-nums'],
+          color: color ?? styles.text.color,
+        }}
+        adjustsFontSizeToFit
+        numberOfLines={1}
+      >
         {rupees(value)}
       </Text>
     </View>

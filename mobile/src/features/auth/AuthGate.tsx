@@ -13,14 +13,14 @@ import {
   useRef,
   useState,
 } from 'react'
+import { AppState, ScrollView, StyleSheet, Text } from 'react-native'
 import {
-  AppState,
   Button,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native'
+  ErrorText as Alert,
+  Field as LabelledInput,
+  useColors,
+  useStyles,
+} from '../../components/ui'
 import { secureTokens, startApiClient } from '../../services/api'
 import { shouldLock } from '../../services/appLock'
 import { appLock, unlockWithBiometrics } from '../../services/deviceLock'
@@ -125,35 +125,24 @@ function Field(props: {
   email?: boolean
 }) {
   return (
-    <View>
-      <Text>{props.label}</Text>
-      <TextInput
-        style={styles.input}
-        accessibilityLabel={props.label}
-        value={props.value}
-        onChangeText={props.onChange}
-        secureTextEntry={props.secure}
-        autoCapitalize="none"
-        autoCorrect={false}
-        keyboardType={
-          props.numeric
-            ? 'number-pad'
-            : props.email
-              ? 'email-address'
-              : 'default'
-        }
-      />
-    </View>
+    <LabelledInput
+      label={props.label}
+      value={props.value}
+      onChangeText={props.onChange}
+      secureTextEntry={props.secure}
+      autoCapitalize="none"
+      autoCorrect={false}
+      autoComplete={props.email ? 'email' : props.numeric ? 'off' : 'password'}
+      keyboardType={
+        props.numeric ? 'number-pad' : props.email ? 'email-address' : 'default'
+      }
+    />
   )
 }
 
 function ErrorText({ message }: { message: string | null }) {
   if (!message) return null
-  return (
-    <Text accessibilityRole="alert" role="alert" style={styles.error}>
-      {message}
-    </Text>
-  )
+  return <Alert>{message}</Alert>
 }
 
 function AuthForm({ onSignedIn }: { onSignedIn: () => Promise<void> }) {
@@ -195,23 +184,24 @@ function AuthForm({ onSignedIn }: { onSignedIn: () => Promise<void> }) {
   }
 
   return (
-    <View style={styles.form}>
+    <Form title={registering ? 'Create your account' : 'Welcome back'}>
       <Field label="Email" value={email} onChange={setEmail} email />
       <Field label="Password" value={password} onChange={setPassword} secure />
       <ErrorText message={error} />
       <Button
         title={registering ? 'Register' : 'Log in'}
-        disabled={busy}
+        busy={busy}
         onPress={submit}
       />
       <Button
+        variant="secondary"
         title={registering ? 'I have an account' : 'Create an account'}
         onPress={() => {
           setRegistering(!registering)
           setError(null)
         }}
       />
-    </View>
+    </Form>
   )
 }
 
@@ -220,11 +210,11 @@ function LockSetup({ onDone }: { onDone: () => void }) {
   const [error, setError] = useState<string | null>(null)
 
   return (
-    <View style={styles.form}>
-      <Text>
+    <Form title="Protect this device">
+      <Muted>
         Choose a PIN of at least 6 digits to protect your data on this device.
         You can also unlock with biometrics if your device has them set up.
-      </Text>
+      </Muted>
       <Field label="New PIN" value={pin} onChange={setPin} secure numeric />
       <ErrorText message={error} />
       <Button
@@ -235,7 +225,7 @@ function LockSetup({ onDone }: { onDone: () => void }) {
           })
         }
       />
-    </View>
+    </Form>
   )
 }
 
@@ -268,17 +258,53 @@ function Unlock(props: { onOpen: () => void; onGiveUp: () => Promise<void> }) {
   }
 
   return (
-    <View style={styles.form}>
+    <Form title="Unlock">
       <Field label="PIN" value={pin} onChange={setPin} secure numeric />
       <ErrorText message={error} />
       <Button title="Unlock" onPress={submit} />
-      <Button title="Forgot PIN? Log in again" onPress={onGiveUp} />
-    </View>
+      <Button
+        variant="secondary"
+        title="Forgot PIN? Log in again"
+        onPress={onGiveUp}
+      />
+    </Form>
   )
 }
 
+/** Centred column shared by the sign-in, PIN setup and unlock screens. */
+function Form({ title, children }: { title: string; children: ReactNode }) {
+  const ui = useStyles()
+  const c = useColors()
+  return (
+    <ScrollView
+      style={{ backgroundColor: c.paper }}
+      contentContainerStyle={styles.form}
+      keyboardShouldPersistTaps="handled"
+    >
+      <Text style={[styles.wordmark, { color: c.ledger }]}>
+        Expense Analyzer
+      </Text>
+      <Text style={ui.title} accessibilityRole="header">
+        {title}
+      </Text>
+      {children}
+    </ScrollView>
+  )
+}
+
+function Muted({ children }: { children: ReactNode }) {
+  return <Text style={useStyles().muted}>{children}</Text>
+}
+
 const styles = StyleSheet.create({
-  form: { flex: 1, justifyContent: 'center', gap: 12, padding: 24 },
-  input: { borderWidth: 1, borderRadius: 6, padding: 10, marginTop: 4 },
-  error: { color: '#b00020' },
+  form: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    gap: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 440,
+    alignSelf: 'center',
+  },
+  wordmark: { fontSize: 14, fontWeight: '700' },
 })
