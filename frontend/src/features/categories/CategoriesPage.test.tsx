@@ -237,6 +237,8 @@ describe('CategoriesPage', () => {
     })
     renderPage()
     fireEvent.click(await screen.findByRole('tab', { name: 'People' }))
+    expect(screen.queryByLabelText('Money out default for Ravi')).toBeNull()
+    fireEvent.click(await screen.findByRole('button', { name: 'Ravi' }))
     fireEvent.change(
       await screen.findByLabelText('Money out default for Ravi'),
       {
@@ -275,6 +277,10 @@ describe('CategoriesPage', () => {
     ])
     vi.mocked(finance.movePayee).mockResolvedValue([ravi, raviK])
     renderPage('/categories?tab=people')
+    for (const person of await screen.findAllByRole('button', {
+      expanded: false,
+    }))
+      fireEvent.click(person)
     fireEvent.change(
       await screen.findByRole('combobox', { name: 'Merge Ravi K into' }),
       { target: { value: 'p1' } },
