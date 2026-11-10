@@ -1,5 +1,13 @@
 package com.expenseanalyzer.transaction.controller;
 
+import java.util.stream.Collectors;
+
+import java.util.Map;
+
+import com.expenseanalyzer.category.repository.CategoryRepository;
+
+import com.expenseanalyzer.category.model.Category;
+
 import com.expenseanalyzer.auth.dto.JwtTokenProvider;
 import com.expenseanalyzer.merchant.model.Merchant;
 import com.expenseanalyzer.merchant.model.Person;
@@ -51,6 +59,8 @@ class TransactionControllerTest {
     private TransactionRepository transactionRepository;
     @Autowired
     private MerchantRepository merchantRepository;
+    @Autowired
+    private CategoryRepository categoryRepository;
     @Autowired
     private PersonRepository personRepository;
     @Autowired
@@ -237,6 +247,21 @@ class TransactionControllerTest {
         mockMvc.perform(get("/api/transactions").param("category", "Uncategorized")
                         .param("from", "2026-02-01").header("Authorization", token))
                 .andExpect(jsonPath("$.items[*].description", containsInAnyOrder("Rent", "Unknown shop")));
+    }
+
+    @Test
+    void countsTransactionsPerEffectiveCategoryForTheOwnerOnly() throws Exception {
+        UUID food = merchantRepository.save(new Merchant("Swiggy", "Food & Dining")).getId();
+        save(alice, "Pizza", "10.00", "2026-01-10", "DEBIT", null, food);
+        save(alice, "Pasta", "10.00", "2026-01-11", "DEBIT", null, food);
+        save(bob, "Bob pizza", "10.00", "2026-01-10", "DEBIT", null, food);
+
+        mockMvc.perform(get("/api/transactions/category-counts").header("Authorization", bearer(ALICE)))
+                .andExpect(status().isOk());
+        Map<String, UUID> ids = categoryRepository.findByUserIdOrderByNameAsc(alice).stream()
+                .collect(Collectors.toMap(Category::getName, Category::getId));
+        mockMvc.perform(get("/api/transactions/category-counts").header("Authorization", bearer(ALICE)))
+                .andExpect(jsonPath("$['" + ids.get("Food & Dining") + "']").value(2)); // not Bob's
     }
 
     @Test

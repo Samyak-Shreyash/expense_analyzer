@@ -12,6 +12,7 @@ import com.expenseanalyzer.transaction.model.TransactionDirection;
 import com.expenseanalyzer.transaction.service.TransactionService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -63,6 +64,12 @@ public class TransactionController {
                 category, transfer, personId, reversalPending);
         PageRequest pageable = PageRequest.of(Math.max(page, 0), Math.clamp(size, 1, MAX_PAGE_SIZE), NEWEST_FIRST);
         return PageResponse.of(transactionService.list(jwt.getSubject(), filter, pageable), r -> r);
+    }
+
+    /** Transaction count per category id; categories with none are left out. */
+    @GetMapping("/category-counts")
+    public Map<UUID, Long> categoryCounts(@AuthenticationPrincipal Jwt jwt) {
+        return transactionService.categoryCounts(jwt.getSubject());
     }
 
     @GetMapping("/{id}")

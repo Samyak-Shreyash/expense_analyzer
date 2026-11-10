@@ -1,9 +1,10 @@
 import { Fragment, useEffect, useState } from 'react'
 import type { FormEvent, KeyboardEvent } from 'react'
 import { flushSync } from 'react-dom'
-import { useSearchParams } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import shared from '../../components/shared.module.css'
 import {
+  categoryCounts,
   createCategory,
   deleteCategory,
   listCategories,
@@ -60,6 +61,8 @@ export function CategoriesPage() {
     })
   const [newName, setNewName] = useState('')
   const [newCounts, setNewCounts] = useState(true)
+  // Transactions per category id; null until loaded (or if that fails, names show without counts).
+  const [counts, setCounts] = useState<Record<string, number> | null>(null)
 
   useEffect(() => {
     let live = true
@@ -70,6 +73,9 @@ export function CategoriesPage() {
         setPeople(p)
       })
       .catch(() => live && setLoadError(true))
+    categoryCounts()
+      .then((n) => live && setCounts(n))
+      .catch(() => {})
     return () => {
       live = false
     }
@@ -265,7 +271,18 @@ export function CategoriesPage() {
                             )
                           }, setCategoryError)
                         }
-                      />
+                      >
+                        <Link
+                          to={`/transactions?category=${encodeURIComponent(c.name)}`}
+                        >
+                          {counts ? `${c.name} ` : c.name}
+                          {counts && (
+                            <span className={shared.muted}>
+                              ({counts[c.id] ?? 0})
+                            </span>
+                          )}
+                        </Link>
+                      </EditableName>
                     </td>
                     <td>
                       <label className={styles.check}>

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { FormEvent } from 'react'
+import type { FormEvent, ReactNode } from 'react'
 import { flushSync } from 'react-dom'
 import shared from '../../components/shared.module.css'
 import styles from './CategoriesPage.module.css'
@@ -10,11 +10,14 @@ export function EditableName({
   name,
   label,
   onSave,
+  children = name,
 }: {
   id: string
   name: string
   label: string
   onSave: (name: string) => Promise<void>
+  /** What to show for the name when not editing; defaults to the name. */
+  children?: ReactNode
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(name)
@@ -38,7 +41,7 @@ export function EditableName({
   if (!editing) {
     return (
       <span className={styles.name}>
-        {name}
+        {children}
         <button
           type="button"
           id={buttonId}
