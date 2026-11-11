@@ -14,6 +14,7 @@ import {
   type Category,
   type Transaction,
 } from '../../services/finance'
+import { LoanSection } from './LoanSection'
 import styles from './TransactionsPage.module.css'
 
 const PICK = ''
@@ -273,6 +274,8 @@ export function TransactionActions({
           {t.duplicate ? 'Not a duplicate' : 'Mark as duplicate'}
         </button>
       </div>
+
+      <LoanSection t={t} save={save} reload={reload} />
 
       <div className={styles.bulk}>
         <span className={shared.label}>Failed payment and refund</span>
