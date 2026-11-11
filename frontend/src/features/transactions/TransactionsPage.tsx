@@ -18,6 +18,7 @@ import {
 import { CategoryCell } from './CategoryCell'
 import { MerchantCell } from './MerchantCell'
 import { RenameOnHover } from './RenameOnHover'
+import { emiLabel } from './LoanSection'
 import { TransactionActions } from './TransactionActions'
 import styles from './TransactionsPage.module.css'
 
@@ -535,6 +536,11 @@ export function TransactionsPage() {
                             <span className={styles.tag}>
                               Failed – refunded
                             </span>
+                          </span>
+                        )}
+                        {emiLabel(t) && (
+                          <span className={styles.transfer}>
+                            <span className={styles.tag}>{emiLabel(t)}</span>
                           </span>
                         )}
                         <CategoryCell

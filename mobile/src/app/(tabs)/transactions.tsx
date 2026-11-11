@@ -15,7 +15,10 @@ import {
   useColors,
   useStyles,
 } from '../../components/ui'
-import { TransactionActions } from '../../features/transactions/TransactionActions'
+import {
+  emiLabel,
+  TransactionActions,
+} from '../../features/transactions/TransactionActions'
 import { rupees } from '../../lib/format'
 
 type Filters = {
@@ -364,6 +367,7 @@ export default function Transactions() {
                 </Text>
                 <Text style={styles.muted}>
                   {t.date} · {t.category}
+                  {emiLabel(t) ? ` · ${emiLabel(t)}` : ''}
                 </Text>
               </View>
               <Text
