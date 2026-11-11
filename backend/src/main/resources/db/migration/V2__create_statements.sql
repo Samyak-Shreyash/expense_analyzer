@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS statements (
     storage_key VARCHAR(512),
     file_hash VARCHAR(64),
     format VARCHAR(10),
+    -- Which app exported the file (BANK = a bank statement); the user picks it at upload and it selects the parser.
+    source VARCHAR(16) NOT NULL DEFAULT 'BANK',
     status VARCHAR(20) NOT NULL DEFAULT 'UPLOADED',
     processing_error VARCHAR(100),
     completed_at TIMESTAMP,

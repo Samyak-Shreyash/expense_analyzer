@@ -7,7 +7,8 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
     -- SHA-256 hex of the raw token; the raw value is only ever in the client's cookie
     token_hash VARCHAR(64) NOT NULL UNIQUE,
     expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
-    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    consumed_at TIMESTAMP WITH TIME ZONE
 );
 
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_id ON refresh_tokens(user_id);

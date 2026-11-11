@@ -25,6 +25,17 @@ CREATE TABLE IF NOT EXISTS transactions (
     reversal_pair_id UUID REFERENCES transactions(id) ON DELETE SET NULL,
     -- What a failed payment cost when its refund came back smaller; this part still counts as spending.
     reversal_charge_paise DECIMAL(12, 2),
+    -- A payment or refund the user marked as failed/refunded before its other half was paired.
+    reversal_pending BOOLEAN NOT NULL DEFAULT FALSE,
+    -- The 12-digit UPI reference (RRN) found in a row; a UPI app's row and the bank's row for one payment share it.
+    upi_ref VARCHAR(12),
+    -- A row the user marked as a duplicate of another (e.g. the same payment from two sources); left out of analytics.
+    duplicate BOOLEAN NOT NULL DEFAULT FALSE,
+    -- Loans: an EMI (DEBIT) links to the loan it repays (a CREDIT); the part of an EMI paid beyond the principal is
+    -- interest. A closed loan takes no more EMIs.
+    loan_id UUID REFERENCES transactions(id) ON DELETE SET NULL,
+    loan_interest_paise DECIMAL(12, 2),
+    loan_closed BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_transactions_user_id FOREIGN KEY (user_id) REFERENCES users(id),
@@ -42,3 +53,5 @@ CREATE INDEX IF NOT EXISTS idx_transactions_statement_id ON transactions(stateme
 CREATE INDEX IF NOT EXISTS idx_transactions_person_id ON transactions(person_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_transfer_pair_id ON transactions(transfer_pair_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_reversal_pair_id ON transactions(reversal_pair_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_user_upi_ref ON transactions(user_id, upi_ref);
+CREATE INDEX IF NOT EXISTS idx_transactions_loan_id ON transactions(loan_id);
