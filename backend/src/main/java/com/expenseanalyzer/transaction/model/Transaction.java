@@ -179,6 +179,19 @@ public class Transaction {
     @Column(name = "duplicate", nullable = false)
     private boolean duplicate;
 
+    /** On an EMI: the loan (a CREDIT) it repays; null when not linked. */
+    @Column(name = "loan_id")
+    private UUID loanId;
+
+    /** On a linked EMI: the part paid beyond the loan's principal, which counts as spending (interest). Null when none. */
+    @Column(name = "loan_interest_paise")
+    private BigDecimal loanInterestPaise;
+
+    /** On a loan: closed by the user, so its lender's later payments are no longer linked or categorised to it. */
+    @ColumnDefault("false")
+    @Column(name = "loan_closed", nullable = false)
+    private boolean loanClosed;
+
     /** The 12-digit UPI reference (RRN) in the row; links a UPI app's row to the bank's row for the same payment. */
     @Column(name = "upi_ref", length = 12)
     private String upiRef;

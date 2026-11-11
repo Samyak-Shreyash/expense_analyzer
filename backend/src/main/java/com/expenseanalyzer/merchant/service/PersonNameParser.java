@@ -39,9 +39,19 @@ public final class PersonNameParser {
         });
     }
 
-    /** How a person's name is shown: "535804014266/Rahul Sharma" as "Rahul Sharma"; other names unchanged. */
+    /**
+     * How a person's name is shown: "535804014266/Rahul Sharma" as "Rahul Sharma", and "535804014266/Dummy Name"
+     * (imported before the placeholder was recognised) as "535804014266"; other names unchanged.
+     */
     public static String displayName(String name) {
-        return name == null ? null : name.replaceFirst("^\\d{9,}/(?=.*\\p{L})", "");
+        if (name == null) {
+            return null;
+        }
+        Matcher m = Pattern.compile("^(\\d{9,})/(.*\\p{L}.*)$").matcher(name);
+        if (!m.matches()) {
+            return name;
+        }
+        return m.group(2).equalsIgnoreCase(PLACEHOLDER_NAME) ? m.group(1) : m.group(2);
     }
 
     /** The 9+ digit number of a P2A description; empty for P2P. */

@@ -64,6 +64,14 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
 
     boolean existsByUserIdAndPersonId(UUID userId, UUID personId);
 
+    /** A loan's EMIs, oldest first (ties: earliest created): the order the principal is repaid in. */
+    List<Transaction> findByLoanIdOrderByDateAscCreatedAtAsc(UUID loanId);
+
+    /** The user's linked EMIs carrying interest in [from, to). */
+    @Query("SELECT t FROM Transaction t WHERE t.userId = :userId AND t.loanInterestPaise IS NOT NULL "
+            + "AND t.transfer = FALSE AND t.duplicate = FALSE AND t.date >= :from AND t.date < :to")
+    List<Transaction> findLoanInterest(UUID userId, Instant from, Instant to);
+
     /** Removes a statement's transactions before the statement itself is deleted. */
     @Modifying
     @Query("DELETE FROM Transaction t WHERE t.statementId = :statementId")

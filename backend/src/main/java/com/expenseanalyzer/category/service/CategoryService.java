@@ -36,7 +36,11 @@ public class CategoryService {
     /** Money moved between the user's own accounts: imported rows that resolve to it are marked as transfers. */
     public static final String SELF = "Self";
     private static final int MAX_NAME_LENGTH = 50;
-    private static final List<String> NON_SPENDING_DEFAULTS = List.of("Repayment", "Loan");
+    /** Money in borrowed: a credit in it is a loan, left out of inflow. */
+    public static final String LOAN = "Loan";
+    /** Repayments of a loan: a debit in it can be linked to its loan. */
+    public static final String LOAN_EMI = "Loan EMI";
+    private static final List<String> NON_SPENDING_DEFAULTS = List.of("Repayment", LOAN, LOAN_EMI);
 
     private final CategoryRepository categoryRepository;
     private final TransactionRepository transactionRepository;
