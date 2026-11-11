@@ -111,7 +111,7 @@ class AuthRefreshSecurityTest {
                 .startsWith("refresh_token=")
                 .doesNotStartWith("refresh_token=" + raw);
 
-        assertThat(refresh(raw).getResponse().getStatus()).isEqualTo(401);
+        assertThat(refresh(raw).getResponse().getStatus()).isEqualTo(409); // refused; 401 after the grace window
     }
 
     @Test
@@ -167,7 +167,10 @@ class AuthRefreshSecurityTest {
         assertThat(first.getResponse().getStatus()).isEqualTo(200);
         String next = first.getResponse().getCookie("refresh_token").getValue();
 
-        assertThat(refresh(raw).getResponse().getStatus()).isEqualTo(401);
+        MvcResult raced = refresh(raw);
+        assertThat(raced.getResponse().getStatus()).isEqualTo(409);
+        // the other tab's new cookie is shared: clearing it here would sign every tab out
+        assertThat(raced.getResponse().getHeader("Set-Cookie")).isNull();
         assertThat(refresh(next).getResponse().getStatus()).isEqualTo(200);
     }
 
