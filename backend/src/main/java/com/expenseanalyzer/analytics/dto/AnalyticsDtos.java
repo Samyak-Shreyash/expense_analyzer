@@ -21,7 +21,8 @@ public final class AnalyticsDtos {
     public record SpendingSummary(LocalDate from, LocalDate to, String currency, BigDecimal inflow,
                                   BigDecimal outflow, BigDecimal net, long transactionCount, PeriodTotals previous,
                                   BigDecimal inflowChangePercent, BigDecimal outflowChangePercent,
-                                  BigDecimal nonSpendingOutflow, BigDecimal transfersIn, BigDecimal transfersOut) {
+                                  BigDecimal nonSpendingOutflow, BigDecimal transfersIn, BigDecimal transfersOut,
+                                  BigDecimal loanReceived) {
     }
 
     public record MerchantSpend(UUID merchantId, String name, BigDecimal spend, BigDecimal sharePercent,

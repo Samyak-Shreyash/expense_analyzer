@@ -136,6 +136,31 @@ describe('body transport (mobile)', () => {
     expect(onAuthLost).not.toHaveBeenCalled()
   })
 
+  it('retries once when another tab rotated the cookie first, and stays signed in', async () => {
+    const onAuthLost = vi.fn()
+    setAuthHandlers({ onAuthLost, onForbidden: vi.fn() })
+    fetchMock
+      .mockResolvedValueOnce(json(401))
+      .mockResolvedValueOnce(json(409))
+      .mockResolvedValueOnce(json(200, { token: 'a2' }))
+      .mockResolvedValueOnce(json(200))
+    const res = await apiFetch('/transactions')
+    expect(res.status).toBe(200)
+    expect(fetchMock).toHaveBeenCalledTimes(4)
+    expect(onAuthLost).not.toHaveBeenCalled()
+  })
+
+  it('does not sign the user out when the retry after a 409 also loses', async () => {
+    const onAuthLost = vi.fn()
+    setAuthHandlers({ onAuthLost, onForbidden: vi.fn() })
+    fetchMock
+      .mockResolvedValueOnce(json(401))
+      .mockResolvedValueOnce(json(409))
+      .mockResolvedValueOnce(json(409))
+    await apiFetch('/transactions')
+    expect(onAuthLost).not.toHaveBeenCalled()
+  })
+
   it('signs the user out when refresh answers 400, which retrying cannot fix', async () => {
     const onAuthLost = vi.fn()
     setAuthHandlers({ onAuthLost, onForbidden: vi.fn() })

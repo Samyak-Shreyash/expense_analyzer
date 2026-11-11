@@ -22,6 +22,7 @@ import com.expenseanalyzer.merchant.model.Person;
 import com.expenseanalyzer.merchant.repository.MerchantRepository;
 import com.expenseanalyzer.merchant.repository.PersonRepository;
 import com.expenseanalyzer.merchant.service.PersonNameParser;
+import com.expenseanalyzer.transaction.model.Transaction;
 import com.expenseanalyzer.transaction.repository.TransactionRepository;
 import com.expenseanalyzer.user.model.User;
 import com.expenseanalyzer.user.repository.UserRepository;
@@ -68,6 +69,8 @@ public class SpendingAnalyticsService {
     public static final String CURRENCY = "INR";
     static final String UNMATCHED = "Unmatched";
     public static final String UNCATEGORIZED = "Uncategorized";
+    /** Spending category for the part of loan EMIs paid beyond the principal. */
+    public static final String LOAN_INTEREST = "Loan interest";
     private static final int MAX_RANGE_YEARS = 5;
     private static final BigDecimal HUNDRED = BigDecimal.valueOf(100);
 
@@ -78,7 +81,12 @@ public class SpendingAnalyticsService {
     private final EffectiveCategoryResolver categoryResolver;
 
     private record Totals(BigDecimal inflowCents, BigDecimal outflowCents, long count,
-                          BigDecimal nonSpendingCents) {
+                          BigDecimal nonSpendingCents, BigDecimal loanReceivedCents) {
+
+        /** Cash in minus cash out: loans received are money in, even though they are not income. */
+        BigDecimal netCents() {
+            return inflowCents.add(loanReceivedCents).subtract(outflowCents).subtract(nonSpendingCents);
+        }
     }
 
     /** Per-merchant net spend in cents, before names are attached. */
@@ -117,13 +125,14 @@ public class SpendingAnalyticsService {
         Totals cur = totals(userId, from, to, resolution);
         Totals prev = totals(userId, prevFrom, prevTo, resolution);
         PeriodTotals previous = new PeriodTotals(prevFrom, prevTo, money(prev.inflowCents()), money(prev.outflowCents()),
-                money(prev.inflowCents().subtract(prev.outflowCents()).subtract(prev.nonSpendingCents())), prev.count(),
+                money(prev.netCents()), prev.count(),
                 money(prev.nonSpendingCents()));
         return new SpendingSummary(from, to, CURRENCY, money(cur.inflowCents()), money(cur.outflowCents()),
-                money(cur.inflowCents().subtract(cur.outflowCents()).subtract(cur.nonSpendingCents())), cur.count(),
+                money(cur.netCents()), cur.count(),
                 previous, changePercent(cur.inflowCents(), prev.inflowCents()),
                 changePercent(cur.outflowCents(), prev.outflowCents()), money(cur.nonSpendingCents()),
-                money(transfers(userId, from, to, "CREDIT")), money(transfers(userId, from, to, "DEBIT")));
+                money(transfers(userId, from, to, "CREDIT")), money(transfers(userId, from, to, "DEBIT")),
+                money(cur.loanReceivedCents()));
     }
 
     /** Own-account transfers in one direction; they are left out of every other figure. */
@@ -166,6 +175,11 @@ public class SpendingAnalyticsService {
             cents.merge(k.category(), n.cents(), BigDecimal::add);
             counts.merge(k.category(), n.count(), Long::sum);
         });
+        List<Transaction> interest = loanInterest(userId, from, to, categoryResolver.forUser(userId));
+        if (!interest.isEmpty()) {
+            cents.merge(LOAN_INTEREST, sum(interest), BigDecimal::add);
+            counts.merge(LOAN_INTEREST, (long) interest.size(), Long::sum);
+        }
         BigDecimal total = cents.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add);
         List<CategorySpend> items = cents.entrySet().stream()
                 .sorted(Map.Entry.<String, BigDecimal>comparingByValue().reversed().thenComparing(Map.Entry.comparingByKey()))
@@ -186,7 +200,12 @@ public class SpendingAnalyticsService {
         validate(from, to);
         UUID userId = userId(email);
         Map<String, Map<UUID, Net>> byCategory = new LinkedHashMap<>();
-        for (Group g : groups(userId, from, to, categoryResolver.forUser(userId))) {
+        Resolution resolution = categoryResolver.forUser(userId);
+        for (Transaction t : loanInterest(userId, from, to, resolution)) { // interest is spending, not repayment
+            byCategory.computeIfAbsent(resolution.resolve(t, null).getName(), k -> new HashMap<>())
+                    .merge(t.getPersonId(), new Net(t.getLoanInterestPaise().negate(), 0), SpendingAnalyticsService::add);
+        }
+        for (Group g : groups(userId, from, to, resolution)) {
             if (g.spending() || g.credit()) {
                 continue;
             }
@@ -240,6 +259,9 @@ public class SpendingAnalyticsService {
                         BigDecimal::add);
             }
         }
+        for (Transaction t : loanInterest(userId, from, to, resolution)) {
+            spend.merge(YearMonth.from(t.getDate().atZone(ZoneOffset.UTC)), t.getLoanInterestPaise(), BigDecimal::add);
+        }
         List<MonthlyTrend> months = new ArrayList<>();
         BigDecimal previous = null;
         for (YearMonth m : monthly(userId, from, to).keySet()) {
@@ -253,7 +275,10 @@ public class SpendingAnalyticsService {
 
     // ---- aggregation helpers ----
 
-    /** Inflow and count cover everything; outflow is spending only; nonSpending = all DEBITs - spending DEBITs. */
+    /**
+     * Inflow is every CREDIT but loans received; count covers everything; outflow is spending (with loan interest);
+     * nonSpending = all DEBITs - outflow.
+     */
     private Totals totals(UUID userId, LocalDate from, LocalDate to, Resolution resolution) {
         BigDecimal in = BigDecimal.ZERO;
         BigDecimal allOut = BigDecimal.ZERO;
@@ -266,10 +291,32 @@ public class SpendingAnalyticsService {
             }
             count += (Long) r[2];
         }
-        BigDecimal out = groups(userId, from, to, resolution).stream()
+        List<Group> groups = groups(userId, from, to, resolution);
+        BigDecimal out = groups.stream()
                 .filter(g -> !g.credit() && g.spending())
+                .map(Group::cents).reduce(BigDecimal.ZERO, BigDecimal::add)
+                .add(sum(loanInterest(userId, from, to, resolution)));
+        Category loan = resolution.named(CategoryService.LOAN);
+        BigDecimal loans = groups.stream().filter(g -> g.credit() && loan != null && g.category() == loan)
                 .map(Group::cents).reduce(BigDecimal.ZERO, BigDecimal::add);
-        return new Totals(in, out, count, allOut.subtract(out));
+        return new Totals(in.subtract(loans), out, count, allOut.subtract(out), loans);
+    }
+
+    /**
+     * Linked EMIs in the range carrying interest, while they are still in a non-spending category (an EMI the user
+     * recategorised as spending already counts in full).
+     */
+    private List<Transaction> loanInterest(UUID userId, LocalDate from, LocalDate to, Resolution resolution) {
+        return transactionRepository.findLoanInterest(userId, start(from), endExclusive(to)).stream()
+                .filter(t -> {
+                    Category c = resolution.resolve(t, null);
+                    return c != null && !c.isCountsAsSpending();
+                })
+                .toList();
+    }
+
+    private static BigDecimal sum(List<Transaction> interest) {
+        return interest.stream().map(Transaction::getLoanInterestPaise).reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     /** SQL groups for the range, each resolved to its effective category. */
@@ -336,15 +383,15 @@ public class SpendingAnalyticsService {
     private Map<YearMonth, Totals> monthly(UUID userId, LocalDate from, LocalDate to) {
         Map<YearMonth, Totals> months = new LinkedHashMap<>();
         for (YearMonth m = YearMonth.from(from); !m.isAfter(YearMonth.from(to)); m = m.plusMonths(1)) {
-            months.put(m, new Totals(BigDecimal.ZERO, BigDecimal.ZERO, 0, BigDecimal.ZERO));
+            months.put(m, new Totals(BigDecimal.ZERO, BigDecimal.ZERO, 0, BigDecimal.ZERO, BigDecimal.ZERO));
         }
         for (Object[] r : transactionRepository.sumByMonthAndDirection(userId, start(from), endExclusive(to))) {
             YearMonth m = YearMonth.of(((Number) r[0]).intValue(), ((Number) r[1]).intValue());
             BigDecimal amount = (BigDecimal) r[3];
             Totals t = months.get(m);
             months.put(m, "CREDIT".equals(r[2])
-                    ? new Totals(t.inflowCents().add(amount), t.outflowCents(), t.count(), t.nonSpendingCents())
-                    : new Totals(t.inflowCents(), t.outflowCents().add(amount), t.count(), t.nonSpendingCents()));
+                    ? new Totals(t.inflowCents().add(amount), t.outflowCents(), t.count(), t.nonSpendingCents(), BigDecimal.ZERO)
+                    : new Totals(t.inflowCents(), t.outflowCents().add(amount), t.count(), t.nonSpendingCents(), BigDecimal.ZERO));
         }
         return months;
     }

@@ -81,6 +81,20 @@ public class RefreshTokenService {
                 });
     }
 
+    /**
+     * True when the token was rotated within {@link #REUSE_GRACE}: another tab or request refreshed with it first, so
+     * the caller already holds (or is about to receive) its replacement. Never true for an inactive owner.
+     */
+    @Transactional(readOnly = true)
+    public boolean recentlyRotated(String raw) {
+        Instant cutoff = Instant.now().minus(REUSE_GRACE);
+        return refreshTokenRepository.findByTokenHash(hash(raw))
+                .filter(t -> t.getConsumedAt() != null && !t.getConsumedAt().isBefore(cutoff))
+                .flatMap(t -> userRepository.findById(t.getUserId()))
+                .filter(User::isEnabled)
+                .isPresent();
+    }
+
     @Transactional
     public void revoke(String raw) {
         refreshTokenRepository.deleteByTokenHash(hash(raw));

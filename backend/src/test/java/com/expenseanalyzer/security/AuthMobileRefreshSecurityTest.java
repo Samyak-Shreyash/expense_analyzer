@@ -246,7 +246,7 @@ class AuthMobileRefreshSecurityTest {
         String mobileToken = json(toMobile, "$.refreshToken");
 
         assertThat(cookieRefresh(mobileToken).getResponse().getStatus()).isEqualTo(200);
-        assertThat(cookieRefresh(mobileToken).getResponse().getStatus()).isEqualTo(401);
+        assertThat(cookieRefresh(mobileToken).getResponse().getStatus()).isEqualTo(409); // refused; a reused token never works twice
     }
 
     @Test
