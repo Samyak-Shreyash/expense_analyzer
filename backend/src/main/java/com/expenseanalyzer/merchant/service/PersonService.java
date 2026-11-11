@@ -9,6 +9,7 @@ import com.expenseanalyzer.merchant.repository.PersonRepository;
 import com.expenseanalyzer.transaction.model.Transaction;
 import com.expenseanalyzer.transaction.repository.TransactionRepository;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -147,6 +148,21 @@ public class PersonService {
             t.setUpdatedAt(now);
         });
         transactionRepository.saveAll(moved);
+    }
+
+    /**
+     * Deletes those of the user's people (with their payee names) left without a transaction, e.g. after their rows
+     * were turned into a merchant's. Rows must be saved first.
+     */
+    @Transactional
+    public void removeIfUnused(UUID userId, Collection<UUID> personIds) {
+        transactionRepository.flush();
+        for (UUID id : personIds) {
+            if (!transactionRepository.existsByUserIdAndPersonId(userId, id)) {
+                payeeRepository.deleteByPersonId(id);
+                personRepository.findByIdAndUserId(id, userId).ifPresent(personRepository::delete);
+            }
+        }
     }
 
     private Person owned(UUID userId, UUID id) {

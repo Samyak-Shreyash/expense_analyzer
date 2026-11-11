@@ -16,4 +16,8 @@ public interface PersonPayeeRepository extends JpaRepository<PersonPayee, Person
     @Modifying(clearAutomatically = true)
     @Query("UPDATE PersonPayee p SET p.personId = :to WHERE p.personId = :from")
     void repoint(UUID from, UUID to);
+
+    @Modifying(clearAutomatically = true)
+    @Query("DELETE FROM PersonPayee p WHERE p.personId = :personId")
+    void deleteByPersonId(UUID personId);
 }

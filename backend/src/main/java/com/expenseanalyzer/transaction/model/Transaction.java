@@ -174,6 +174,11 @@ public class Transaction {
     @Column(name = "reversal_pending", nullable = false)
     private boolean reversalPending;
 
+    /** Marked by the user as a duplicate of another of their rows; kept but left out of analytics. */
+    @ColumnDefault("false")
+    @Column(name = "duplicate", nullable = false)
+    private boolean duplicate;
+
     /** The 12-digit UPI reference (RRN) in the row; links a UPI app's row to the bank's row for the same payment. */
     @Column(name = "upi_ref", length = 12)
     private String upiRef;

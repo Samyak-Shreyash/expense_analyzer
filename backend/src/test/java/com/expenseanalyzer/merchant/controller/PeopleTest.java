@@ -192,6 +192,25 @@ class PeopleTest {
     }
 
     @Test
+    void aPersonTurnedMerchantLeavesThePeopleListUnlessTheyStillHaveTransactions() throws Exception {
+        Person rahul = person(alice, "Rahul Sharma", null);
+        Person priya = person(alice, "Priya", null);
+        UUID rahulTx = transaction(alice, "UPI/P2A/412345678901/RAHUL SHARMA/HDFC BANK/rent", "P2A RAHUL SHARMA", null,
+                rahul.getId());
+        UUID priyaShop = transaction(alice, "UPI/P2A/412345678902/PRIYA STORE/HDFC BANK/x", "P2A PRIYA STORE", null,
+                priya.getId());
+        transaction(alice, "UPI/P2A/412345678903/PRIYA/HDFC BANK/x", "P2A PRIYA", null, priya.getId());
+
+        counterparty(ALICE, rahulTx, "{\"type\":\"MERCHANT\"}", 200);
+        mockMvc.perform(put("/api/transactions/" + priyaShop + "/merchant").header("Authorization", bearer(ALICE))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"Priya Store\"}"))
+                .andExpect(status().isOk());
+
+        assertThat(personRepository.findByUserIdOrderByNameAsc(alice.getId())).extracting(Person::getName)
+                .containsExactly("Priya");
+    }
+
+    @Test
     void invalidCounterpartyRequestsAndOwnershipAreRejected() throws Exception {
         UUID mine = transaction(alice, SWIGGY_RAW, "SWIGGY ORDER", swiggy, null);
         UUID bobsTx = transaction(bob, SWIGGY_RAW, "SWIGGY ORDER", swiggy, null);

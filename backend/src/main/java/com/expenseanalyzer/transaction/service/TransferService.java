@@ -38,7 +38,7 @@ public class TransferService {
     /** Pairs the user's open rows; debits in date order take the credit with the closest date (ties: earliest created). */
     @Transactional
     public void match(UUID userId) {
-        List<Transaction> open = transactionRepository.findByUserIdAndTransferFalseAndTransferManualFalse(userId).stream()
+        List<Transaction> open = transactionRepository.findByUserIdAndTransferFalseAndTransferManualFalseAndDuplicateFalse(userId).stream()
                 .filter(t -> t.getMerchantId() == null && t.getPersonId() == null).toList();
         Map<UUID, String> accounts = statementRepository.findAllById(open.stream().map(Transaction::getStatementId)
                         .filter(id -> id != null).collect(Collectors.toSet())).stream()

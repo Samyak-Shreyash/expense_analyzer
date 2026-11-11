@@ -21,6 +21,7 @@ import com.expenseanalyzer.transaction.dto.CounterpartyRequest;
 import com.expenseanalyzer.transaction.dto.ReversalRequest;
 import com.expenseanalyzer.transaction.dto.TransactionFilter;
 import com.expenseanalyzer.transaction.dto.TransactionResponse;
+import com.expenseanalyzer.transaction.dto.DuplicateRequest;
 import com.expenseanalyzer.transaction.dto.TransferRequest;
 import com.expenseanalyzer.transaction.model.Transaction;
 import com.expenseanalyzer.transaction.repository.TransactionRepository;
@@ -125,6 +126,9 @@ public class TransactionService {
         if (f.reversalPending() != null) {
             spec = spec.and((root, q, cb) -> cb.equal(root.get("reversalPending"), f.reversalPending()));
         }
+        if (f.duplicate() != null) {
+            spec = spec.and((root, q, cb) -> cb.equal(root.get("duplicate"), f.duplicate()));
+        }
         if (f.direction() != null) {
             spec = spec.and((root, q, cb) -> cb.equal(root.get("type"), f.direction().name()));
         }
@@ -204,6 +208,23 @@ public class TransactionService {
             t.setTransferManual(true);
         }
         t.setUpdatedAt(now);
+        return response(transactionRepository.save(t), userId);
+    }
+
+    /**
+     * Marks or unmarks a transaction as a duplicate of another of the caller's rows. A duplicate is kept but left out of
+     * analytics and automatic transfer matching. A row paired as a transfer or a refund must be unpaired first (400).
+     * Not yours: 404.
+     */
+    @Transactional
+    public TransactionResponse setDuplicate(String email, UUID id, DuplicateRequest request) {
+        UUID userId = currentUser(email).getId();
+        Transaction t = owned(id, userId);
+        if (request.duplicate() && (t.getTransferPairId() != null || t.getReversalPairId() != null)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unpair this transaction before marking it a duplicate");
+        }
+        t.setDuplicate(request.duplicate());
+        t.setUpdatedAt(Instant.now());
         return response(transactionRepository.save(t), userId);
     }
 
@@ -307,6 +328,8 @@ public class TransactionService {
                 : transactionRepository.findByUserIdAndNormalizedDescription(userId, t.getNormalizedDescription());
         Map<String, UUID> merchantIds = new HashMap<>();
         Map<String, UUID> aliases = person == null ? merchantService.aliases(userId) : new HashMap<>();
+        Set<UUID> previousPeople = rows.stream().map(Transaction::getPersonId).filter(Objects::nonNull)
+                .collect(Collectors.toSet());
         Instant now = Instant.now();
         for (Transaction row : rows) {
             row.setPersonId(person == null ? null : person.getId());
@@ -325,6 +348,7 @@ public class TransactionService {
             row.setUpdatedAt(now);
         }
         transactionRepository.saveAll(rows);
+        personService.removeIfUnused(userId, previousPeople);
         if (person != null) { // a person is never a merchant: drop the caller's own name and shared vote for it
             merchantService.forget(userId, rows.stream()
                     .map(r -> PayeeKey.of(r.getRawDescription(), r.getNormalizedDescription()))
@@ -398,6 +422,8 @@ public class TransactionService {
         Instant now = Instant.now();
         List<Transaction> rows = transactionRepository.findByUserId(userId).stream()
                 .filter(r -> key.equals(PayeeKey.of(r.getRawDescription(), r.getNormalizedDescription()))).toList();
+        Set<UUID> previousPeople = rows.stream().map(Transaction::getPersonId).filter(Objects::nonNull)
+                .collect(Collectors.toSet());
         for (Transaction row : rows) {
             row.setMerchantId(merchantId);
             row.setMerchantConfidence(null);
@@ -405,6 +431,7 @@ public class TransactionService {
             row.setUpdatedAt(now);
         }
         transactionRepository.saveAll(rows);
+        personService.removeIfUnused(userId, previousPeople); // a person turned merchant leaves the People list
         merchantNameService.afterNaming(userId, key, share);
         return merchantId;
     }

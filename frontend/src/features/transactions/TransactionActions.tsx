@@ -8,6 +8,7 @@ import {
   setPersonCategory,
   setTransactionCategory,
   setTransactionMerchant,
+  setDuplicate,
   setReversal,
   setTransfer,
   type Category,
@@ -249,6 +250,27 @@ export function TransactionActions({
           {t.transfer
             ? 'Not a transfer between my accounts'
             : 'Mark as a transfer between my accounts'}
+        </button>
+      </div>
+
+      <div className={styles.bulk}>
+        <span className={shared.label}>Duplicate</span>
+        <button
+          type="button"
+          className={shared.button}
+          onClick={() =>
+            save(
+              async () => {
+                await setDuplicate(t.id, !t.duplicate)
+                reload()
+              },
+              t.duplicate
+                ? 'No longer marked as a duplicate.'
+                : 'Marked as a duplicate. It no longer counts in totals.',
+            )
+          }
+        >
+          {t.duplicate ? 'Not a duplicate' : 'Mark as duplicate'}
         </button>
       </div>
 

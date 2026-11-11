@@ -6,7 +6,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 COMPOSE_DIR="$ROOT/infrastructure/compose"
 ENV_FILE="$ROOT/.env"
-COMPOSE=(docker compose --env-file "$ENV_FILE" -f "$COMPOSE_DIR/compose.yaml" -f "$COMPOSE_DIR/compose.prod.yaml")
+COMPOSE=(docker compose --env-file "$ENV_FILE" -f "$COMPOSE_DIR/compose.yaml" -f "$COMPOSE_DIR/compose.yaml")
 
 cd "$ROOT"
 

@@ -8,6 +8,7 @@ import {
   setReversal,
   setTransactionCategory,
   setTransactionMerchant,
+  setDuplicate,
   setTransfer,
   type Transaction,
 } from '@expense-analyzer/api-client'
@@ -291,6 +292,24 @@ export function TransactionActions({
               t.transfer
                 ? 'No longer counted as a transfer.'
                 : 'Marked as a transfer between your accounts.',
+            )
+          }
+        />
+      </Section>
+
+      <Section title="Duplicate">
+        <Button
+          title={t.duplicate ? 'Not a duplicate' : 'Mark as duplicate'}
+          variant="secondary"
+          onPress={() =>
+            save(
+              async () => {
+                onSaved(await setDuplicate(t.id, !t.duplicate))
+                reload()
+              },
+              t.duplicate
+                ? 'No longer marked as a duplicate.'
+                : 'Marked as a duplicate. It no longer counts in totals.',
             )
           }
         />
