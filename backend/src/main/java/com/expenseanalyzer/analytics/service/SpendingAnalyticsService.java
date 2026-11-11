@@ -21,6 +21,7 @@ import com.expenseanalyzer.merchant.model.Merchant;
 import com.expenseanalyzer.merchant.model.Person;
 import com.expenseanalyzer.merchant.repository.MerchantRepository;
 import com.expenseanalyzer.merchant.repository.PersonRepository;
+import com.expenseanalyzer.merchant.service.PersonNameParser;
 import com.expenseanalyzer.transaction.repository.TransactionRepository;
 import com.expenseanalyzer.user.model.User;
 import com.expenseanalyzer.user.repository.UserRepository;
@@ -205,7 +206,7 @@ public class SpendingAnalyticsService {
                     .filter(p -> p.getKey() != null && people.containsKey(p.getKey()))
                     .sorted(Comparator.<Map.Entry<UUID, Net>, BigDecimal>comparing(p -> p.getValue().cents()).reversed()
                             .thenComparing(p -> people.get(p.getKey()).getName()))
-                    .map(p -> new PersonSpend(p.getKey(), people.get(p.getKey()).getName(), money(p.getValue().cents()),
+                    .map(p -> new PersonSpend(p.getKey(), PersonNameParser.displayName(people.get(p.getKey()).getName()), money(p.getValue().cents()),
                             p.getValue().count()))
                     .toList();
             return new NonSpendingCategory(e.getKey(), money(cents), share(cents, total), count, persons);

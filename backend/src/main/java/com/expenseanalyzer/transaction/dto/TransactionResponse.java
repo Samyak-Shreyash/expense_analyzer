@@ -47,7 +47,7 @@ public record TransactionResponse(UUID id, LocalDate date, String description, S
                 effective == null ? null : effective.getId(),
                 effective == null ? SpendingAnalyticsService.UNCATEGORIZED : effective.getName(),
                 t.getCategoryId() != null, t.getStatementId(), t.getPersonId(),
-                person == null ? null : person.getName(), suggested, payee == null ? null : payee.name(),
+                person == null ? null : PersonNameParser.displayName(person.getName()), suggested, payee == null ? null : payee.name(),
                 payee == null ? null : payee.type(), t.isTransfer(), t.getTransferPairId(), t.getReversalPairId(),
                 t.isReversalPending(), t.isDuplicate());
     }

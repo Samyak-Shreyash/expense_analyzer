@@ -1,6 +1,7 @@
 package com.expenseanalyzer.merchant.dto;
 
 import com.expenseanalyzer.merchant.model.Person;
+import com.expenseanalyzer.merchant.service.PersonNameParser;
 import java.util.List;
 import java.util.UUID;
 
@@ -11,6 +12,6 @@ import java.util.UUID;
 public record PersonResponse(UUID id, String name, UUID categoryId, UUID creditCategoryId, List<String> payees) {
 
     public static PersonResponse from(Person p, List<String> payees) {
-        return new PersonResponse(p.getId(), p.getName(), p.getCategoryId(), p.getCreditCategoryId(), payees);
+        return new PersonResponse(p.getId(), PersonNameParser.displayName(p.getName()), p.getCategoryId(), p.getCreditCategoryId(), payees);
     }
 }
