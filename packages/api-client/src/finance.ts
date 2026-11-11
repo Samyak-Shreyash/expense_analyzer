@@ -71,6 +71,8 @@ export type Transaction = {
   reversalPairId: string | null
   /** Marked as a failed payment (or its refund) whose other half isn't paired yet. */
   reversalPending: boolean
+  /** Marked as a duplicate of another of your transactions; left out of analytics. */
+  duplicate: boolean
 }
 
 type Totals = {
@@ -315,6 +317,9 @@ const PERSON_ERRORS = {
 }
 
 export const listCategories = () => getJson<Category[]>('/categories')
+/** Transactions per category id; a category with none is absent. */
+export const categoryCounts = () =>
+  getJson<Record<string, number>>('/transactions/category-counts')
 export const createCategory = (name: string, countsAsSpending: boolean) =>
   write<Category>(
     'POST',
@@ -431,6 +436,18 @@ export const setTransfer = (
     { transfer, pairWithId },
     {
       400: 'A transfer pairs money out and money in of the same amount.',
+      404: 'That transaction no longer exists. Reload the page.',
+    },
+  )
+
+/** Marks (or unmarks) a transaction as a duplicate of another of your transactions. */
+export const setDuplicate = (id: string, duplicate: boolean) =>
+  write<Transaction>(
+    'PUT',
+    `/transactions/${id}/duplicate`,
+    { duplicate },
+    {
+      400: 'Unpair this transaction before marking it a duplicate.',
       404: 'That transaction no longer exists. Reload the page.',
     },
   )

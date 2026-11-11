@@ -1,6 +1,31 @@
 import { fireEvent, render, screen } from '@testing-library/react-native'
-import { listTransactions } from '@expense-analyzer/api-client'
+import { listTransactions, setTransfer } from '@expense-analyzer/api-client'
+import { useLocalSearchParams } from 'expo-router'
 import Transactions from '../app/(tabs)/transactions'
+
+const mockRow = {
+  id: 't1',
+  date: '2026-01-10',
+  description: 'UPI/SWIGGY/123',
+  normalizedDescription: 'SWIGGY',
+  amount: 250,
+  direction: 'DEBIT',
+  category: 'Food',
+  categoryId: 'c1',
+  categoryOverridden: false,
+  merchantId: 'm1',
+  merchantName: 'Swiggy',
+  personId: null,
+  personName: null,
+  statementId: 's1',
+  suggestedMerchantName: null,
+  payeeName: null,
+  payeeType: null,
+  transfer: false,
+  transferPairId: null,
+  reversalPairId: null,
+  reversalPending: false,
+}
 
 jest.mock('@expense-analyzer/api-client', () => ({
   listTransactions: jest.fn(async () => ({
@@ -14,7 +39,14 @@ jest.mock('@expense-analyzer/api-client', () => ({
     { id: 'c1', name: 'Food', countsAsSpending: true },
   ]),
   setTransactionCategory: jest.fn(),
+  setTransfer: jest.fn(async () => ({ ...mockRow, transfer: true })),
 }))
+
+jest.mock('@expo/vector-icons/Ionicons', () => () => null)
+jest.mock('react-native-safe-area-context', () => ({
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+}))
+jest.mock('expo-router', () => ({ useLocalSearchParams: jest.fn(() => ({})) }))
 
 const lastQuery = () => jest.mocked(listTransactions).mock.lastCall?.[0]
 
@@ -63,4 +95,38 @@ it('applies the filter panel and counts active filters', async () => {
     category: undefined,
   })
   expect(screen.getByText('Filters')).toBeTruthy()
+})
+
+it('opens filtered to the category it was opened for', async () => {
+  jest.mocked(useLocalSearchParams).mockReturnValueOnce({ category: 'Food' })
+  await render(<Transactions />)
+  expect(lastQuery()).toMatchObject({ category: 'Food' })
+})
+
+it('marks a transaction as a transfer from its details', async () => {
+  jest.mocked(listTransactions).mockResolvedValue({
+    items: [mockRow],
+    page: 0,
+    size: 50,
+    totalItems: 1,
+    totalPages: 1,
+  } as never)
+  await render(<Transactions />)
+  await fireEvent.press(await screen.findByText('Swiggy'))
+  await fireEvent.press(
+    screen.getByText('Mark as a transfer between my accounts'),
+  )
+  expect(setTransfer).toHaveBeenCalledWith('t1', true)
+  expect(
+    await screen.findByText('Marked as a transfer between your accounts.'),
+  ).toBeTruthy()
+})
+
+it('shows one statement when opened from it and can show all again', async () => {
+  jest.mocked(useLocalSearchParams).mockReturnValue({ statementId: 's1' })
+  await render(<Transactions />)
+  expect(lastQuery()).toMatchObject({ statementId: 's1' })
+  await fireEvent.press(await screen.findByText('Show all statements'))
+  expect(lastQuery()).toMatchObject({ statementId: undefined })
+  jest.mocked(useLocalSearchParams).mockReturnValue({})
 })

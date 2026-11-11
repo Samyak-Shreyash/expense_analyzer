@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import type { FormEvent, KeyboardEvent } from 'react'
 import { flushSync } from 'react-dom'
-import { useSearchParams } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import shared from '../../components/shared.module.css'
 import {
+  categoryCounts,
   createCategory,
   deleteCategory,
   listCategories,
@@ -50,8 +51,18 @@ export function CategoriesPage() {
     name: string
     other: Person
   } | null>(null)
+  // People whose details are open; everyone else shows one summary row.
+  const [open, setOpen] = useState<Set<string>>(new Set())
+  const toggleOpen = (id: string) =>
+    setOpen((o) => {
+      const next = new Set(o)
+      if (!next.delete(id)) next.add(id)
+      return next
+    })
   const [newName, setNewName] = useState('')
   const [newCounts, setNewCounts] = useState(true)
+  // Transactions per category id; null until loaded (or if that fails, names show without counts).
+  const [counts, setCounts] = useState<Record<string, number> | null>(null)
 
   useEffect(() => {
     let live = true
@@ -62,6 +73,9 @@ export function CategoriesPage() {
         setPeople(p)
       })
       .catch(() => live && setLoadError(true))
+    categoryCounts()
+      .then((n) => live && setCounts(n))
+      .catch(() => {})
     return () => {
       live = false
     }
@@ -257,7 +271,18 @@ export function CategoriesPage() {
                             )
                           }, setCategoryError)
                         }
-                      />
+                      >
+                        <Link
+                          to={`/transactions?category=${encodeURIComponent(c.name)}`}
+                        >
+                          {counts ? `${c.name} ` : c.name}
+                          {counts && (
+                            <span className={shared.muted}>
+                              ({counts[c.id] ?? 0})
+                            </span>
+                          )}
+                        </Link>
+                      </EditableName>
                     </td>
                     <td>
                       <label className={styles.check}>
@@ -352,14 +377,14 @@ export function CategoriesPage() {
             <table className={shared.table}>
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>UPI names</th>
-                  <th>Default categories</th>
-                  <th>Merge</th>
+                  <th>Person</th>
+                  <th className={shared.num}>UPI names</th>
                 </tr>
               </thead>
               <tbody>
                 {people.map((p) => {
+                  const expanded = open.has(p.id)
+                  const detailsId = `person-details-${p.id}`
                   const save = async (
                     name: string,
                     categoryId: string | null,
@@ -370,154 +395,211 @@ export function CategoriesPage() {
                     )
                   }
                   return (
-                    <tr key={p.id}>
-                      <td>
-                        <EditableName
-                          id={p.id}
-                          name={p.name}
-                          label="person"
-                          onSave={(name) => {
-                            const other = others(p.id).find((o) =>
-                              sameName(o.name, name),
-                            )
-                            if (other) {
-                              setNamesake({ id: p.id, name, other })
-                              return Promise.resolve()
-                            }
-                            return run(
-                              () => save(name, p.categoryId),
-                              setPeopleError,
-                            )
-                          }}
-                        />
-                        {namesake?.id === p.id && (
-                          <div role="group" aria-label="Same name">
-                            <p className={shared.muted}>
-                              {namesake.other.name} already exists. Same person?
-                            </p>
-                            <span className={styles.actions}>
-                              <button
-                                type="button"
-                                className={shared.quiet}
-                                onClick={() =>
-                                  run(async () => {
-                                    setPeople(
-                                      await mergePerson(
-                                        p.id,
-                                        namesake.other.id,
-                                      ),
+                    <Fragment key={p.id}>
+                      <tr>
+                        <td>
+                          <button
+                            type="button"
+                            className={styles.disclosure}
+                            aria-expanded={expanded}
+                            aria-controls={detailsId}
+                            onClick={() => toggleOpen(p.id)}
+                          >
+                            <svg
+                              aria-hidden="true"
+                              className={styles.chevron}
+                              viewBox="0 0 16 16"
+                              width="16"
+                              height="16"
+                            >
+                              <path
+                                d="M6 4l4 4-4 4"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                            {p.name}
+                          </button>
+                        </td>
+                        <td className={shared.num}>{p.payees.length}</td>
+                      </tr>
+                      {expanded && (
+                        <tr id={detailsId}>
+                          <td colSpan={2}>
+                            <div className={styles.details}>
+                              <div>
+                                <h3 className={styles.detailsHeading}>Name</h3>
+                                <EditableName
+                                  id={p.id}
+                                  name={p.name}
+                                  label="person"
+                                  onSave={(name) => {
+                                    const other = others(p.id).find((o) =>
+                                      sameName(o.name, name),
                                     )
-                                    setNamesake(null)
-                                  }, setPeopleError).catch(() => {})
-                                }
-                              >
-                                Merge into {namesake.other.name}
-                              </button>
-                              <button
-                                type="button"
-                                className={shared.quiet}
-                                onClick={() =>
-                                  run(async () => {
-                                    await save(namesake.name, p.categoryId)
-                                    setNamesake(null)
-                                  }, setPeopleError).catch(() => {})
-                                }
-                              >
-                                Keep separate
-                              </button>
-                              <button
-                                type="button"
-                                className={shared.quiet}
-                                autoFocus
-                                onClick={() => setNamesake(null)}
-                                onKeyDown={(e) =>
-                                  e.key === 'Escape' && setNamesake(null)
-                                }
-                              >
-                                Cancel
-                              </button>
-                            </span>
-                          </div>
-                        )}
-                      </td>
-                      <td>
-                        <ul className={styles.payees}>
-                          {p.payees.map((payee) => (
-                            <li key={payee}>
-                              {payee}
-                              {p.payees.length > 1 && (
-                                <select
-                                  className={shared.input}
-                                  aria-label={`Move ${payee} to`}
-                                  value=""
-                                  onChange={(e) =>
+                                    if (other) {
+                                      setNamesake({ id: p.id, name, other })
+                                      return Promise.resolve()
+                                    }
+                                    return run(
+                                      () => save(name, p.categoryId),
+                                      setPeopleError,
+                                    )
+                                  }}
+                                />
+                                {namesake?.id === p.id && (
+                                  <div role="group" aria-label="Same name">
+                                    <p className={shared.muted}>
+                                      {namesake.other.name} already exists. Same
+                                      person?
+                                    </p>
+                                    <span className={styles.actions}>
+                                      <button
+                                        type="button"
+                                        className={shared.quiet}
+                                        onClick={() =>
+                                          run(async () => {
+                                            setPeople(
+                                              await mergePerson(
+                                                p.id,
+                                                namesake.other.id,
+                                              ),
+                                            )
+                                            setNamesake(null)
+                                          }, setPeopleError).catch(() => {})
+                                        }
+                                      >
+                                        Merge into {namesake.other.name}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className={shared.quiet}
+                                        onClick={() =>
+                                          run(async () => {
+                                            await save(
+                                              namesake.name,
+                                              p.categoryId,
+                                            )
+                                            setNamesake(null)
+                                          }, setPeopleError).catch(() => {})
+                                        }
+                                      >
+                                        Keep separate
+                                      </button>
+                                      <button
+                                        type="button"
+                                        className={shared.quiet}
+                                        autoFocus
+                                        onClick={() => setNamesake(null)}
+                                        onKeyDown={(e) =>
+                                          e.key === 'Escape' &&
+                                          setNamesake(null)
+                                        }
+                                      >
+                                        Cancel
+                                      </button>
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                              <div>
+                                <h3 className={styles.detailsHeading}>
+                                  Default categories
+                                </h3>
+                                <DirectionDefaults
+                                  name={p.name}
+                                  out={p.categoryId}
+                                  into={p.creditCategoryId}
+                                  categories={categories}
+                                  onChange={(credit, categoryId) =>
                                     run(async () => {
-                                      setPeople(
-                                        await movePayee(
-                                          p.id,
-                                          payee,
-                                          e.target.value === NEW
-                                            ? null
-                                            : e.target.value,
+                                      const saved = await setPersonCategory(
+                                        p.id,
+                                        categoryId,
+                                        credit,
+                                      )
+                                      setPeople((all) =>
+                                        all!.map((x) =>
+                                          x.id === p.id ? saved : x,
                                         ),
                                       )
                                     }, setPeopleError).catch(() => {})
                                   }
+                                />
+                              </div>
+                              <div>
+                                <h3 className={styles.detailsHeading}>
+                                  UPI names
+                                </h3>
+                                <ul className={styles.payees}>
+                                  {p.payees.map((payee) => (
+                                    <li key={payee}>
+                                      {payee}
+                                      {p.payees.length > 1 && (
+                                        <select
+                                          className={shared.input}
+                                          aria-label={`Move ${payee} to`}
+                                          value=""
+                                          onChange={(e) =>
+                                            run(async () => {
+                                              setPeople(
+                                                await movePayee(
+                                                  p.id,
+                                                  payee,
+                                                  e.target.value === NEW
+                                                    ? null
+                                                    : e.target.value,
+                                                ),
+                                              )
+                                            }, setPeopleError).catch(() => {})
+                                          }
+                                        >
+                                          <option value="">Move to…</option>
+                                          <option value={NEW}>
+                                            A new person
+                                          </option>
+                                          {others(p.id).map((o) => (
+                                            <option key={o.id} value={o.id}>
+                                              {o.name}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      )}
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                              <div>
+                                <h3 className={styles.detailsHeading}>Merge</h3>
+                                <select
+                                  className={shared.input}
+                                  aria-label={`Merge ${p.name} into`}
+                                  value=""
+                                  disabled={people.length < 2}
+                                  onChange={(e) =>
+                                    run(async () => {
+                                      setPeople(
+                                        await mergePerson(p.id, e.target.value),
+                                      )
+                                    }, setPeopleError).catch(() => {})
+                                  }
                                 >
-                                  <option value="">Move to…</option>
-                                  <option value={NEW}>A new person</option>
+                                  <option value="">Merge into…</option>
                                   {others(p.id).map((o) => (
                                     <option key={o.id} value={o.id}>
                                       {o.name}
                                     </option>
                                   ))}
                                 </select>
-                              )}
-                            </li>
-                          ))}
-                        </ul>
-                      </td>
-                      <td>
-                        <DirectionDefaults
-                          name={p.name}
-                          out={p.categoryId}
-                          into={p.creditCategoryId}
-                          categories={categories}
-                          onChange={(credit, categoryId) =>
-                            run(async () => {
-                              const saved = await setPersonCategory(
-                                p.id,
-                                categoryId,
-                                credit,
-                              )
-                              setPeople((all) =>
-                                all!.map((x) => (x.id === p.id ? saved : x)),
-                              )
-                            }, setPeopleError).catch(() => {})
-                          }
-                        />
-                      </td>
-                      <td>
-                        <select
-                          className={shared.input}
-                          aria-label={`Merge ${p.name} into`}
-                          value=""
-                          disabled={people.length < 2}
-                          onChange={(e) =>
-                            run(async () => {
-                              setPeople(await mergePerson(p.id, e.target.value))
-                            }, setPeopleError).catch(() => {})
-                          }
-                        >
-                          <option value="">Merge into…</option>
-                          {others(p.id).map((o) => (
-                            <option key={o.id} value={o.id}>
-                              {o.name}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                    </tr>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
                   )
                 })}
               </tbody>

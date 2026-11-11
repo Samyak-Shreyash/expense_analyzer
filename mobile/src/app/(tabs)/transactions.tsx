@@ -2,18 +2,20 @@ import {
   type Category,
   listCategories,
   listTransactions,
-  setTransactionCategory,
   type Transaction,
 } from '@expense-analyzer/api-client'
+import { useLocalSearchParams } from 'expo-router'
 import { useCallback, useEffect, useState } from 'react'
 import { FlatList, Pressable, Text, TextInput, View } from 'react-native'
 import {
   Button,
   Chip,
   ErrorText,
+  TextAction,
   useColors,
   useStyles,
 } from '../../components/ui'
+import { TransactionActions } from '../../features/transactions/TransactionActions'
 import { rupees } from '../../lib/format'
 
 type Filters = {
@@ -24,6 +26,10 @@ type Filters = {
   transfer: string
   minAmount: string
   maxAmount: string
+  /** Set only by links from other screens (one merchant, person or statement). */
+  merchantId: string
+  personId: string
+  statementId: string
 }
 
 const NO_FILTERS: Filters = {
@@ -34,7 +40,25 @@ const NO_FILTERS: Filters = {
   transfer: '',
   minAmount: '',
   maxAmount: '',
+  merchantId: '',
+  personId: '',
+  statementId: '',
 }
+
+/** Link-only filters, with the banner text and the label of the button that clears each. */
+const LINKS = [
+  {
+    key: 'merchantId',
+    text: 'Showing one merchant.',
+    clear: 'Show all merchants',
+  },
+  { key: 'personId', text: 'Showing one person.', clear: 'Show everyone' },
+  {
+    key: 'statementId',
+    text: 'Showing one statement.',
+    clear: 'Show all statements',
+  },
+] as const
 
 const iso = (d: Date) => d.toISOString().slice(0, 10)
 
@@ -86,6 +110,9 @@ function query(q: string, f: Filters) {
     transfer: f.transfer || undefined,
     minAmount: f.minAmount ? Number(f.minAmount) : undefined,
     maxAmount: f.maxAmount ? Number(f.maxAmount) : undefined,
+    merchantId: f.merchantId || undefined,
+    personId: f.personId || undefined,
+    statementId: f.statementId || undefined,
   }
 }
 
@@ -138,35 +165,47 @@ export default function Transactions() {
     return fetchPage(0, f)
   }
 
-  // A date range counts once.
+  // A date range counts once; link-only filters show their own banner.
   const active = (Object.keys(NO_FILTERS) as (keyof Filters)[]).filter(
-    (k) => k !== 'to' && filters[k],
+    (k) => k !== 'to' && !LINKS.some((l) => l.key === k) && filters[k],
   ).length
   const shortcut = DATE_SHORTCUTS.find((s) => {
     const r = s.range()
     return r.from === filters.from && r.to === filters.to
   })
 
+  // Set when opened from another screen; replaces the filters each time it changes.
+  const { category, merchantId, personId, statementId, from, to } =
+    useLocalSearchParams<{
+      from?: string
+      to?: string
+      category?: string
+      merchantId?: string
+      personId?: string
+      statementId?: string
+    }>()
   useEffect(() => {
-    fetchPage(0)
-    // Only on mount; searching is explicit (submit).
+    const linked = { category, merchantId, personId, statementId, from, to }
+    const f = Object.values(linked).some(Boolean)
+      ? {
+          ...NO_FILTERS,
+          ...Object.fromEntries(Object.entries(linked).filter(([, v]) => v)),
+        }
+      : filters
+    fetchPage(0, f).then(() => {
+      setFilters(f)
+      setDraft(f)
+    })
+    // On mount and when opened for another category; searching is explicit (submit).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [category, merchantId, personId, statementId, from, to])
 
   useEffect(() => {
     listCategories().then(setCategories, () => {})
   }, [])
 
-  async function pick(t: Transaction, categoryId: string | null) {
-    setError(null)
-    try {
-      const saved = await setTransactionCategory(t.id, categoryId)
-      setItems((prev) => prev.map((x) => (x.id === saved.id ? saved : x)))
-      setOpen(null)
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not save that.')
-    }
-  }
+  const replace = (saved: Transaction) =>
+    setItems((prev) => prev.map((x) => (x.id === saved.id ? saved : x)))
 
   return (
     <View style={[styles.screen, { paddingBottom: 0 }]}>
@@ -273,6 +312,18 @@ export default function Transactions() {
           )}
         </View>
       )}
+      {LINKS.filter((l) => filters[l.key]).map((l) => (
+        <View
+          key={l.key}
+          style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
+        >
+          <Text style={[styles.text, { flex: 1 }]}>{l.text}</Text>
+          <TextAction
+            title={l.clear}
+            onPress={() => apply({ ...filters, [l.key]: '' })}
+          />
+        </View>
+      ))}
       {error && <ErrorText>{error}</ErrorText>}
       <FlatList
         data={items}
@@ -297,7 +348,7 @@ export default function Transactions() {
             <Pressable
               accessibilityRole="button"
               accessibilityState={{ expanded: open === t.id }}
-              accessibilityHint="Shows details and category options"
+              accessibilityHint="Shows details and actions"
               onPress={() => setOpen(open === t.id ? null : t.id)}
               style={({ pressed }) => [
                 styles.row,
@@ -334,25 +385,13 @@ export default function Transactions() {
                   backgroundColor: c.surface,
                 }}
               >
-                <Text style={styles.muted}>{t.description}</Text>
-                <Text style={styles.label}>Category for this transaction</Text>
-                <View
-                  style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}
-                >
-                  <Chip
-                    label="Merchant/person default"
-                    selected={!t.categoryOverridden}
-                    onPress={() => pick(t, null)}
-                  />
-                  {categories.map((c) => (
-                    <Chip
-                      key={c.id}
-                      label={c.name}
-                      selected={t.categoryOverridden && t.categoryId === c.id}
-                      onPress={() => pick(t, c.id)}
-                    />
-                  ))}
-                </View>
+                <TransactionActions
+                  t={t}
+                  categories={categories}
+                  onSaved={replace}
+                  // Some changes touch other rows (a merchant's default, who was paid).
+                  reload={() => fetchPage(0)}
+                />
               </View>
             )}
           </View>

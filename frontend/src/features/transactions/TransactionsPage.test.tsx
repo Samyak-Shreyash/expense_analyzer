@@ -46,6 +46,7 @@ const swiggy: Transaction = {
   transferPairId: null,
   reversalPairId: null,
   reversalPending: false,
+  duplicate: false,
 }
 
 const categories: finance.Category[] = [

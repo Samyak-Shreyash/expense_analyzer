@@ -6,12 +6,14 @@ import com.expenseanalyzer.transaction.dto.CounterpartyRequest;
 import com.expenseanalyzer.transaction.dto.ReversalRequest;
 import com.expenseanalyzer.transaction.dto.MerchantNameRequest;
 import com.expenseanalyzer.transaction.dto.TransactionFilter;
+import com.expenseanalyzer.transaction.dto.DuplicateRequest;
 import com.expenseanalyzer.transaction.dto.TransferRequest;
 import com.expenseanalyzer.transaction.dto.TransactionResponse;
 import com.expenseanalyzer.transaction.model.TransactionDirection;
 import com.expenseanalyzer.transaction.service.TransactionService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.Map;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -57,12 +59,19 @@ public class TransactionController {
             @RequestParam(required = false) Boolean transfer,
             @RequestParam(required = false) UUID personId,
             @RequestParam(required = false) Boolean reversalPending,
+            @RequestParam(required = false) Boolean duplicate,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
         TransactionFilter filter = new TransactionFilter(q, statementId, from, to, merchantId, direction, minAmount, maxAmount,
-                category, transfer, personId, reversalPending);
+                category, transfer, personId, reversalPending, duplicate);
         PageRequest pageable = PageRequest.of(Math.max(page, 0), Math.clamp(size, 1, MAX_PAGE_SIZE), NEWEST_FIRST);
         return PageResponse.of(transactionService.list(jwt.getSubject(), filter, pageable), r -> r);
+    }
+
+    /** Transaction count per category id; categories with none are left out. */
+    @GetMapping("/category-counts")
+    public Map<UUID, Long> categoryCounts(@AuthenticationPrincipal Jwt jwt) {
+        return transactionService.categoryCounts(jwt.getSubject());
     }
 
     @GetMapping("/{id}")
@@ -75,6 +84,13 @@ public class TransactionController {
     public TransactionResponse setTransfer(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
                                            @RequestBody TransferRequest body) {
         return transactionService.setTransfer(jwt.getSubject(), id, body);
+    }
+
+    /** Marks or unmarks the transaction as a duplicate of another of the caller's rows. */
+    @PutMapping("/{id}/duplicate")
+    public TransactionResponse setDuplicate(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
+                                            @RequestBody DuplicateRequest body) {
+        return transactionService.setDuplicate(jwt.getSubject(), id, body);
     }
 
     /** Pairs a failed payment with the refund that reversed it, or unpairs it (null pairWithId). */
