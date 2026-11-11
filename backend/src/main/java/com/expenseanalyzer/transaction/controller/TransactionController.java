@@ -7,6 +7,8 @@ import com.expenseanalyzer.transaction.dto.ReversalRequest;
 import com.expenseanalyzer.transaction.dto.MerchantNameRequest;
 import com.expenseanalyzer.transaction.dto.TransactionFilter;
 import com.expenseanalyzer.transaction.dto.DuplicateRequest;
+import com.expenseanalyzer.transaction.dto.LoanClosedRequest;
+import com.expenseanalyzer.transaction.dto.LoanRequest;
 import com.expenseanalyzer.transaction.dto.TransferRequest;
 import com.expenseanalyzer.transaction.dto.TransactionResponse;
 import com.expenseanalyzer.transaction.model.TransactionDirection;
@@ -60,10 +62,11 @@ public class TransactionController {
             @RequestParam(required = false) UUID personId,
             @RequestParam(required = false) Boolean reversalPending,
             @RequestParam(required = false) Boolean duplicate,
+            @RequestParam(required = false) UUID loanId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
         TransactionFilter filter = new TransactionFilter(q, statementId, from, to, merchantId, direction, minAmount, maxAmount,
-                category, transfer, personId, reversalPending, duplicate);
+                category, transfer, personId, reversalPending, duplicate, loanId);
         PageRequest pageable = PageRequest.of(Math.max(page, 0), Math.clamp(size, 1, MAX_PAGE_SIZE), NEWEST_FIRST);
         return PageResponse.of(transactionService.list(jwt.getSubject(), filter, pageable), r -> r);
     }
@@ -84,6 +87,20 @@ public class TransactionController {
     public TransactionResponse setTransfer(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
                                            @RequestBody TransferRequest body) {
         return transactionService.setTransfer(jwt.getSubject(), id, body);
+    }
+
+    /** Links a Loan EMI payment (and its lender's other EMIs) to a loan, or unlinks it (null loanId). */
+    @PutMapping("/{id}/loan")
+    public TransactionResponse setLoan(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
+                                       @RequestBody LoanRequest body) {
+        return transactionService.setLoan(jwt.getSubject(), id, body);
+    }
+
+    /** Closes or reopens a loan; a closed loan's lender stops having later payments linked or categorised as EMIs. */
+    @PutMapping("/{id}/loan-closed")
+    public TransactionResponse setLoanClosed(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
+                                             @RequestBody LoanClosedRequest body) {
+        return transactionService.setLoanClosed(jwt.getSubject(), id, body);
     }
 
     /** Marks or unmarks the transaction as a duplicate of another of the caller's rows. */

@@ -29,6 +29,7 @@ import com.expenseanalyzer.statement.service.StatementObjectNotFoundException;
 import com.expenseanalyzer.statement.service.S3StatementStorage;
 import com.expenseanalyzer.transaction.model.Transaction;
 import com.expenseanalyzer.transaction.repository.TransactionRepository;
+import com.expenseanalyzer.transaction.service.LoanService;
 import com.expenseanalyzer.transaction.service.TransferService;
 import java.io.IOException;
 import java.io.InputStream;
@@ -89,6 +90,7 @@ public class StatementProcessor {
     private final ParserLimits limits;
     private final TransferService transferService;
     private final EffectiveCategoryResolver categoryResolver;
+    private final LoanService loanService;
 
     public StatementProcessor(StatementRepository statementRepository, TransactionRepository transactionRepository,
                               ProcessedEventRepository processedEventRepository, S3StatementStorage storage,
@@ -97,7 +99,7 @@ public class StatementProcessor {
                               JsonMapper jsonMapper,
                               MerchantNormalizer merchantNormalizer, MerchantService merchantService,
                               PersonService personService, TransferService transferService,
-                              EffectiveCategoryResolver categoryResolver,
+                              EffectiveCategoryResolver categoryResolver, LoanService loanService,
                               @Value("${app.parser.max-rows:50000}") int maxRows,
                               @Value("${app.parser.max-columns:50}") int maxColumns,
                               @Value("${app.parser.timeout:30s}") Duration timeout) {
@@ -115,6 +117,7 @@ public class StatementProcessor {
         this.personService = personService;
         this.transferService = transferService;
         this.categoryResolver = categoryResolver;
+        this.loanService = loanService;
         this.limits = new ParserLimits(maxRows, maxColumns, timeout);
     }
 
@@ -198,7 +201,9 @@ public class StatementProcessor {
         });
         int merged = mergeUpiDuplicates(s, fresh);
         markSelfAsTransfers(s.getUserId(), fresh);
+        Set<UUID> loans = loanService.autoLink(s.getUserId(), fresh);
         transactionRepository.saveAll(fresh);
+        loanService.recompute(loans);
         transferService.match(s.getUserId());
 
         s.setStatus(StatementStatus.COMPLETED);

@@ -69,6 +69,7 @@ class PersonNameParserTest {
     @CsvSource(delimiter = '~', value = {
             "535804014266/Rahul Sharma~Rahul Sharma",
             "535804014266~535804014266",
+            "535804014266/Dummy Name~535804014266",
             "Priya K Nair~Priya K Nair",
             "12/3 Club~12/3 Club"})
     void displayNameHidesTheAccountNumberOfANamedPayee(String name, String shown) {

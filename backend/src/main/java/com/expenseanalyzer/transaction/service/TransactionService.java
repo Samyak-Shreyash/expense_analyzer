@@ -22,6 +22,8 @@ import com.expenseanalyzer.transaction.dto.ReversalRequest;
 import com.expenseanalyzer.transaction.dto.TransactionFilter;
 import com.expenseanalyzer.transaction.dto.TransactionResponse;
 import com.expenseanalyzer.transaction.dto.DuplicateRequest;
+import com.expenseanalyzer.transaction.dto.LoanClosedRequest;
+import com.expenseanalyzer.transaction.dto.LoanRequest;
 import com.expenseanalyzer.transaction.dto.TransferRequest;
 import com.expenseanalyzer.transaction.model.Transaction;
 import com.expenseanalyzer.transaction.repository.TransactionRepository;
@@ -69,6 +71,7 @@ public class TransactionService {
     private final CategoryService categoryService;
     private final EffectiveCategoryResolver categoryResolver;
     private final PersonService personService;
+    private final LoanService loanService;
     private final MerchantNormalizer merchantNormalizer;
     private final MerchantService merchantService;
     private final MerchantNameService merchantNameService;
@@ -128,6 +131,9 @@ public class TransactionService {
         }
         if (f.duplicate() != null) {
             spec = spec.and((root, q, cb) -> cb.equal(root.get("duplicate"), f.duplicate()));
+        }
+        if (f.loanId() != null) {
+            spec = spec.and((root, q, cb) -> cb.equal(root.get("loanId"), f.loanId()));
         }
         if (f.direction() != null) {
             spec = spec.and((root, q, cb) -> cb.equal(root.get("type"), f.direction().name()));
@@ -209,6 +215,24 @@ public class TransactionService {
         }
         t.setUpdatedAt(now);
         return response(transactionRepository.save(t), userId);
+    }
+
+    /** Links a Loan EMI payment to a loan or unlinks it; see {@link LoanService#link}. Not yours: 404. */
+    @Transactional
+    public TransactionResponse setLoan(String email, UUID id, LoanRequest request) {
+        UUID userId = currentUser(email).getId();
+        Transaction t = owned(id, userId);
+        loanService.link(userId, t, request.loanId());
+        return response(t, userId);
+    }
+
+    /** Closes or reopens a loan; see {@link LoanService#setClosed}. Not yours: 404. */
+    @Transactional
+    public TransactionResponse setLoanClosed(String email, UUID id, LoanClosedRequest request) {
+        UUID userId = currentUser(email).getId();
+        Transaction t = owned(id, userId);
+        loanService.setClosed(userId, t, request.closed());
+        return response(t, userId);
     }
 
     /**

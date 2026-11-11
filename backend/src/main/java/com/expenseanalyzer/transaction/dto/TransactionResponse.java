@@ -22,6 +22,8 @@ import java.util.UUID;
  * {@code reversalPairId} is the refund of a failed payment (or the payment a refund reversed), if paired;
  * {@code reversalPending} is true while it is marked as failed or refunded but not paired yet.
  * {@code duplicate} is true when the caller marked it as a duplicate of another row; it is left out of analytics.
+ * {@code loanId} is the loan an EMI repays; {@code loanInterest} the part of it paid beyond the loan's principal
+ * (counts as spending), null when none; {@code loanClosed} is true on a loan the caller closed.
  */
 public record TransactionResponse(UUID id, LocalDate date, String description, String normalizedDescription,
                                   BigDecimal amount, String currency, String direction, UUID merchantId,
@@ -29,7 +31,8 @@ public record TransactionResponse(UUID id, LocalDate date, String description, S
                                   UUID statementId, UUID personId, String personName,
                                   String suggestedMerchantName, String payeeName, String payeeType,
                                   boolean transfer, UUID transferPairId, UUID reversalPairId,
-                                  boolean reversalPending, boolean duplicate) {
+                                  boolean reversalPending, boolean duplicate, UUID loanId,
+                                  BigDecimal loanInterest, boolean loanClosed) {
 
     /**
      * @param merchant  the transaction's merchant, or null when it has none
@@ -49,7 +52,8 @@ public record TransactionResponse(UUID id, LocalDate date, String description, S
                 t.getCategoryId() != null, t.getStatementId(), t.getPersonId(),
                 person == null ? null : PersonNameParser.displayName(person.getName()), suggested, payee == null ? null : payee.name(),
                 payee == null ? null : payee.type(), t.isTransfer(), t.getTransferPairId(), t.getReversalPairId(),
-                t.isReversalPending(), t.isDuplicate());
+                t.isReversalPending(), t.isDuplicate(), t.getLoanId(),
+                t.getLoanInterestPaise() == null ? null : t.getLoanInterestPaise().movePointLeft(2), t.isLoanClosed());
     }
 
     private record Payee(String name, String type) {
