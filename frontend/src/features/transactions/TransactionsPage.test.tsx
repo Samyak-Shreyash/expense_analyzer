@@ -14,6 +14,8 @@ vi.mock('../../services/finance', async (orig) => ({
   setCounterparty: vi.fn(),
   setMerchantCategory: vi.fn(),
   setTransfer: vi.fn(),
+  setLoan: vi.fn(),
+  setLoanClosed: vi.fn(),
   setReversal: vi.fn(),
   setPersonCategory: vi.fn(),
   updatePerson: vi.fn(),
@@ -47,6 +49,9 @@ const swiggy: Transaction = {
   reversalPairId: null,
   reversalPending: false,
   duplicate: false,
+  loanId: null,
+  loanInterest: null,
+  loanClosed: false,
 }
 
 const categories: finance.Category[] = [
@@ -1089,6 +1094,49 @@ describe('TransactionsPage', () => {
         totalItems: 1,
         totalPages: 1,
       })
+
+    it('links a Loan EMI payment to an open loan, and only offers it for EMIs', async () => {
+      const emi = { ...swiggy, category: 'Loan EMI', date: '2026-02-05' }
+      const loan = {
+        ...swiggy,
+        id: 'loan1',
+        direction: 'CREDIT' as const,
+        category: 'Loan',
+        amount: 50000,
+        date: '2026-01-01',
+        normalizedDescription: 'LOAN DISBURSAL',
+      }
+      const closed = { ...loan, id: 'loan2', loanClosed: true }
+      vi.mocked(finance.listTransactions).mockImplementation(async (q) => ({
+        items: q.category === 'Loan' ? [loan, closed] : [emi],
+        page: 0,
+        size: 50,
+        totalItems: 1,
+        totalPages: 1,
+      }))
+      vi.mocked(finance.setLoan).mockResolvedValue({ ...emi, loanId: 'loan1' })
+      renderPage()
+      fireEvent.click(
+        await screen.findByRole('button', { name: /SWIGGY ORDER/ }),
+      )
+      fireEvent.click(screen.getByRole('button', { name: 'Link to a loan' }))
+      const select = await screen.findByLabelText('The loan')
+      expect(select.querySelectorAll('option')).toHaveLength(1)
+      fireEvent.click(screen.getByRole('button', { name: 'Link' }))
+      await waitFor(() =>
+        expect(finance.setLoan).toHaveBeenCalledWith('t1', 'loan1'),
+      )
+    })
+
+    it('offers no loan controls on other payments', async () => {
+      only(swiggy)
+      renderPage()
+      fireEvent.click(
+        await screen.findByRole('button', { name: /SWIGGY ORDER/ }),
+      )
+      expect(screen.queryByRole('button', { name: 'Link to a loan' })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Close loan' })).toBeNull()
+    })
 
     it('marks and unmarks a transfer between own accounts', async () => {
       vi.mocked(finance.setTransfer).mockResolvedValue({

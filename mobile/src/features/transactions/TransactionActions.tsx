@@ -9,10 +9,12 @@ import {
   setTransactionCategory,
   setTransactionMerchant,
   setDuplicate,
+  setLoan,
+  setLoanClosed,
   setTransfer,
   type Transaction,
 } from '@expense-analyzer/api-client'
-import { type ReactNode, useState } from 'react'
+import { type ReactNode, useEffect, useState } from 'react'
 import { Alert, Text, View } from 'react-native'
 import { Button, Chip, ErrorText, Field, useStyles } from '../../components/ui'
 import { space } from '../../components/theme'
@@ -315,6 +317,8 @@ export function TransactionActions({
         />
       </Section>
 
+      <LoanSection t={t} save={save} onSaved={onSaved} reload={reload} />
+
       <Section title="Failed payment and refund">
         {t.reversalPairId ? (
           unmark
@@ -395,6 +399,142 @@ export function TransactionActions({
       ) : null}
       {status && !status.ok && <ErrorText>{status.text}</ErrorText>}
     </View>
+  )
+}
+
+const LOAN = 'Loan'
+const LOAN_EMI = 'Loan EMI'
+
+/**
+ * Loan controls, same as the web. On money out categorised Loan EMI: link it to a loan (its lender's other EMIs
+ * follow) or unlink it. On money in categorised Loan: what its linked EMIs repaid, and closing it.
+ */
+function LoanSection({
+  t,
+  save,
+  onSaved,
+  reload,
+}: {
+  t: Transaction
+  save: (task: () => Promise<void>, done: string) => Promise<void>
+  onSaved: (t: Transaction) => void
+  reload: () => void
+}) {
+  const styles = useStyles()
+  const emi = t.direction === 'DEBIT' && t.category === LOAN_EMI
+  const loan = t.direction === 'CREDIT' && t.category === LOAN
+  const [loans, setLoans] = useState<Transaction[] | null>(null)
+  const [picked, setPicked] = useState<string | null>(null)
+  const [repayments, setRepayments] = useState<Transaction[] | null>(null)
+
+  useEffect(() => {
+    if (!loan) return
+    let live = true
+    listTransactions({ loanId: t.id }).then(
+      (page) => live && setRepayments(page.items),
+      () => live && setRepayments([]),
+    )
+    return () => {
+      live = false
+    }
+  }, [loan, t.id])
+
+  if (emi) {
+    return (
+      <Section title="Loan">
+        {t.loanId ? (
+          <>
+            <Text style={styles.muted}>
+              Repays a loan
+              {t.loanInterest !== null ? ` · ${rupees(t.loanInterest)} of it is interest` : ''}
+            </Text>
+            <Button
+              title="Unlink from loan"
+              variant="secondary"
+              onPress={() =>
+                save(async () => {
+                  onSaved(await setLoan(t.id, null))
+                  reload()
+                }, 'No longer linked to a loan.')
+              }
+            />
+          </>
+        ) : loans === null ? (
+          <Button
+            title="Link to a loan"
+            variant="secondary"
+            onPress={() =>
+              save(async () => {
+                const open = (
+                  await listTransactions({ category: LOAN, direction: 'CREDIT' })
+                ).items.filter((l) => !l.loanClosed && l.date <= t.date)
+                setLoans(open)
+                setPicked(open[0]?.id ?? null)
+              }, '')
+            }
+          />
+        ) : loans.length === 0 ? (
+          <Text style={styles.muted}>
+            No open loan before this payment. Categorise the money you borrowed as {LOAN} first.
+          </Text>
+        ) : (
+          <>
+            <Picker
+              label="The loan"
+              value={picked}
+              placeholder="Choose one"
+              options={loans.map((l) => ({
+                value: l.id,
+                label: `${rupees(l.amount)} · ${dayLabel(l.date)} · ${l.normalizedDescription ?? l.description}`,
+              }))}
+              onChange={setPicked}
+            />
+            <Button
+              title="Link"
+              disabled={!picked}
+              onPress={() =>
+                save(async () => {
+                  onSaved(await setLoan(t.id, picked))
+                  reload()
+                }, 'Linked. This lender’s other and future EMIs link to this loan too.')
+              }
+            />
+          </>
+        )}
+      </Section>
+    )
+  }
+
+  if (!loan) return null
+  const repaid = (repayments ?? []).reduce((sum, r) => sum + r.amount, 0)
+  const interest = (repayments ?? []).reduce((sum, r) => sum + (r.loanInterest ?? 0), 0)
+  return (
+    <Section title={t.loanClosed ? 'Loan (closed)' : 'Loan'}>
+      {repayments !== null && (
+        <Text style={styles.muted}>
+          {repayments.length} EMI{repayments.length === 1 ? '' : 's'} · repaid {rupees(repaid)} of{' '}
+          {rupees(t.amount)}
+          {interest > 0
+            ? ` · ${rupees(interest)} interest`
+            : ` · ${rupees(t.amount - repaid)} outstanding`}
+        </Text>
+      )}
+      <Button
+        title={t.loanClosed ? 'Reopen loan' : 'Close loan'}
+        variant="secondary"
+        onPress={() =>
+          save(
+            async () => {
+              onSaved(await setLoanClosed(t.id, !t.loanClosed))
+              reload()
+            },
+            t.loanClosed
+              ? 'Reopened. Its lender’s EMIs link to it again.'
+              : 'Closed. Later payments to its lender are no longer treated as EMIs.',
+          )
+        }
+      />
+    </Section>
   )
 }
 

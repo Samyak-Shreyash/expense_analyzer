@@ -73,6 +73,12 @@ export type Transaction = {
   reversalPending: boolean
   /** Marked as a duplicate of another of your transactions; left out of analytics. */
   duplicate: boolean
+  /** On a Loan EMI payment: the loan (money in categorised Loan) it repays, when linked. */
+  loanId: string | null
+  /** On a linked EMI: the part paid beyond the loan's principal, counted as spending (interest). */
+  loanInterest: number | null
+  /** On a loan: closed, so its lender's later payments are no longer linked or categorised as EMIs. */
+  loanClosed: boolean
 }
 
 type Totals = {
@@ -93,6 +99,8 @@ export type Summary = Totals & {
   /** Money moved between your own accounts, left out of the figures above. */
   transfersIn: number
   transfersOut: number
+  /** Money borrowed (credits categorised Loan): money in, but not income, so left out of inflow. */
+  loanReceived: number
 }
 
 type Spend = {
@@ -244,6 +252,8 @@ export type TransactionQuery = {
   transfer?: string
   /** 'true' keeps only rows marked as failed or refunded but not paired yet. */
   reversalPending?: string
+  /** Keeps only this loan's EMIs. */
+  loanId?: string
   minAmount?: number
   maxAmount?: number
   page?: number
@@ -436,6 +446,30 @@ export const setTransfer = (
     { transfer, pairWithId },
     {
       400: 'A transfer pairs money out and money in of the same amount.',
+      404: 'That transaction no longer exists. Reload the page.',
+    },
+  )
+
+/** Links a Loan EMI payment, and its lender's other EMIs, to a loan; null unlinks this one. */
+export const setLoan = (id: string, loanId: string | null) =>
+  write<Transaction>(
+    'PUT',
+    `/transactions/${id}/loan`,
+    { loanId },
+    {
+      400: 'Only a Loan EMI payment can be linked, and only to an open loan.',
+      404: 'That transaction no longer exists. Reload the page.',
+    },
+  )
+
+/** Closes (or reopens) a loan: a closed loan's lender stops having payments linked or categorised as EMIs. */
+export const setLoanClosed = (id: string, closed: boolean) =>
+  write<Transaction>(
+    'PUT',
+    `/transactions/${id}/loan-closed`,
+    { closed },
+    {
+      400: 'Only money in categorised as Loan is a loan.',
       404: 'That transaction no longer exists. Reload the page.',
     },
   )

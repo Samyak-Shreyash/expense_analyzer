@@ -196,6 +196,15 @@ export function DashboardPage() {
                 {rupees(s.previous.nonSpendingOutflow)} in the previous period
               </dd>
             </div>
+            {s.loanReceived > 0 && (
+              <div>
+                <dt>Loans received</dt>
+                <dd>{rupees(s.loanReceived)}</dd>
+                <dd className={styles.compare}>
+                  Borrowed, so not counted as money in
+                </dd>
+              </div>
+            )}
             <div>
               <dt>Moved between your accounts</dt>
               <dd>{rupees(s.transfersOut)} out</dd>

@@ -208,6 +208,13 @@ export default function Dashboard() {
               value={s.nonSpendingOutflow}
               note={`${rupees(s.previous.nonSpendingOutflow)} in the previous period`}
             />
+            {s.loanReceived > 0 && (
+              <Figure
+                label="Loans received"
+                value={s.loanReceived}
+                note="Borrowed, so not counted as money in"
+              />
+            )}
             <Figure
               label="Moved between your accounts (out)"
               value={s.transfersOut}

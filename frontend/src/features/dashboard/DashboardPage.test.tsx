@@ -41,6 +41,7 @@ const summary = (count = 5): finance.Summary => ({
   outflowChangePercent: 180,
   transfersIn: 5000,
   transfersOut: 4500,
+  loanReceived: 0,
 })
 
 function renderPage(url = '/dashboard?from=2026-01-01&to=2026-01-31') {
