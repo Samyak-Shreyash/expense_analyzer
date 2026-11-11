@@ -67,13 +67,20 @@ async function storeSession(res: Response) {
 /**
  * Exchanges the refresh token for a new access token.
  * Shared promise: refresh tokens are single-use, so concurrent callers must not race.
- * A 429, a 5xx or a network failure leaves the stored token usable; other failures discard it.
+ * A 409 means another tab rotated the shared cookie a moment ago: retry once with the cookie it received.
+ * A 429, a 409, a 5xx or a network failure leaves the stored token usable; other failures discard it.
  */
 export function refresh(): Promise<boolean> {
-  refreshing ??= tokenBody()
-    .then((body) => post('/auth/refresh', body))
+  const attempt = () => tokenBody().then((body) => post('/auth/refresh', body))
+  refreshing ??= attempt()
+    .then((res) =>
+      res.status === 409
+        ? new Promise<void>((r) => setTimeout(r, 500)).then(attempt)
+        : res,
+    )
     .then(async (res) => {
-      refreshUnavailable = res.status === 429 || res.status >= 500
+      refreshUnavailable =
+        res.status === 429 || res.status === 409 || res.status >= 500
       if (res.ok) {
         await storeSession(res)
       } else {

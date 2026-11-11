@@ -139,9 +139,12 @@ public class AuthController {
                 .map(user -> ResponseEntity.ok()
                         .header(HttpHeaders.SET_COOKIE, refreshCookie(refreshTokenService.issue(user), refreshTokenService.getRefreshTokenSeconds()))
                         .body(new AuthResponse(tokenProvider.generateToken(new UsernamePasswordAuthenticationToken(user.getEmail(), null)))))
-                .orElseGet(() -> ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .header(HttpHeaders.SET_COOKIE, refreshCookie("", 0))
-                        .build());
+                // Lost a race with another tab: its response set the new cookie, which clearing here would delete.
+                .orElseGet(() -> refreshTokenService.recentlyRotated(refreshToken)
+                        ? ResponseEntity.status(HttpStatus.CONFLICT).build()
+                        : ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                                .header(HttpHeaders.SET_COOKIE, refreshCookie("", 0))
+                                .build());
     }
 
     /**

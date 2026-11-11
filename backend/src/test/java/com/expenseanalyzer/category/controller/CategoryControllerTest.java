@@ -97,7 +97,7 @@ class CategoryControllerTest {
 
     @Test
     void listSeedsDefaultsOnceSortedByName() throws Exception {
-        int expected = MerchantNormalizer.defaultCategoryNames().size() + 3; // Refund, Repayment, Loan
+        int expected = MerchantNormalizer.defaultCategoryNames().size() + 4; // Refund, Repayment, Loan, Loan EMI
         for (int i = 0; i < 2; i++) {
             mockMvc.perform(get("/api/categories").header("Authorization", bearer(ALICE)))
                     .andExpect(status().isOk())
@@ -106,6 +106,7 @@ class CategoryControllerTest {
         assertThat(categoryRepository.findByUserIdOrderByNameAsc(alice.getId())).hasSize(expected);
         mockMvc.perform(get("/api/categories").header("Authorization", bearer(ALICE)))
                 .andExpect(jsonPath("$[?(@.name=='Loan')].countsAsSpending").value(false))
+                .andExpect(jsonPath("$[?(@.name=='Loan EMI')].countsAsSpending").value(false))
                 .andExpect(jsonPath("$[?(@.name=='Groceries')].countsAsSpending").value(true))
                 .andExpect(jsonPath("$[0].name").value("Entertainment"));
     }
