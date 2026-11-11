@@ -10,13 +10,16 @@ import java.util.regex.Pattern;
  * Pulls the payee's name out of a UPI person-to-person description. A description is a transfer to a person
  * only when it has a P2A or P2P segment (P2M is a merchant and never matches). The name is the segment right
  * after the 9+ digit UPI reference number, title-cased. A P2A (transfer to an account) name is prefixed with that number,
- * the account number, as "535804014266/Dummy Name", so transfers group by account and name. Pure; nothing is logged.
+ * the account number, as "535804014266/Rahul Sharma", so transfers group by account and name; when the bank gives the
+ * placeholder "Dummy Name" instead, the name is the account number alone. Pure; nothing is logged.
  */
 public final class PersonNameParser {
 
     private static final Pattern ANY_SPLIT = Pattern.compile("[/|\\-]");
     private static final Pattern REFERENCE = Pattern.compile("\\d{9,}");
     private static final int MAX_LENGTH = 100;
+    /** What some banks put in place of a P2A payee's name. */
+    private static final String PLACEHOLDER_NAME = "Dummy Name";
     private static final Pattern TRANSFER_TOKEN = Pattern.compile("(?<![A-Z0-9])P2[AP](?![A-Z0-9])", Pattern.CASE_INSENSITIVE);
 
     private PersonNameParser() {
@@ -28,8 +31,17 @@ public final class PersonNameParser {
                 return Optional.empty();
             }
             String title = titleCase(name.length() > MAX_LENGTH ? name.substring(0, MAX_LENGTH) : name);
-            return Optional.of(accountNumber(rawDescription).map(a -> a + "/" + title).orElse(title));
+            Optional<String> account = accountNumber(rawDescription);
+            if (title.equalsIgnoreCase(PLACEHOLDER_NAME)) {
+                return account;
+            }
+            return Optional.of(account.map(a -> a + "/" + title).orElse(title));
         });
+    }
+
+    /** How a person's name is shown: "535804014266/Rahul Sharma" as "Rahul Sharma"; other names unchanged. */
+    public static String displayName(String name) {
+        return name == null ? null : name.replaceFirst("^\\d{9,}/(?=.*\\p{L})", "");
     }
 
     /** The 9+ digit number of a P2A description; empty for P2P. */

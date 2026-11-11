@@ -179,7 +179,7 @@ class StatementProcessorTest {
         Statement s = queued(user);
         fileContains(s, """
                 Date,Description,Amount
-                2026-01-02,UPI/P2A/412345678901/RAHUL SHARMA/HDFC BANK/rent,-15000.00
+                2026-01-02,UPI/P2A/412345678901/DUMMY NAME/HDFC BANK/rent,-15000.00
                 2026-01-03,UPI/P2P/412345678902/rahul sharma/AXIS BANK/dinner,-500.00
                 2026-01-04,UPI/P2M/412345678903/SWIGGY/YES BANK/order,-300.00
                 """);
@@ -187,7 +187,7 @@ class StatementProcessorTest {
         processor.process(event(s));
 
         List<Person> people = personRepository.findByUserIdOrderByNameAsc(user);
-        assertThat(people).extracting(Person::getName).containsExactly("412345678901/Rahul Sharma", "Rahul Sharma");
+        assertThat(people).extracting(Person::getName).containsExactly("412345678901", "Rahul Sharma");
         List<Transaction> txns = transactionRepository.findByUserId(user);
         assertThat(txns).filteredOn(t -> t.getRawDescription().contains("/P2A/"))
                 .singleElement().satisfies(t -> assertThat(t.getPersonId()).isEqualTo(people.get(0).getId()));
@@ -199,7 +199,7 @@ class StatementProcessorTest {
         assertThat(p2m.getMerchantId()).isNotNull();
 
         Statement other = queued(UUID.randomUUID());
-        fileContains(other, "Date,Description,Amount\n2026-01-02,UPI/P2A/412345678901/RAHUL SHARMA/HDFC BANK/rent,-1.00\n");
+        fileContains(other, "Date,Description,Amount\n2026-01-02,UPI/P2A/412345678901/DUMMY NAME/HDFC BANK/rent,-1.00\n");
         processor.process(event(other));
         assertThat(personRepository.count()).isEqualTo(3);
     }

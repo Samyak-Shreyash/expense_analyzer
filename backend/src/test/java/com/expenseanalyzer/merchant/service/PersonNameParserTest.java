@@ -27,7 +27,10 @@ class PersonNameParserTest {
             "UPI/P2A/412345678907/MARY-ANNE JOSEPH/HDFC BANK~412345678907/Mary-Anne Joseph",
             "UPI|P2A|412345678908|D'SOUTA-RAO|HDFC BANK~412345678908/D'Souta-Rao",
             // the delimiter is the one around the reference, not whichever character appears anywhere
-            "UPI-P2A-412345678902-ANITA DESAI-x@okhdfcbank-HDFC0001234-pay/rent~412345678902/Anita Desai"})
+            "UPI-P2A-412345678902-ANITA DESAI-x@okhdfcbank-HDFC0001234-pay/rent~412345678902/Anita Desai",
+            // a P2A with the "Dummy Name" placeholder is named by its account number
+            "UPI/P2A/535804014266/DUMMY NAME/HDFC BANK~535804014266",
+            "TRANSFER TO UPI/DR/535804014266/P2A/Dummy Name/SBIN~535804014266"})
     void extractsTitleCasedName(String description, String expected) {
         assertThat(PersonNameParser.parse(description)).contains(expected);
     }
@@ -60,5 +63,15 @@ class PersonNameParserTest {
     @ValueSource(strings = {"UPI/P2M/412345678901/SWIGGY/YES BANK/order", "NEFT/N1234/XP2AB/HDFC", ""})
     void notATransferWithoutTheToken(String description) {
         assertThat(PersonNameParser.isTransfer(description)).isFalse();
+    }
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '~', value = {
+            "535804014266/Rahul Sharma~Rahul Sharma",
+            "535804014266~535804014266",
+            "Priya K Nair~Priya K Nair",
+            "12/3 Club~12/3 Club"})
+    void displayNameHidesTheAccountNumberOfANamedPayee(String name, String shown) {
+        assertThat(PersonNameParser.displayName(name)).isEqualTo(shown);
     }
 }

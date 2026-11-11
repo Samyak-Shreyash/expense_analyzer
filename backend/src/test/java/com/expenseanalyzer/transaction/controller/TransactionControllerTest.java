@@ -195,6 +195,8 @@ class TransactionControllerTest {
                         .andExpect(jsonPath("$.items[*].description",
                                 containsInAnyOrder(q.contains("rahul") || q.startsWith("5358") ? "Rent" : "Swiggy order")));
             }
+            mockMvc.perform(get("/api/transactions").param("q", "535804014266").header("Authorization", bearer(ALICE)))
+                    .andExpect(jsonPath("$.items[0].personName").value("Rahul Sharma"));
             mockMvc.perform(get("/api/transactions").param("q", "rahul bundl").header("Authorization", bearer(ALICE)))
                     .andExpect(jsonPath("$.totalItems").value(0));
             mockMvc.perform(get("/api/transactions").param("q", "food app").header("Authorization", bearer(BOB)))
