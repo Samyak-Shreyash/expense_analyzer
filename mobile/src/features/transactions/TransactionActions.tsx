@@ -446,7 +446,9 @@ function LoanSection({
           <>
             <Text style={styles.muted}>
               Repays a loan
-              {t.loanInterest !== null ? ` · ${rupees(t.loanInterest)} of it is interest` : ''}
+              {t.loanInterest !== null
+                ? ` · ${rupees(t.loanInterest)} of it is interest`
+                : ''}
             </Text>
             <Button
               title="Unlink from loan"
@@ -466,7 +468,10 @@ function LoanSection({
             onPress={() =>
               save(async () => {
                 const open = (
-                  await listTransactions({ category: LOAN, direction: 'CREDIT' })
+                  await listTransactions({
+                    category: LOAN,
+                    direction: 'CREDIT',
+                  })
                 ).items.filter((l) => !l.loanClosed && l.date <= t.date)
                 setLoans(open)
                 setPicked(open[0]?.id ?? null)
@@ -475,7 +480,8 @@ function LoanSection({
           />
         ) : loans.length === 0 ? (
           <Text style={styles.muted}>
-            No open loan before this payment. Categorise the money you borrowed as {LOAN} first.
+            No open loan before this payment. Categorise the money you borrowed
+            as {LOAN} first.
           </Text>
         ) : (
           <>
@@ -507,13 +513,16 @@ function LoanSection({
 
   if (!loan) return null
   const repaid = (repayments ?? []).reduce((sum, r) => sum + r.amount, 0)
-  const interest = (repayments ?? []).reduce((sum, r) => sum + (r.loanInterest ?? 0), 0)
+  const interest = (repayments ?? []).reduce(
+    (sum, r) => sum + (r.loanInterest ?? 0),
+    0,
+  )
   return (
     <Section title={t.loanClosed ? 'Loan (closed)' : 'Loan'}>
       {repayments !== null && (
         <Text style={styles.muted}>
-          {repayments.length} EMI{repayments.length === 1 ? '' : 's'} · repaid {rupees(repaid)} of{' '}
-          {rupees(t.amount)}
+          {repayments.length} EMI{repayments.length === 1 ? '' : 's'} · repaid{' '}
+          {rupees(repaid)} of {rupees(t.amount)}
           {interest > 0
             ? ` · ${rupees(interest)} interest`
             : ` · ${rupees(t.amount - repaid)} outstanding`}
