@@ -134,6 +134,20 @@ class UpiAppImportTest {
     }
 
     @Test
+    void upiCirclePaymentMatchesTheBankRow() throws IOException {
+        importFile(StatementSource.BANK, StatementFormat.CSV, """
+                Date,Description,Amount
+                2026-05-08,UPI/P2M/630490857431/Parampara/YES BANK/UPI//P2V/,-180.00
+                """.getBytes(StandardCharsets.UTF_8));
+        importFile(StatementSource.GPAY, StatementFormat.PDF, GPayPdf.of(GPayPdf.row("08 May, 2026",
+                "Paid to Parampara the mithai shop sangareddy", "180", "06:12 PM", "630490857431",
+                "Paid by Axis Bank 6457 | Paid for trisha mallick with UPI Circle")));
+
+        assertThat(rowsWithRef("630490857431")).singleElement()
+                .extracting(Transaction::getRawDescription).asString().startsWith("UPI/P2M/630490857431");
+    }
+
+    @Test
     void selfTransferFromGooglePayIsATransfer() throws IOException {
         importFile(StatementSource.GPAY, StatementFormat.PDF, gpay());
 
