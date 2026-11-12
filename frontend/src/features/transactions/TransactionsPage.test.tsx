@@ -1134,7 +1134,9 @@ describe('TransactionsPage', () => {
       fireEvent.click(
         await screen.findByRole('button', { name: /SWIGGY ORDER/ }),
       )
-      expect(screen.queryByRole('button', { name: 'Link to a loan' })).toBeNull()
+      expect(
+        screen.queryByRole('button', { name: 'Link to a loan' }),
+      ).toBeNull()
       expect(screen.queryByRole('button', { name: 'Close loan' })).toBeNull()
     })
 
