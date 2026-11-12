@@ -135,12 +135,17 @@ class CrossUserIsolationTest {
         categoryRepository.deleteAll();
     }
 
+    /** No row is needed while UserRepository is mocked; the Postgres subclass writes one for its foreign keys. */
+    protected void persistUser(UUID id) {
+    }
+
     private UUID user(String email) {
         User u = new User();
         u.setId(UUID.randomUUID());
         u.setEmail(email);
         u.setRole(UserRole.USER);
         when(userRepository.findByEmail(email)).thenReturn(Optional.of(u));
+        persistUser(u.getId());
         return u.getId();
     }
 
