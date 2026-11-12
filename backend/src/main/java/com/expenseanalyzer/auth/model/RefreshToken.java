@@ -31,6 +31,10 @@ public class RefreshToken {
     @Column(name = "consumed_at")
     private Instant consumedAt;
 
+    /** Set on the one replay allowed inside the reuse grace window. */
+    @Column(name = "replayed_at")
+    private Instant replayedAt;
+
     protected RefreshToken() {
     }
 

@@ -111,7 +111,21 @@ class AuthRefreshSecurityTest {
                 .startsWith("refresh_token=")
                 .doesNotStartWith("refresh_token=" + raw);
 
+        assertThat(refresh(raw).getResponse().getStatus()).isEqualTo(200); // the one replay the grace window allows
         assertThat(refresh(raw).getResponse().getStatus()).isEqualTo(409); // refused; 401 after the grace window
+    }
+
+    /** A reload aborts the refresh response, so the browser keeps the old cookie and the new one is never seen. */
+    @Test
+    void replayAfterALostResponseKeepsTheSession() throws Exception {
+        String raw = refreshTokenService.issue(alice);
+        assertThat(refresh(raw).getResponse().getStatus()).isEqualTo(200); // response lost: its cookie never arrives
+
+        MvcResult retried = refresh(raw);
+        assertThat(retried.getResponse().getStatus()).isEqualTo(200);
+        String replacement = retried.getResponse().getCookie("refresh_token").getValue();
+        assertThat(replacement).isNotEqualTo(raw);
+        assertThat(refresh(replacement).getResponse().getStatus()).isEqualTo(200);
     }
 
     @Test
@@ -167,9 +181,11 @@ class AuthRefreshSecurityTest {
         assertThat(first.getResponse().getStatus()).isEqualTo(200);
         String next = first.getResponse().getCookie("refresh_token").getValue();
 
-        MvcResult raced = refresh(raw);
+        MvcResult replayed = refresh(raw); // second tab: gets its own replacement
+        assertThat(replayed.getResponse().getStatus()).isEqualTo(200);
+        MvcResult raced = refresh(raw); // third tab
         assertThat(raced.getResponse().getStatus()).isEqualTo(409);
-        // the other tab's new cookie is shared: clearing it here would sign every tab out
+        // the other tabs' new cookie is shared: clearing it here would sign every tab out
         assertThat(raced.getResponse().getHeader("Set-Cookie")).isNull();
         assertThat(refresh(next).getResponse().getStatus()).isEqualTo(200);
     }

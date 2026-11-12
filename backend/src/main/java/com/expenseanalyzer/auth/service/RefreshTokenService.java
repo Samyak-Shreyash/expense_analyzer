@@ -22,8 +22,10 @@ import java.util.UUID;
 
 /**
  * Issues, rotates and revokes opaque refresh tokens. Each token is single-use: a rotation marks it consumed and
- * issues a new one. Replaying a consumed token means it leaked, so all the user's tokens are revoked; replays within
- * {@link #REUSE_GRACE} are only refused, since two browser tabs can refresh with the same cookie at once.
+ * issues a new one. Replaying a consumed token means it leaked, so all the user's tokens are revoked. Inside
+ * {@link #REUSE_GRACE} the first replay is honoured, since the client may never have received the replacement
+ * (a page reload aborts the response that carried it); further replays there are only refused, since two browser
+ * tabs can refresh with the same cookie at once.
  */
 @Service
 public class RefreshTokenService {
@@ -67,8 +69,12 @@ public class RefreshTokenService {
                     if (token.getConsumedAt() != null) {
                         if (token.getConsumedAt().isBefore(now.minus(REUSE_GRACE))) {
                             refreshTokenRepository.deleteByUserId(token.getUserId());
+                            return Optional.empty();
                         }
-                        return Optional.empty();
+                        if (refreshTokenRepository.markReplayed(token.getId(), now) == 0) {
+                            return Optional.empty();
+                        }
+                        return userRepository.findById(token.getUserId()).filter(User::isEnabled);
                     }
                     if (token.getExpiresAt().isBefore(now)) {
                         refreshTokenRepository.delete(token);

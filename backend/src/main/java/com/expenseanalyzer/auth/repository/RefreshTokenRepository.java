@@ -24,4 +24,9 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, UUID
     @Modifying
     @Query("UPDATE RefreshToken t SET t.consumedAt = :now WHERE t.id = :id AND t.consumedAt IS NULL")
     int markConsumed(@Param("id") UUID id, @Param("now") Instant now);
+
+    /** 1 for the one caller allowed to replay the rotated token; 0 if it was already replayed. */
+    @Modifying
+    @Query("UPDATE RefreshToken t SET t.replayedAt = :now WHERE t.id = :id AND t.consumedAt IS NOT NULL AND t.replayedAt IS NULL")
+    int markReplayed(@Param("id") UUID id, @Param("now") Instant now);
 }
