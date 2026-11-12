@@ -12,5 +12,14 @@ export default defineConfig({
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    // Registers the shared users once: the API allows 10 registrations per IP per window.
+    // Each saved session is single-use (refresh tokens rotate), so each user belongs to one spec.
+    { name: 'setup', testMatch: /auth\.setup\.ts/ },
+    {
+      name: 'chromium',
+      dependencies: ['setup'],
+      use: { ...devices['Desktop Chrome'] },
+    },
+  ],
 })
