@@ -11,11 +11,13 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
+import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 
 /** The same scenarios on the real schema: H2 has no foreign keys, so only this proves the deletion order. */
 @Testcontainers
@@ -54,23 +56,19 @@ class AccountDeletionPostgresTest extends AccountDeletionTest {
         assertSoftDeleted(alice);
     }
 
-    private void waitForBlockedQuery() throws InterruptedException {
+    private void waitForBlockedQuery() throws java.sql.SQLException {
         try (var monitor = java.sql.DriverManager.getConnection(
                 POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
                 var query = monitor.createStatement()) {
-            for (int i = 0; i < 300; i++) {
-                try (var result = query.executeQuery(
-                        "SELECT COUNT(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock'")) {
-                    result.next();
-                    if (result.getInt(1) > 0) {
-                        return;
-                    }
-                }
-                Thread.sleep(100);
-            }
-        } catch (java.sql.SQLException e) {
-            throw new IllegalStateException(e);
+            await("deletion blocked on the running write")
+                    .atMost(Duration.ofSeconds(30)).pollInterval(Duration.ofMillis(100))
+                    .until(() -> {
+                        try (var result = query.executeQuery(
+                                "SELECT COUNT(*) FROM pg_stat_activity WHERE wait_event_type = 'Lock'")) {
+                            result.next();
+                            return result.getInt(1) > 0;
+                        }
+                    });
         }
-        throw new AssertionError("deletion never blocked on the running write");
     }
 }

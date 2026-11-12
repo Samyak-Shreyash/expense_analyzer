@@ -45,6 +45,9 @@ management:
   otlp:
     tracing:
       endpoint: http://localhost:4318/v1/traces
+    metrics:
+      export:
+        enabled: false # no collector in tests; avoids connection-refused noise
 
 logging:
   structured:
