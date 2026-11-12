@@ -19,8 +19,18 @@ export async function register(page: Page, email = newEmail()) {
   return email
 }
 
+/** Uploads the fixture and waits until processing finishes (the page polls the status). */
 export async function uploadStatement(page: Page) {
-  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: /statements/i }).click()
+  await nav(page, 'Statements')
+  const done = page.getByRole('link', { name: 'View transactions' })
+  await expect(page.getByRole('heading', { name: 'Uploaded statements' })).toBeVisible()
+  const before = await done.count()
   await page.getByLabel('Choose a file').setInputFiles(STATEMENT)
   await expect(page.getByRole('alert')).toHaveCount(0)
+  await expect(done).toHaveCount(before + 1, { timeout: 60_000 })
+}
+
+export async function nav(page: Page, name: string) {
+  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name }).click()
+  await expect(page.getByRole('heading', { level: 1, name })).toBeVisible()
 }

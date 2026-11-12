@@ -1,6 +1,5 @@
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test } from '@playwright/test'
-import { register } from './helpers'
 
 const WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']
 
@@ -12,14 +11,15 @@ async function serious(page: import('@playwright/test').Page) {
 }
 
 for (const path of ['/login', '/register']) {
-  test(`${path} has no serious accessibility violations`, async ({ page }) => {
+  test(`${path} has no serious accessibility violations`, async ({ browser }) => {
+    const page = await (await browser.newContext()).newPage()
     await page.goto(path)
     expect(await serious(page)).toEqual([])
   })
 }
 
-test('signed-in pages have no serious accessibility violations', async ({ page }) => {
-  await register(page)
+test('signed-in pages have no serious accessibility violations', async ({ browser }) => {
+  const page = await (await browser.newContext({ storageState: '.auth/carol.json' })).newPage()
   for (const path of ['/dashboard', '/statements', '/transactions', '/categories', '/profile']) {
     await page.goto(path)
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
