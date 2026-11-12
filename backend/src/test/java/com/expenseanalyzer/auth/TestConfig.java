@@ -1,7 +1,6 @@
 package com.expenseanalyzer.auth;
 
 import com.expenseanalyzer.auth.config.SecurityConfiguration;
-import com.expenseanalyzer.user.model.UserRole;
 import com.expenseanalyzer.user.repository.UserRepository;
 import com.expenseanalyzer.user.service.UserService;
 import com.expenseanalyzer.auth.service.AuthService;
@@ -10,13 +9,10 @@ import com.expenseanalyzer.auth.dto.JwtTokenProvider;
 
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.Mockito;
-import org.mockito.MockitoAnnotations;
 
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.context.ContextConfiguration;
 

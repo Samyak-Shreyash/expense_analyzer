@@ -1,16 +1,12 @@
 package com.expenseanalyzer.security;
 
 import com.expenseanalyzer.auth.dto.JwtTokenProvider;
-import com.expenseanalyzer.user.model.User;
-import com.expenseanalyzer.user.repository.UserRepository;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.web.SecurityFilterChain;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
