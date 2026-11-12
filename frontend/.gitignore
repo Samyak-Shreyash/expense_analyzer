@@ -19,3 +19,5 @@ Thumbs.db
 !.env.example
 *.env 
 .vitest/*
+
+coverage/
