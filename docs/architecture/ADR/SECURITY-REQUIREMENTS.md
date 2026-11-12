@@ -1597,11 +1597,11 @@ Do not claim immediate physical deletion if copies remain in backups.
 
 Implemented by `DELETE /api/user/me`. Answers questions 3, 5 and 6.
 
-Still open: enforcing backup expiry, and personal data in shared merchant names. Events already in Kafka keep the user id and storage key until topic retention expires.
+Still open: enforcing backup expiry. Events already in Kafka keep the user id and storage key until topic retention expires.
 
 - **Financial data:** deleting a user deletes all their financial data, including stored statement files.
 - **Audit records:** `audit_logs` rows are kept with the user id removed. Rows are kept for 90 days; rows without a user id (deleted accounts and logins for unknown emails) for 30 days. An hourly job deletes older rows and logs only counts (`app.audit-purge.retention`, `app.audit-purge.retention-without-user`).
-- **Shared merchant names:** the user's votes are removed. Shared merchants stay in place.
+- **Shared merchant names:** the user's votes are removed. A merchant is created from a single user's input only when they rename a payee: the name they type becomes a `merchants` row at once. Merchants matched by built-in rules take their name from the rule list, and descriptions `PersonNameParser` reads as a person go to the user's own `people` table, so neither carries the user's wording. On deletion, every merchant the user had named is deleted unless another user's transactions, names, categories or votes still use it, or it is another merchant's parent. A merchant still in use stays, because another user relies on that name.
 - **Soft deletion:** financial data goes at once. The `users` row stays inactive with `deleted_at` set and name, preferences and password removed, so existing access tokens get 401 and the email stays taken. An hourly job removes the row, and anything written during deletion, once the access token lifetime plus five minutes has passed.
 - **Backups:** deleted data remains in backups for up to 30 days, until those backups expire. User-facing text must state this window and must not promise immediate physical deletion.
 
