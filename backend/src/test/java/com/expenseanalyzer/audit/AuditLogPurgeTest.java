@@ -33,7 +33,7 @@ class AuditLogPurgeTest {
 
     private UUID insert(UUID userId, Duration age) {
         UUID id = UUID.randomUUID();
-        jdbc.update("INSERT INTO audit_logs (id, user_id, action, occurred_at) VALUES (?, ?, 'LOGIN_SUCCESS', ?)",
+        jdbc.update("INSERT INTO audit_logs (id, user_id, action, occurred_at) VALUES (?, ?, 'AUTH_LOGIN_SUCCEEDED', ?)",
                 id, userId, Timestamp.from(now.minus(age)));
         return id;
     }
