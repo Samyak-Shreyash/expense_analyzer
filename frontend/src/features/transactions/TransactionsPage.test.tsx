@@ -1128,6 +1128,31 @@ describe('TransactionsPage', () => {
       )
     })
 
+    it('tags Loan EMI payments as linked or not linked', async () => {
+      vi.mocked(finance.listTransactions).mockResolvedValue({
+        items: [
+          {
+            ...swiggy,
+            category: 'Loan EMI',
+            loanId: 'loan1',
+            loanInterest: 120,
+          },
+          { ...swiggy, id: 't2', category: 'Loan EMI' },
+          { ...swiggy, id: 't3' },
+        ],
+        page: 0,
+        size: 50,
+        totalItems: 3,
+        totalPages: 1,
+      })
+      renderPage()
+      expect(
+        await screen.findByText('EMI · linked · ₹120.00 interest'),
+      ).toBeTruthy()
+      expect(screen.getByText('EMI · not linked')).toBeTruthy()
+      expect(screen.getAllByText(/^EMI ·/)).toHaveLength(2)
+    })
+
     it('offers no loan controls on other payments', async () => {
       only(swiggy)
       renderPage()
