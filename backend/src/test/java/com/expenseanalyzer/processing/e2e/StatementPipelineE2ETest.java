@@ -29,10 +29,10 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.awaitility.Awaitility.await;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -113,13 +113,9 @@ class StatementPipelineE2ETest {
                 .andReturn().getResponse().getContentAsString();
         UUID id = UUID.fromString(JsonPath.read(body, "$.id"));
 
-        Instant deadline = Instant.now().plus(Duration.ofSeconds(60));
-        while (statementRepository.findById(id).orElseThrow().getStatus() != StatementStatus.COMPLETED
-                && Instant.now().isBefore(deadline)) {
-            Thread.sleep(250);
-        }
-
-        assertThat(statementRepository.findById(id).orElseThrow().getStatus()).isEqualTo(StatementStatus.COMPLETED);
+        await().atMost(Duration.ofSeconds(60)).pollInterval(Duration.ofMillis(250))
+                .untilAsserted(() -> assertThat(statementRepository.findById(id).orElseThrow().getStatus())
+                        .isEqualTo(StatementStatus.COMPLETED));
         assertThat(transactionRepository.findByUserIdAndStatementId(user.getId(), id))
                 .extracting(Transaction::getRawDescription)
                 .containsExactlyInAnyOrder("UPI-SWIGGY-ORDER", "SALARY JAN");
