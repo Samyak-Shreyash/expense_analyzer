@@ -1595,12 +1595,12 @@ Do not claim immediate physical deletion if copies remain in backups.
 
 ## 33.1 Account Deletion Policy (SEC-021)
 
-Implemented by `DELETE /api/user/me`. Answers questions 3 and 5, and part of question 6.
+Implemented by `DELETE /api/user/me`. Answers questions 3, 5 and 6.
 
-Still open: enforcing backup expiry, personal data in shared merchant names, and how long audit records are kept. Events already in Kafka keep the user id and storage key until topic retention expires.
+Still open: enforcing backup expiry, and personal data in shared merchant names. Events already in Kafka keep the user id and storage key until topic retention expires.
 
 - **Financial data:** deleting a user deletes all their financial data, including stored statement files.
-- **Audit records:** `audit_logs` rows are kept with the user id removed. How long they are kept is still open (question 6).
+- **Audit records:** `audit_logs` rows are kept with the user id removed. Rows are kept for 90 days; rows without a user id (deleted accounts and logins for unknown emails) for 30 days. An hourly job deletes older rows and logs only counts (`app.audit-purge.retention`, `app.audit-purge.retention-without-user`).
 - **Shared merchant names:** the user's votes are removed. Shared merchants stay in place.
 - **Soft deletion:** financial data goes at once. The `users` row stays inactive with `deleted_at` set and name, preferences and password removed, so existing access tokens get 401 and the email stays taken. An hourly job removes the row, and anything written during deletion, once the access token lifetime plus five minutes has passed.
 - **Backups:** deleted data remains in backups for up to 30 days, until those backups expire. User-facing text must state this window and must not promise immediate physical deletion.
