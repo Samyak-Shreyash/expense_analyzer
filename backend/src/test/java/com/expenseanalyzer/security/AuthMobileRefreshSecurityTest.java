@@ -150,6 +150,7 @@ class AuthMobileRefreshSecurityTest {
     void mobileReuseOfRotatedTokenIs401() throws Exception {
         String raw = refreshTokenService.issue(alice);
         assertThat(mobileRefresh(raw).getResponse().getStatus()).isEqualTo(200);
+        assertThat(mobileRefresh(raw).getResponse().getStatus()).isEqualTo(200); // the one grace-window replay
         MvcResult reuse = mobileRefresh(raw);
         assertThat(reuse.getResponse().getStatus()).isEqualTo(401);
         assertThat(reuse.getResponse().getHeader("Set-Cookie")).isNull();
