@@ -117,3 +117,23 @@ tasks.named('jacocoTestReport') {
 		html.required = true
 	}
 }
+
+// Ratchet: baseline 2026-11-12 (95.3% lines, 86.0% branches). Raise as coverage grows; never lower.
+tasks.named('jacocoTestCoverageVerification') {
+	violationRules {
+		rule {
+			limit {
+				counter = 'LINE'
+				minimum = 0.94
+			}
+			limit {
+				counter = 'BRANCH'
+				minimum = 0.85
+			}
+		}
+	}
+}
+
+tasks.named('check') {
+	dependsOn tasks.named('jacocoTestCoverageVerification')
+}
