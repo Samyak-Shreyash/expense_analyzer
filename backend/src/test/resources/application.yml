@@ -63,6 +63,9 @@ app:
   account-purge:
     scheduler:
       enabled: false
+  audit-purge:
+    scheduler:
+      enabled: false
   storage:
     endpoint: http://localhost:9000
     access-key: test-access-key
