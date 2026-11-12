@@ -87,10 +87,28 @@ public class AccountDeletionService {
             // The row lock makes running uploads and imports finish first; anything later is cleared by purgeExpired.
             jdbc.queryForList("SELECT id FROM users WHERE id = ? FOR UPDATE", userId);
             deleteFiles(userId, deletedKeys); // a statement uploaded since the first pass
+            List<UUID> named = jdbc.queryForList(
+                    "SELECT DISTINCT merchant_id FROM user_merchant_aliases WHERE user_id = ?", UUID.class, userId);
             OWNED_TABLES.forEach(table -> jdbc.update("DELETE FROM " + table + " WHERE user_id = ?", userId));
+            named.forEach(this::deleteMerchantIfUnused);
             jdbc.update("UPDATE audit_logs SET user_id = NULL WHERE user_id = ?", userId);
             finish.run();
         });
+    }
+
+    /** A name the user typed may hold personal data; it goes unless another user's rows still point at it. */
+    private void deleteMerchantIfUnused(UUID merchantId) {
+        boolean used = Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS (SELECT 1 FROM transactions WHERE merchant_id = ?)"
+                + " OR EXISTS (SELECT 1 FROM user_merchant_aliases WHERE merchant_id = ?)"
+                + " OR EXISTS (SELECT 1 FROM user_merchant_categories WHERE merchant_id = ?)"
+                + " OR EXISTS (SELECT 1 FROM merchant_suggestion_votes WHERE merchant_id = ?)"
+                + " OR EXISTS (SELECT 1 FROM merchants WHERE parent_merchant_id = ?)",
+                Boolean.class, merchantId, merchantId, merchantId, merchantId, merchantId));
+        if (!used) {
+            List.of("merchant_suggestion_reports", "hidden_merchant_suggestions", "sharing_strikes")
+                    .forEach(table -> jdbc.update("DELETE FROM " + table + " WHERE merchant_id = ?", merchantId));
+            jdbc.update("DELETE FROM merchants WHERE id = ?", merchantId);
+        }
     }
 
     private void deleteFiles(UUID userId, Set<String> deletedKeys) {
