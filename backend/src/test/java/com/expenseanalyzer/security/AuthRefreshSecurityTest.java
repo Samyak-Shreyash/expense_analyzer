@@ -19,6 +19,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.context.WebApplicationContext;
 
 import java.time.Instant;
@@ -49,6 +51,9 @@ class AuthRefreshSecurityTest {
 
     @Autowired
     private RefreshTokenRepository refreshTokenRepository;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
 
     @MockitoBean
     private UserRepository userRepository;
@@ -111,7 +116,39 @@ class AuthRefreshSecurityTest {
                 .startsWith("refresh_token=")
                 .doesNotStartWith("refresh_token=" + raw);
 
+        String next = first.getResponse().getCookie("refresh_token").getValue();
+        assertThat(refresh(next).getResponse().getStatus()).isEqualTo(200); // the client has the replacement
         assertThat(refresh(raw).getResponse().getStatus()).isEqualTo(409); // refused; 401 after the grace window
+    }
+
+    /** Reloads abort the refresh responses, so the browser keeps the old cookie and never sees the new ones. */
+    @Test
+    void replaysAfterLostResponsesKeepTheSession() throws Exception {
+        String raw = refreshTokenService.issue(alice);
+        String lost = refresh(raw).getResponse().getCookie("refresh_token").getValue();
+        assertThat(refresh(raw).getResponse().getStatus()).isEqualTo(200); // lost again
+
+        MvcResult retried = refresh(raw);
+        assertThat(retried.getResponse().getStatus()).isEqualTo(200);
+        String replacement = retried.getResponse().getCookie("refresh_token").getValue();
+        assertThat(replacement).isNotEqualTo(raw);
+        assertThat(refresh(replacement).getResponse().getStatus()).isEqualTo(200);
+        // a replay retires the replacement it supersedes, so a leaked token never yields a second session
+        assertThat(refresh(lost).getResponse().getStatus()).isEqualTo(409);
+    }
+
+    @Test
+    void freshTokenIsNotRotated() {
+        var service = new RefreshTokenService(refreshTokenRepository, userRepository, 604800, 60);
+        var tx = new TransactionTemplate(transactionManager); // no Spring proxy around this instance
+        String raw = tx.execute(s -> service.issue(alice));
+
+        for (int i = 0; i < 2; i++) {
+            Optional<RefreshTokenService.Refreshed> refreshed = tx.execute(s -> service.refresh(raw));
+            assertThat(refreshed).get().extracting(RefreshTokenService.Refreshed::refreshToken).isEqualTo(raw);
+        }
+        assertThat(refreshTokenRepository.findAll()).singleElement()
+                .satisfies(t -> assertThat(t.getConsumedAt()).isNull());
     }
 
     @Test
@@ -126,7 +163,7 @@ class AuthRefreshSecurityTest {
 
     @Test
     void refreshWithExpiredTokenIs401() throws Exception {
-        String raw = new RefreshTokenService(refreshTokenRepository, userRepository, -60).issue(alice);
+        String raw = new RefreshTokenService(refreshTokenRepository, userRepository, -60, 0).issue(alice);
         assertThat(refresh(raw).getResponse().getStatus()).isEqualTo(401);
     }
 
@@ -149,6 +186,7 @@ class AuthRefreshSecurityTest {
         MvcResult first = refresh(raw);
         assertThat(first.getResponse().getStatus()).isEqualTo(200);
         String next = first.getResponse().getCookie("refresh_token").getValue();
+        String latest = refresh(next).getResponse().getCookie("refresh_token").getValue();
 
         refreshTokenRepository.findAll().stream().filter(t -> t.getConsumedAt() != null).forEach(t -> {
             t.setConsumedAt(Instant.now().minusSeconds(60));
@@ -156,22 +194,25 @@ class AuthRefreshSecurityTest {
         });
 
         assertThat(refresh(raw).getResponse().getStatus()).isEqualTo(401);
-        assertThat(refresh(next).getResponse().getStatus()).isEqualTo(401);
+        assertThat(refresh(latest).getResponse().getStatus()).isEqualTo(401);
     }
 
     @Test
-    void concurrentReuseInsideTheGraceWindowKeepsTheSession() throws Exception {
+    void reuseInsideTheGraceWindowKeepsTheSession() throws Exception {
         String raw = refreshTokenService.issue(alice);
 
-        MvcResult first = refresh(raw);
+        MvcResult first = refresh(raw); // first tab
         assertThat(first.getResponse().getStatus()).isEqualTo(200);
         String next = first.getResponse().getCookie("refresh_token").getValue();
+        MvcResult used = refresh(next);
+        assertThat(used.getResponse().getStatus()).isEqualTo(200);
 
-        MvcResult raced = refresh(raw);
+        MvcResult raced = refresh(raw); // second tab, still on the old cookie
         assertThat(raced.getResponse().getStatus()).isEqualTo(409);
         // the other tab's new cookie is shared: clearing it here would sign every tab out
         assertThat(raced.getResponse().getHeader("Set-Cookie")).isNull();
-        assertThat(refresh(next).getResponse().getStatus()).isEqualTo(200);
+        assertThat(refresh(used.getResponse().getCookie("refresh_token").getValue()).getResponse().getStatus())
+                .isEqualTo(200);
     }
 
     @Test

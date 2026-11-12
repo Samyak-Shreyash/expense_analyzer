@@ -9,6 +9,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.expenseanalyzer.auth.dto.JwtTokenProvider;
+import com.expenseanalyzer.merchant.model.Merchant;
+import com.expenseanalyzer.merchant.repository.MerchantRepository;
 import com.expenseanalyzer.statement.model.Statement;
 import com.expenseanalyzer.statement.repository.StatementRepository;
 import com.expenseanalyzer.statement.service.StatementService;
@@ -53,6 +55,9 @@ class TransferTest {
     private StatementRepository statementRepository;
     @Autowired
     private TransferService transferService;
+
+    @Autowired
+    private MerchantRepository merchantRepository;
     @Autowired
     private StatementService statementService;
 
@@ -82,12 +87,17 @@ class TransferTest {
         statementRepository.deleteAll();
     }
 
+    /** No row is needed while UserRepository is mocked; the Postgres subclass writes one for its foreign keys. */
+    protected void persistUser(UUID id) {
+    }
+
     private User user(String email) {
         User u = new User();
         u.setId(UUID.randomUUID());
         u.setEmail(email);
         u.setRole(UserRole.USER);
         when(userRepository.findByEmail(email)).thenReturn(Optional.of(u));
+        persistUser(u.getId());
         return u;
     }
 
@@ -143,7 +153,7 @@ class TransferTest {
         UUID out = tx(alice, savings, "DEBIT", "500.00", JAN_10);
         UUID in = tx(alice, current, "CREDIT", "500.00", JAN_10);
         Transaction paid = reload(out);
-        paid.setMerchantId(UUID.randomUUID());
+        paid.setMerchantId(merchantRepository.save(new Merchant("Shop " + UUID.randomUUID(), null)).getId());
         transactionRepository.saveAndFlush(paid);
 
         transferService.match(alice.getId());

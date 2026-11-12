@@ -18,7 +18,7 @@ import {
 import { CategoryCell } from './CategoryCell'
 import { MerchantCell } from './MerchantCell'
 import { RenameOnHover } from './RenameOnHover'
-import { emiLabel } from './LoanSection'
+import { emiLabel } from './loan'
 import { TransactionActions } from './TransactionActions'
 import styles from './TransactionsPage.module.css'
 

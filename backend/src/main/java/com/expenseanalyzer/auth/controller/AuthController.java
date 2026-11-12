@@ -126,19 +126,19 @@ public class AuthController {
             if (bodyToken == null || bodyToken.isBlank()) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
             }
-            return refreshTokenService.consume(bodyToken)
-                    .map(user -> ResponseEntity.ok(new AuthResponse(
-                            tokenProvider.generateToken(new UsernamePasswordAuthenticationToken(user.getEmail(), null)),
-                            refreshTokenService.issue(user))))
+            return refreshTokenService.refresh(bodyToken)
+                    .map(r -> ResponseEntity.ok(new AuthResponse(
+                            tokenProvider.generateToken(new UsernamePasswordAuthenticationToken(r.user().getEmail(), null)),
+                            r.refreshToken())))
                     .orElseGet(() -> ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
         }
         if (refreshToken == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        return refreshTokenService.consume(refreshToken)
-                .map(user -> ResponseEntity.ok()
-                        .header(HttpHeaders.SET_COOKIE, refreshCookie(refreshTokenService.issue(user), refreshTokenService.getRefreshTokenSeconds()))
-                        .body(new AuthResponse(tokenProvider.generateToken(new UsernamePasswordAuthenticationToken(user.getEmail(), null)))))
+        return refreshTokenService.refresh(refreshToken)
+                .map(r -> ResponseEntity.ok()
+                        .header(HttpHeaders.SET_COOKIE, refreshCookie(r.refreshToken(), refreshTokenService.getRefreshTokenSeconds()))
+                        .body(new AuthResponse(tokenProvider.generateToken(new UsernamePasswordAuthenticationToken(r.user().getEmail(), null)))))
                 // Lost a race with another tab: its response set the new cookie, which clearing here would delete.
                 .orElseGet(() -> refreshTokenService.recentlyRotated(refreshToken)
                         ? ResponseEntity.status(HttpStatus.CONFLICT).build()

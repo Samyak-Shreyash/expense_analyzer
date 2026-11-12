@@ -10,7 +10,6 @@ import java.io.ByteArrayInputStream;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class CsvStatementParserTest {

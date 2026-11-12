@@ -1,5 +1,6 @@
 plugins {
 	id 'java'
+	id 'jacoco'
 	id 'org.springframework.boot' version '4.1.2'
 	id 'io.spring.dependency-management' version '1.1.7'
 }
@@ -90,6 +91,8 @@ dependencies {
 	testAnnotationProcessor 'org.projectlombok:lombok'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
+	testImplementation 'org.awaitility:awaitility'
+
 	// Test observability
 	testImplementation 'io.micrometer:micrometer-observation-test'
 
@@ -105,4 +108,32 @@ tasks.named('test') {
 	useJUnitPlatform()
 	// Postgres 18 rejects legacy zone ids some hosts report (e.g. Asia/Calcutta on Windows)
 	systemProperty 'user.timezone', 'UTC'
+	finalizedBy tasks.named('jacocoTestReport')
+}
+
+tasks.named('jacocoTestReport') {
+	reports {
+		xml.required = true
+		html.required = true
+	}
+}
+
+// Ratchet: baseline 2026-11-12 (95.3% lines, 86.0% branches). Raise as coverage grows; never lower.
+tasks.named('jacocoTestCoverageVerification') {
+	violationRules {
+		rule {
+			limit {
+				counter = 'LINE'
+				minimum = 0.94
+			}
+			limit {
+				counter = 'BRANCH'
+				minimum = 0.85
+			}
+		}
+	}
+}
+
+tasks.named('check') {
+	dependsOn tasks.named('jacocoTestCoverageVerification')
 }

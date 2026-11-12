@@ -8,7 +8,18 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '..', '')
   return {
     plugins: [react()],
-    test: { environment: 'jsdom', globals: true }, // globals: RTL cleans up after each test
+    test: {
+      environment: 'jsdom',
+      globals: true, // globals: RTL cleans up after each test
+      coverage: {
+        provider: 'v8',
+        include: ['src/**/*.{ts,tsx}'],
+        exclude: ['src/**/*.test.{ts,tsx}', 'src/main.tsx'],
+        reporter: ['text-summary', 'html', 'lcov'],
+        // Ratchet: baseline 2026-11-12. Raise as coverage grows; never lower.
+        thresholds: { statements: 79, branches: 71, functions: 74, lines: 79 },
+      },
+    },
     server: {
       // Only the shared package: the repo root holds .env, which the dev server must not serve.
       fs: { allow: ['.', '../packages'] },

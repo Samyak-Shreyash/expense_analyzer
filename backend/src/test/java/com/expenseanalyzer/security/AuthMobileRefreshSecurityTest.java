@@ -149,7 +149,9 @@ class AuthMobileRefreshSecurityTest {
     @Test
     void mobileReuseOfRotatedTokenIs401() throws Exception {
         String raw = refreshTokenService.issue(alice);
-        assertThat(mobileRefresh(raw).getResponse().getStatus()).isEqualTo(200);
+        MvcResult first = mobileRefresh(raw);
+        assertThat(first.getResponse().getStatus()).isEqualTo(200);
+        assertThat(mobileRefresh(json(first, "$.refreshToken")).getResponse().getStatus()).isEqualTo(200);
         MvcResult reuse = mobileRefresh(raw);
         assertThat(reuse.getResponse().getStatus()).isEqualTo(401);
         assertThat(reuse.getResponse().getHeader("Set-Cookie")).isNull();
@@ -158,7 +160,7 @@ class AuthMobileRefreshSecurityTest {
     @Test
     void mobileMissingBlankNullUnknownAndExpiredTokensAre401WithoutCookie() throws Exception {
         MvcResult noBody = mockMvc.perform(post("/api/auth/refresh").header(CLIENT_TYPE, "mobile")).andReturn();
-        String expired = new RefreshTokenService(refreshTokenRepository, userRepository, -60).issue(alice);
+        String expired = new RefreshTokenService(refreshTokenRepository, userRepository, -60, 0).issue(alice);
 
         MvcResult[] results = {
                 noBody, mobileRefresh(null), mobileRefresh(""), mobileRefresh("   "),
@@ -245,8 +247,11 @@ class AuthMobileRefreshSecurityTest {
         assertThat(toMobile.getResponse().getStatus()).isEqualTo(200);
         String mobileToken = json(toMobile, "$.refreshToken");
 
-        assertThat(cookieRefresh(mobileToken).getResponse().getStatus()).isEqualTo(200);
-        assertThat(cookieRefresh(mobileToken).getResponse().getStatus()).isEqualTo(409); // refused; a reused token never works twice
+        MvcResult toCookie = cookieRefresh(mobileToken);
+        assertThat(toCookie.getResponse().getStatus()).isEqualTo(200);
+        assertThat(cookieRefresh(toCookie.getResponse().getCookie("refresh_token").getValue()).getResponse().getStatus())
+                .isEqualTo(200);
+        assertThat(cookieRefresh(mobileToken).getResponse().getStatus()).isEqualTo(409); // its replacement is in use
     }
 
     @Test

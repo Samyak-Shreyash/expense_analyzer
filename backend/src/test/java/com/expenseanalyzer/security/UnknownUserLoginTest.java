@@ -1,6 +1,5 @@
 package com.expenseanalyzer.security;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.expenseanalyzer.auth.config.SecurityConfiguration;

@@ -44,7 +44,8 @@
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
     "test": "jest",
-    "ci": "npm run lint && npm run format:check && npm run typecheck && npm test"
+    "ci": "npm run lint && npm run format:check && npm run typecheck && npm run test:coverage",
+    "test:coverage": "jest --coverage"
   },
   "private": true,
   "jest": {
@@ -52,7 +53,20 @@
     "testTimeout": 20000,
     "modulePaths": [
       "<rootDir>/node_modules"
-    ]
+    ],
+    "coverageReporters": [
+      "text-summary",
+      "html",
+      "lcov"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "statements": 70,
+        "branches": 56,
+        "functions": 58,
+        "lines": 70
+      }
+    }
   },
   "overrides": {
     "glob": "^14.0.2",

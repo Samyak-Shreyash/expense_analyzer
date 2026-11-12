@@ -35,7 +35,17 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
 
       - name: Build & test
-        run: ./gradlew clean build
+        run: ./gradlew clean build jacocoTestReport
+
+      - name: Upload test and coverage reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: backend-reports
+          path: |
+            backend/build/reports/tests/test
+            backend/build/reports/jacoco/test
+            backend/build/test-results/test
 
   mobile:
     name: Mobile checks
@@ -61,3 +71,38 @@ jobs:
 
       - name: Lint, format, type check and test
         run: npm run ci
+
+  frontend:
+    name: Frontend checks
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint, format check and build
+        run: npm run ci
+
+      - name: Test with coverage
+        run: npm run test:coverage
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: frontend-coverage
+          path: frontend/coverage

@@ -78,12 +78,17 @@ class DuplicateTest {
         statementRepository.deleteAll();
     }
 
+    /** No row is needed while UserRepository is mocked; the Postgres subclass writes one for its foreign keys. */
+    protected void persistUser(UUID id) {
+    }
+
     private User user(String email) {
         User u = new User();
         u.setId(UUID.randomUUID());
         u.setEmail(email);
         u.setRole(UserRole.USER);
         when(userRepository.findByEmail(email)).thenReturn(Optional.of(u));
+        persistUser(u.getId());
         return u;
     }
 
@@ -157,8 +162,9 @@ class DuplicateTest {
     @Test
     void aPairedTransactionMustBeUnpairedFirst() throws Exception {
         UUID id = tx(alice, savings, "DEBIT", "300.00", JAN_10);
+        UUID other = tx(alice, savings, "CREDIT", "300.00", JAN_10);
         Transaction t = reload(id);
-        t.setTransferPairId(UUID.randomUUID());
+        t.setTransferPairId(other);
         transactionRepository.saveAndFlush(t);
         mark(ALICE, id, true, 400);
         assertThat(reload(id).isDuplicate()).isFalse();

@@ -31,6 +31,10 @@ public class RefreshToken {
     @Column(name = "consumed_at")
     private Instant consumedAt;
 
+    /** The token this one was rotated into, until the client first uses it; null once it has. */
+    @Column(name = "replaced_by_id")
+    private UUID replacedById;
+
     protected RefreshToken() {
     }
 
@@ -55,6 +59,14 @@ public class RefreshToken {
 
     public void setConsumedAt(Instant consumedAt) {
         this.consumedAt = consumedAt;
+    }
+
+    public UUID getReplacedById() {
+        return replacedById;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
     }
 
     public UUID getUserId() {

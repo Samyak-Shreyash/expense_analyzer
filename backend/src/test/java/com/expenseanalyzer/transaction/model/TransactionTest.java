@@ -1,9 +1,7 @@
 package com.expenseanalyzer.transaction.model;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import jakarta.validation.ConstraintViolationException;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;

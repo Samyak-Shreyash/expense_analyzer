@@ -45,6 +45,9 @@ management:
   otlp:
     tracing:
       endpoint: http://localhost:4318/v1/traces
+    metrics:
+      export:
+        enabled: false # no collector in tests; avoids connection-refused noise
 
 logging:
   structured:
@@ -67,6 +70,7 @@ app:
   oauth:
     jwt:
       secret: test-jwt-secret-key-for-testing-only-1234567890abcdef
+      refreshTokenRotateAfterSeconds: 0 # rotate on every refresh, so tests exercise rotation without waiting
 
 server:
   # Prevent Spring from resolving the production-only SERVER_PORT placeholder.
