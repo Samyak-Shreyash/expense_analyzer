@@ -216,6 +216,22 @@ class AccountDeletionTest {
     }
 
     @Test
+    void merchantNamedOnlyByTheUserIsRemoved() throws Exception {
+        UUID own = UUID.randomUUID();
+        Timestamp now = Timestamp.from(Instant.now());
+        jdbc.update("INSERT INTO merchants (id, canonical_name, created_at, updated_at) VALUES (?, ?, ?, ?)",
+                own, "Ravi Kumar " + own, now, now);
+        jdbc.update("INSERT INTO user_merchant_aliases (public_id, user_id, payee_key, merchant_id, display_name, "
+                + "share_opt_out, created_at) VALUES (?, ?, 'OWN', ?, 'Ravi Kumar', FALSE, ?)", UUID.randomUUID(), alice, own, now);
+        jdbc.update("INSERT INTO hidden_merchant_suggestions (payee_key, merchant_id, hidden_at) VALUES ('OWN', ?, ?)", own, now);
+
+        deleteAccount(ALICE, PASSWORD).andExpect(status().isNoContent());
+
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM merchants WHERE id = ?", Integer.class, own)).isZero();
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM merchants WHERE id = ?", Integer.class, merchant)).isEqualTo(1);
+    }
+
+    @Test
     void purgeWaitsForTokensToExpireThenRemovesTheUserAndAnythingLate() throws Exception {
         deleteAccount(ALICE, PASSWORD).andExpect(status().isNoContent());
 
