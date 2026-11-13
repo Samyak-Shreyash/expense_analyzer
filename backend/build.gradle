@@ -27,7 +27,7 @@ repositories {
 dependencies {
 	// Transitive via kafka-clients; versions with the published advisories fixed
 	constraints {
-		implementation 'at.yawk.lz4:lz4-java:1.13.0'
+		implementation 'at.yawk.lz4:lz4-java:1.14.0'
 		implementation 'org.xerial.snappy:snappy-java:1.1.10.12'
 	}
 
