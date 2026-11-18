@@ -132,8 +132,8 @@ export function StatementsPage() {
     <>
       <h1 className={shared.title}>Statements</h1>
       <p className={shared.lead}>
-        Upload a CSV, Excel or PDF statement from your bank, or a Google Pay
-        statement. Each payment is counted once, even if your files overlap.
+        Upload a CSV, Excel or PDF statement from your bank, a credit card PDF
+        statement, or a Google Pay statement. Each payment is counted once, even if your files overlap.
       </p>
 
       <fieldset className={styles.sources} disabled={progress !== null}>
