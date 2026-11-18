@@ -49,6 +49,14 @@ class CreditCardStatementParserTest {
     }
 
     @Test
+    void minusSignedAmountIsACredit() throws IOException {
+        ParsedStatement r = parse("13/05/2026 PAYMENT RECEIVED -5,000.00", "14/05/2026 SWIGGY BANGALORE 450.00");
+
+        assertThat(r.transactions()).extracting(ParsedTransaction::type).containsExactly("CREDIT", "DEBIT");
+        assertThat(r.transactions()).extracting(p -> p.amount().toPlainString()).containsExactly("5000.00", "450.00");
+    }
+
+    @Test
     void invalidDateIsARowError() throws IOException {
         ParsedStatement r = parse("31/02/2026 SOMETHING 10.00", "01/03/2026 OTHER 20.00");
 

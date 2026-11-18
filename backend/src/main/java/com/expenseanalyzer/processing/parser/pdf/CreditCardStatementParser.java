@@ -28,7 +28,8 @@ import org.springframework.stereotype.Component;
  * {@code <date> [time] <description> [₹|Rs.] <amount> [Cr|Dr|C|D]}, where the date is {@code dd/MM/uuuu},
  * {@code dd-MM-yy}, {@code dd MMM uuuu}, {@code dd-MMM-yy} or similar. The last amount on the line is the
  * transaction amount, so reward-point columns before it are kept in the description. A {@code Cr}/{@code C}
- * suffix or a leading {@code +} marks a credit (payment, refund, cashback); anything else is a charge (DEBIT).
+ * suffix or a leading {@code +} or {@code -} marks a credit (payment, refund, cashback); anything else is a
+ * charge (DEBIT).
  * Caller owns the stream. Expects an unencrypted PDF (uploads are unlocked first). Never logs text.
  */
 @Component
@@ -102,7 +103,7 @@ public class CreditCardStatementParser {
             return;
         }
         String suffix = m.group(5);
-        boolean credit = "+".equals(m.group(3)) || (suffix != null && suffix.toUpperCase(Locale.ROOT).startsWith("C"));
+        boolean credit = m.group(3) != null || (suffix != null && suffix.toUpperCase(Locale.ROOT).startsWith("C"));
         txns.add(new ParsedTransaction(line, date, m.group(2).trim(), amount, credit ? "CREDIT" : "DEBIT"));
     }
 }
