@@ -13,7 +13,8 @@ import { TransactionsPage } from './features/transactions/TransactionsPage'
 
 function App() {
   return (
-    <BrowserRouter>
+    // No trailing slash: the router renders nothing at /expenses with a /expenses/ basename.
+    <BrowserRouter basename={import.meta.env.BASE_URL.replace(/\/$/, '')}>
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
