@@ -6,11 +6,7 @@ import { defineConfig, loadEnv } from 'vite'
 export default defineConfig(({ mode }) => {
   // Root .env is shared with backend and compose; '' prefix keeps SERVER_PORT server-side.
   const env = loadEnv(mode, '..', '')
-  // Vercel builds the app twice: at the root and under /expenses/.
-  const base = env.VITE_BASE_PATH ?? '/'
   return {
-    base,
-    build: { outDir: `dist${base}` },
     plugins: [react()],
     test: {
       environment: 'jsdom',
