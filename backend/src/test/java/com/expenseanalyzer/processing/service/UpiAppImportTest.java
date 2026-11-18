@@ -23,6 +23,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.Mockito.when;
 
 /** A payment in both a bank statement and a Google Pay export is stored once, whichever file comes first. */
@@ -153,5 +154,20 @@ class UpiAppImportTest {
 
         assertThat(rowsWithRef("612355554444")).singleElement().extracting(Transaction::isTransfer).isEqualTo(true);
         assertThat(rowsWithRef("612100730574")).singleElement().extracting(Transaction::isTransfer).isEqualTo(false);
+    }
+
+    @Test
+    void creditCardBillPaymentIsATransferButChargesAndRefundsAreNot() throws IOException {
+        importFile(StatementSource.CREDIT_CARD, StatementFormat.PDF, GPayPdf.of(
+                "12/05/2026 SWIGGY BANGALORE 450.00",
+                "13/05/2026 PAYMENT RECEIVED - THANK YOU 5,000.00 Cr",
+                "15/05/2026 FLIPKART REFUND 299.00 Cr"));
+
+        assertThat(transactionRepository.findAll())
+                .extracting(Transaction::getRawDescription, Transaction::getType, Transaction::isTransfer)
+                .containsExactlyInAnyOrder(
+                        tuple("SWIGGY BANGALORE", "DEBIT", false),
+                        tuple("PAYMENT RECEIVED - THANK YOU", "CREDIT", true),
+                        tuple("FLIPKART REFUND", "CREDIT", false));
     }
 }

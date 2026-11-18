@@ -18,6 +18,7 @@ import com.expenseanalyzer.processing.parser.common.RowError;
 import com.expenseanalyzer.processing.parser.common.RowErrorCode;
 import com.expenseanalyzer.processing.parser.csv.CsvStatementParser;
 import com.expenseanalyzer.processing.parser.excel.ExcelStatementParser;
+import com.expenseanalyzer.processing.parser.pdf.CreditCardStatementParser;
 import com.expenseanalyzer.processing.parser.pdf.GPayStatementParser;
 import com.expenseanalyzer.processing.parser.pdf.PdfStatementParser;
 import com.expenseanalyzer.processing.repository.ProcessedEventRepository;
@@ -83,6 +84,7 @@ public class StatementProcessor {
     private final ExcelStatementParser excelParser;
     private final PdfStatementParser pdfParser;
     private final GPayStatementParser gpayParser;
+    private final CreditCardStatementParser creditCardParser;
     private final JsonMapper jsonMapper;
     private final MerchantNormalizer merchantNormalizer;
     private final MerchantService merchantService;
@@ -96,6 +98,7 @@ public class StatementProcessor {
                               ProcessedEventRepository processedEventRepository, S3StatementStorage storage,
                               CsvStatementParser csvParser, ExcelStatementParser excelParser,
                               PdfStatementParser pdfParser, GPayStatementParser gpayParser,
+                              CreditCardStatementParser creditCardParser,
                               JsonMapper jsonMapper,
                               MerchantNormalizer merchantNormalizer, MerchantService merchantService,
                               PersonService personService, TransferService transferService,
@@ -111,6 +114,7 @@ public class StatementProcessor {
         this.excelParser = excelParser;
         this.pdfParser = pdfParser;
         this.gpayParser = gpayParser;
+        this.creditCardParser = creditCardParser;
         this.jsonMapper = jsonMapper;
         this.merchantNormalizer = merchantNormalizer;
         this.merchantService = merchantService;
@@ -156,8 +160,11 @@ public class StatementProcessor {
             parsed = switch (s.getFormat()) {
                 case CSV -> csvParser.parse(in, limits);
                 case XLS, XLSX -> excelParser.parse(in, limits);
-                case PDF -> s.getSource() == StatementSource.GPAY
-                        ? gpayParser.parse(in, limits) : pdfParser.parse(in, limits);
+                case PDF -> switch (s.getSource()) {
+                    case GPAY -> gpayParser.parse(in, limits);
+                    case CREDIT_CARD -> creditCardParser.parse(in, limits);
+                    case BANK -> pdfParser.parse(in, limits);
+                };
             };
         } catch (StatementObjectNotFoundException ex) {
             fail(s, "FILE_MISSING");
@@ -224,6 +231,10 @@ public class StatementProcessor {
         if (s.getSource() == StatementSource.GPAY && p.rawDescription().startsWith(GPayStatementParser.SELF_TRANSFER)) {
             t.setTransfer(true); // between the user's own accounts: never spending or income
         }
+        if (s.getSource() == StatementSource.CREDIT_CARD && "CREDIT".equals(p.type())
+                && CreditCardStatementParser.isBillPayment(p.rawDescription())) {
+            t.setTransfer(true); // card bill paid from the user's bank account: already counted there
+        }
         return t;
     }
 
@@ -246,7 +257,7 @@ public class StatementProcessor {
                 .collect(Collectors.toMap(Statement::getId, Statement::getSource));
         Map<String, List<Transaction>> byRef = stored.stream().collect(Collectors.groupingBy(Transaction::getUpiRef));
 
-        boolean fromApp = s.getSource() != StatementSource.BANK;
+        boolean fromApp = s.getSource() == StatementSource.GPAY;
         List<Transaction> dropped = new ArrayList<>();
         List<Transaction> updated = new ArrayList<>();
         List<Transaction> replaced = new ArrayList<>();
@@ -257,7 +268,7 @@ public class StatementProcessor {
             }
             Transaction in = mine.getFirst();
             Transaction old = theirs.getFirst();
-            boolean oldFromApp = sources.getOrDefault(old.getStatementId(), StatementSource.BANK) != StatementSource.BANK;
+            boolean oldFromApp = sources.getOrDefault(old.getStatementId(), StatementSource.BANK) == StatementSource.GPAY;
             if (fromApp == oldFromApp || !in.getType().equals(old.getType())
                     || in.getAmountCents().compareTo(old.getAmountCents()) != 0) {
                 return;

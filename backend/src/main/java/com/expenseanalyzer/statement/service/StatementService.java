@@ -79,6 +79,9 @@ public class StatementService {
         if (source == StatementSource.GPAY && format != StatementFormat.PDF) {
             throw new InvalidFileException(Reason.UNSUPPORTED_EXTENSION, "Google Pay statements must be PDF files");
         }
+        if (source == StatementSource.CREDIT_CARD && format != StatementFormat.PDF) {
+            throw new InvalidFileException(Reason.UNSUPPORTED_EXTENSION, "Credit card statements must be PDF files");
+        }
         String hash = sha256(file);
 
         Optional<Statement> existing = statementRepository.findByUserIdAndFileHash(user.getId(), hash);

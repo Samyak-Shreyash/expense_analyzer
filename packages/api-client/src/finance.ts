@@ -14,7 +14,7 @@ export type StatementStatus =
   'UPLOADED' | 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED'
 
 /** Which app exported the file; picks the parser on the server. */
-export type StatementSource = 'BANK' | 'GPAY'
+export type StatementSource = 'BANK' | 'GPAY' | 'CREDIT_CARD'
 
 export const STATEMENT_SOURCES: {
   value: StatementSource
@@ -26,6 +26,11 @@ export const STATEMENT_SOURCES: {
     value: 'GPAY',
     label: 'Google Pay',
     hint: 'The PDF statement from Google Pay',
+  },
+  {
+    value: 'CREDIT_CARD',
+    label: 'Credit card',
+    hint: 'The PDF statement from your card issuer',
   },
 ]
 
