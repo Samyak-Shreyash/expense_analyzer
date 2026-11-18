@@ -1,9 +1,18 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "VITE_BASE_PATH=/expenses/ VITE_API_BASE_URL=/expenses/api npm run build",
+  "buildCommand": "npm run build && VITE_BASE_PATH=/expenses/ VITE_API_BASE_URL=/expenses/api npm run build",
   "outputDirectory": "dist",
+  "redirects": [
+    {
+      "source": "/((?!expenses$|expenses/).*)",
+      "has": [{ "type": "host", "value": "projects.samyakshreyash.in" }],
+      "destination": "https://samyakshreyash.in/projects",
+      "permanent": false
+    }
+  ],
   "rewrites": [
-    { "source": "/expenses/:path*", "destination": "/expenses/index.html" }
+    { "source": "/expenses/:path*", "destination": "/expenses/index.html" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
     {
