@@ -78,8 +78,36 @@ class MerchantNormalizerTest {
         assertThat(m.normalizedDescription()).isEqualTo("UPI/123456789012");
     }
 
+    @ParameterizedTest(name = "{0} -> {1}")
+    @CsvSource(delimiter = '|', value = {
+            "P2M URBANCLAP AIRTEL PA                | Urban Company",
+            "UPI/P2M/123456789012/THESMARTQ1        | SmartQ",
+            "THE RAMES                              | The Rameshwaram Cafe",
+            "POLICYBAZAAR INSURANC                  | Policybazaar",
+            "AIRTEL RECHARGE                        | Airtel",
+            "KFC INDIA                              | KFC",
+            "DOMINO S PIZZA                         | Domino's",
+            "JUBILANT FOODWORKS                     | Domino's",
+            "INDIAN RAILWAYS CATERING               | IRCTC",
+            "EKART LOGISTICS                        | Ekart"})
+    void newRules(String description, String canonical) {
+        assertThat(normalizer.normalize(description).canonicalName()).isEqualTo(canonical);
+    }
+
+    @Test
+    void bankSuffixAlsoCountsForAPrefixOfPayments() {
+        assertThat(normalizer.normalize("P2M AIRTEL PA").canonicalName()).isNull();
+    }
+
+    @Test
+    void trailingDigitsAreStrippedOnlyForMatching() {
+        MerchantMatch m = normalizer.normalize("UPI/P2M/123456789012/THESMARTQ1");
+        assertThat(m.canonicalName()).isEqualTo("SmartQ");
+        assertThat(m.normalizedDescription()).isEqualTo("P2M");
+    }
+
     @Test
     void rulesAreVersioned() {
-        assertThat(MerchantNormalizer.RULES_VERSION).isPositive();
+        assertThat(MerchantNormalizer.RULES_VERSION).isEqualTo(3);
     }
 }
