@@ -171,6 +171,10 @@ public class StatementProcessor {
             return;
         } catch (IOException ex) {
             throw new UncheckedIOException(ex); // transient: redeliver
+        } catch (OutOfMemoryError ex) {
+            log.error("Statement exhausted memory during parsing: statementId={}", s.getId());
+            fail(s, "OUT_OF_MEMORY"); // deterministic: the same file would exhaust the heap again
+            return;
         }
 
         if (parsed.transactions().isEmpty() && !parsed.errors().isEmpty()) {

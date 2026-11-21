@@ -22,6 +22,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import software.amazon.awssdk.core.exception.SdkClientException;
 
+import java.io.InputStream;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -35,6 +36,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
@@ -115,6 +117,24 @@ class StatementProcessorTest {
 
     private Statement reload(Statement s) {
         return statementRepository.findById(s.getId()).orElseThrow();
+    }
+
+    @Test
+    void fileThatExhaustsMemoryFailsStatementAndIsNotRedelivered() {
+        Statement s = queued(UUID.randomUUID());
+        when(storage.read(s.getStorageKey())).thenAnswer(inv -> new InputStream() {
+            @Override
+            public int read() {
+                throw new OutOfMemoryError("simulated");
+            }
+        });
+        String event = event(s);
+        assertThatCode(() -> processor.process(event)).doesNotThrowAnyException();
+        processor.process(event);
+        Statement failed = reload(s);
+        assertThat(failed.getStatus()).isEqualTo(StatementStatus.FAILED);
+        assertThat(failed.getProcessingError()).isEqualTo("OUT_OF_MEMORY");
+        verify(storage, times(1)).read(s.getStorageKey());
     }
 
     @Test
