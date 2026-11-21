@@ -301,11 +301,14 @@ public class StatementProcessor {
         return dropped.size() + replaced.size();
     }
 
-    /** Rows with no category or merchant take the category their description's keyword names, if the user has it. */
+    /**
+     * Debit rows with no effective category (own, person or merchant) take the category their description's keyword
+     * names, if the user has it.
+     */
     private void applyKeywordCategories(UUID userId, List<Transaction> fresh) {
         EffectiveCategoryResolver.Resolution resolution = categoryResolver.forUser(userId);
         for (Transaction t : fresh) {
-            if (t.getCategoryId() != null || t.getMerchantId() != null) {
+            if (!"DEBIT".equals(t.getType()) || resolution.resolve(t, null) != null) {
                 continue;
             }
             KeywordCategory.of(t.getRawDescription()).map(resolution::named)

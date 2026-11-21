@@ -273,6 +273,44 @@ class StatementProcessorTest {
     }
 
     @Test
+    void keywordDoesNotOverrideAPersonCategoryAndSelfRowIsStillATransfer() {
+        UUID user = UUID.randomUUID();
+        categoryRepository.save(new Category(user, "Loan EMI", false));
+        Category self = categoryRepository.save(new Category(user, "Self", false));
+        Person me = new Person(user, "Rahul Sharma");
+        me.setCategoryId(self.getId());
+        personRepository.save(me);
+        Statement s = queued(user);
+        fileContains(s, """
+                Date,Description,Amount
+                2026-01-03,UPI/P2P/412345678902/rahul sharma/AXIS BANK/EMI,-500.00
+                """);
+
+        processor.process(event(s));
+
+        assertThat(transactionRepository.findByUserId(user)).singleElement().satisfies(t -> {
+            assertThat(t.getCategoryId()).isNull();
+            assertThat(t.isTransfer()).isTrue();
+        });
+    }
+
+    @Test
+    void keywordCategoriesApplyToDebitsOnly() {
+        UUID user = UUID.randomUUID();
+        categoryRepository.save(new Category(user, "Rent", true));
+        Statement s = queued(user);
+        fileContains(s, """
+                Date,Description,Amount
+                2026-01-03,NEFT-RENT REFUND SOMEONE,5000.00
+                """);
+
+        processor.process(event(s));
+
+        assertThat(transactionRepository.findByUserId(user)).singleElement()
+                .satisfies(t -> assertThat(t.getCategoryId()).isNull());
+    }
+
+    @Test
     void duplicateDeliveryOfSameEventIsProcessedOnce() {
         Statement s = queued(UUID.randomUUID());
         fileContains(s, CSV);
