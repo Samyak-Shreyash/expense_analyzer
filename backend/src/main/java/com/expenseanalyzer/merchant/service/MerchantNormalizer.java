@@ -133,9 +133,9 @@ public class MerchantNormalizer {
                 || tokens.size() == next + 1 && isPaymentsPrefix(tokens.get(next));
     }
 
-    /** A last token cut short by the statement's width: "PA", "PAY", ... "PAYMENTS". */
+    /** A last token cut short by the statement's width: "PA", "PAYM", ... "PAYMENTS". Exact "PAY" is a wallet suffix ("AMAZON PAY"), not a bank. */
     private static boolean isPaymentsPrefix(String token) {
-        return token.length() >= 2 && "PAYMENTS".startsWith(token);
+        return token.length() >= 2 && !"PAY".equals(token) && "PAYMENTS".startsWith(token);
     }
 
     private static List<String> tokens(String raw) {

@@ -100,6 +100,13 @@ class MerchantNormalizerTest {
     }
 
     @Test
+    void walletSuffixPayIsNotABankSuffix() {
+        assertThat(normalizer.normalize("UPI/P2M/123456789012/AMAZON PAY").canonicalName()).isEqualTo("Amazon");
+        assertThat(normalizer.normalize("UPI/P2M/123456789012/ZOMATO PAY").canonicalName()).isEqualTo("Zomato");
+        assertThat(normalizer.normalize("P2M URBANCLAP AIRTEL PA").canonicalName()).isEqualTo("Urban Company");
+    }
+
+    @Test
     void trailingDigitsAreStrippedOnlyForMatching() {
         MerchantMatch m = normalizer.normalize("UPI/P2M/123456789012/THESMARTQ1");
         assertThat(m.canonicalName()).isEqualTo("SmartQ");
