@@ -3,13 +3,6 @@ package com.expenseanalyzer.processing.service;
 import com.expenseanalyzer.category.model.Category;
 import com.expenseanalyzer.category.service.CategoryService;
 import com.expenseanalyzer.category.service.EffectiveCategoryResolver;
-import com.expenseanalyzer.category.service.KeywordCategory;
-import com.expenseanalyzer.merchant.service.MerchantMatch;
-import com.expenseanalyzer.merchant.service.MerchantNormalizer;
-import com.expenseanalyzer.merchant.service.MerchantService;
-import com.expenseanalyzer.merchant.service.PayeeKey;
-import com.expenseanalyzer.merchant.service.PersonNameParser;
-import com.expenseanalyzer.merchant.service.PersonService;
 import com.expenseanalyzer.messaging.service.OutboxService;
 import com.expenseanalyzer.processing.model.ProcessedEvent;
 import com.expenseanalyzer.processing.parser.common.ParsedStatement;
@@ -44,7 +37,6 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -88,9 +80,7 @@ public class StatementProcessor {
     private final GPayStatementParser gpayParser;
     private final CreditCardStatementParser creditCardParser;
     private final JsonMapper jsonMapper;
-    private final MerchantNormalizer merchantNormalizer;
-    private final MerchantService merchantService;
-    private final PersonService personService;
+    private final TransactionEnricher enricher;
     private final ParserLimits limits;
     private final TransferService transferService;
     private final ReversalService reversalService;
@@ -103,8 +93,7 @@ public class StatementProcessor {
                               PdfStatementParser pdfParser, GPayStatementParser gpayParser,
                               CreditCardStatementParser creditCardParser,
                               JsonMapper jsonMapper,
-                              MerchantNormalizer merchantNormalizer, MerchantService merchantService,
-                              PersonService personService, TransferService transferService,
+                              TransactionEnricher enricher, TransferService transferService,
                               ReversalService reversalService,
                               EffectiveCategoryResolver categoryResolver, LoanService loanService,
                               @Value("${app.parser.max-rows:50000}") int maxRows,
@@ -120,9 +109,7 @@ public class StatementProcessor {
         this.gpayParser = gpayParser;
         this.creditCardParser = creditCardParser;
         this.jsonMapper = jsonMapper;
-        this.merchantNormalizer = merchantNormalizer;
-        this.merchantService = merchantService;
-        this.personService = personService;
+        this.enricher = enricher;
         this.transferService = transferService;
         this.reversalService = reversalService;
         this.categoryResolver = categoryResolver;
@@ -190,9 +177,6 @@ public class StatementProcessor {
         int skipped = parsed.errors().size();
         Map<String, Integer> occurrences = new HashMap<>();
         Map<String, Transaction> byFingerprint = new HashMap<>();
-        Map<String, UUID> merchantIds = new HashMap<>();
-        Map<String, UUID> personIds = new HashMap<>();
-        Map<String, UUID> aliases = merchantService.aliases(s.getUserId());
         for (ParsedTransaction p : parsed.transactions()) {
             BigDecimal cents = p.amount().movePointRight(2);
             if (cents.precision() - cents.scale() > MAX_CENT_DIGITS) {
@@ -203,9 +187,10 @@ public class StatementProcessor {
             int occurrence = occurrences.merge(base, 1, Integer::sum) - 1;
             String fp = TransactionFingerprint.of(s.getUserId(), p.date(), cents, p.type(), p.rawDescription(), occurrence);
             Transaction t = toTransaction(s, p, cents, fp);
-            enrich(t, s.getUserId(), merchantIds, personIds, aliases);
             byFingerprint.put(fp, t);
         }
+
+        enricher.enrich(byFingerprint.values(), s.getUserId());
 
         Set<String> existing = byFingerprint.isEmpty() ? Set.of()
                 : transactionRepository.findExistingFingerprints(s.getUserId(), byFingerprint.keySet());
@@ -216,7 +201,7 @@ public class StatementProcessor {
             }
         });
         int merged = mergeUpiDuplicates(s, fresh);
-        applyKeywordCategories(s.getUserId(), fresh);
+        enricher.applyKeywordCategories(s.getUserId(), fresh);
         markSelfAsTransfers(s.getUserId(), fresh);
         Set<UUID> loans = loanService.autoLink(s.getUserId(), fresh);
         transactionRepository.saveAll(fresh);
@@ -302,21 +287,6 @@ public class StatementProcessor {
     }
 
     /**
-     * Debit rows with no effective category (own, person or merchant) take the category their description's keyword
-     * names, if the user has it.
-     */
-    private void applyKeywordCategories(UUID userId, List<Transaction> fresh) {
-        EffectiveCategoryResolver.Resolution resolution = categoryResolver.forUser(userId);
-        for (Transaction t : fresh) {
-            if (!"DEBIT".equals(t.getType()) || t.getMerchantId() != null || resolution.resolve(t, null) != null) {
-                continue;
-            }
-            KeywordCategory.of(t.getRawDescription()).map(resolution::named)
-                    .ifPresent(c -> t.setCategoryId(c.getId()));
-        }
-    }
-
-    /**
      * Rows whose effective category is the user's "Self" category (directly, or through their person or merchant)
      * are money moved between the user's own accounts, so they are marked as transfers. Not a manual mark: the user
      * can still unmark them.
@@ -344,31 +314,6 @@ public class StatementProcessor {
             kept.setMerchantId(other.getMerchantId());
             kept.setMerchantConfidence(other.getMerchantConfidence());
             kept.setPersonId(other.getPersonId());
-        }
-    }
-
-    /**
-     * The user's own merchant name for the payee, else merchant normalisation (LLD 11) or, for a UPI P2A/P2P transfer, the person paid (such a row gets no merchant);
-     * the raw description is never modified.
-     */
-    private void enrich(Transaction t, UUID userId, Map<String, UUID> merchantIds, Map<String, UUID> personIds,
-                        Map<String, UUID> aliases) {
-        MerchantMatch m = merchantNormalizer.normalize(t.getRawDescription());
-        t.setNormalizedDescription(m.normalizedDescription());
-        String payee = PayeeKey.of(t.getRawDescription(), m.normalizedDescription());
-        if (payee != null && aliases.containsKey(payee)) { // the user named this payee: wins over person and rules
-            t.setMerchantId(aliases.get(payee));
-            return;
-        }
-        Optional<String> person = PersonNameParser.parse(t.getRawDescription());
-        if (person.isPresent()) {
-            t.setPersonId(personIds.computeIfAbsent(person.get().toLowerCase(Locale.ROOT),
-                    k -> personService.findOrCreate(userId, person.get()).getId()));
-            return;
-        }
-        if (m.canonicalName() != null) {
-            t.setMerchantId(merchantIds.computeIfAbsent(m.canonicalName(), n -> merchantService.resolve(m).getId()));
-            t.setMerchantConfidence(m.confidence());
         }
     }
 

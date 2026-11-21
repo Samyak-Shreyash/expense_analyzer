@@ -250,6 +250,12 @@ export async function deleteStatement(id: string) {
     throw new ApiError(res.status, 'Could not delete the statement.')
 }
 
+/** Re-runs merchant and category matching on rows that have none, then transfer and reversal matching. */
+export async function rematchTransactions() {
+  const res = await apiFetch('/transactions/rematch', { method: 'POST' })
+  if (!res.ok) throw new ApiError(res.status, 'Could not re-check transactions.')
+}
+
 // ---- transactions ----
 
 export type TransactionQuery = {
