@@ -194,4 +194,30 @@ class AnalyticsNonSpendingTest {
                 .andExpect(jsonPath("$.items[2].category").value("Loan"))
                 .andExpect(jsonPath("$.items[2].spend").value(300.00));
     }
+
+    @Test
+    void breakdownSumsToCategoryTotal() throws Exception {
+        UUID loan = defaultCategory("Loan");
+        UUID cred = merchantRepository.save(new Merchant("CRED", "Finance")).getId();
+        merchantIds.add(cred);
+        UUID asha = personRepository.save(new Person(alice, "Asha")).getId();
+        saveOn("2026-02-10", "26813.00", "DEBIT", cred, null, loan);
+        saveOn("2026-02-11", "36500.00", "DEBIT", null, asha, loan);
+        saveOn("2026-02-12", "5000.00", "DEBIT", null, null, loan);
+        String bearer = "Bearer " + jwtTokenProvider.generateToken(new UsernamePasswordAuthenticationToken(ALICE, null));
+        mockMvc.perform(get("/api/analytics/non-spending").param("from", "2026-02-01").param("to", "2026-02-28")
+                        .header("Authorization", bearer))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].category").value("Loan"))
+                .andExpect(jsonPath("$.items[0].spend").value(68313.00))
+                .andExpect(jsonPath("$.items[0].merchants.length()").value(1))
+                .andExpect(jsonPath("$.items[0].merchants[0].name").value("CRED"))
+                .andExpect(jsonPath("$.items[0].merchants[0].spend").value(26813.00))
+                .andExpect(jsonPath("$.items[0].merchants[0].transactionCount").value(1))
+                .andExpect(jsonPath("$.items[0].people.length()").value(1))
+                .andExpect(jsonPath("$.items[0].people[0].name").value("Asha"))
+                .andExpect(jsonPath("$.items[0].people[0].spend").value(36500.00))
+                .andExpect(jsonPath("$.items[0].other").value(5000.00));
+    }
 }

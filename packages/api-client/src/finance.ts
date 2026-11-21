@@ -136,6 +136,14 @@ export type NonSpending = {
       spend: number
       transactionCount: number
     }[]
+    merchants: {
+      merchantId: string
+      name: string
+      spend: number
+      transactionCount: number
+    }[]
+    /** Remainder tied to neither a person nor a merchant. */
+    other: number
   }[]
 }
 

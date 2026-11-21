@@ -257,7 +257,9 @@ export function DashboardPage() {
                         </Link>
                         <span>{rupees(c.spend)}</span>
                       </div>
-                      {c.people.length > 0 && (
+                      {(c.people.length > 0 ||
+                        c.merchants.length > 0 ||
+                        c.other > 0) && (
                         <ul className={styles.people}>
                           {c.people.map((p) => (
                             <li key={p.personId}>
@@ -265,6 +267,18 @@ export function DashboardPage() {
                               <span>{rupees(p.spend)}</span>
                             </li>
                           ))}
+                          {c.merchants.map((m) => (
+                            <li key={m.merchantId}>
+                              <span>{m.name}</span>
+                              <span>{rupees(m.spend)}</span>
+                            </li>
+                          ))}
+                          {c.other > 0 && (
+                            <li>
+                              <span>Other</span>
+                              <span>{rupees(c.other)}</span>
+                            </li>
+                          )}
                         </ul>
                       )}
                     </li>
