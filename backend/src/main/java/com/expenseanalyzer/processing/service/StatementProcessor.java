@@ -308,7 +308,7 @@ public class StatementProcessor {
     private void applyKeywordCategories(UUID userId, List<Transaction> fresh) {
         EffectiveCategoryResolver.Resolution resolution = categoryResolver.forUser(userId);
         for (Transaction t : fresh) {
-            if (!"DEBIT".equals(t.getType()) || resolution.resolve(t, null) != null) {
+            if (!"DEBIT".equals(t.getType()) || t.getMerchantId() != null || resolution.resolve(t, null) != null) {
                 continue;
             }
             KeywordCategory.of(t.getRawDescription()).map(resolution::named)

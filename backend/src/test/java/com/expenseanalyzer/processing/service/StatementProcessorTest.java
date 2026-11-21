@@ -295,6 +295,25 @@ class StatementProcessorTest {
     }
 
     @Test
+    void merchantRowsAreNotGivenKeywordCategories() {
+        UUID user = UUID.randomUUID();
+        categoryRepository.save(new Category(user, "Insurance", true));
+        Statement s = queued(user);
+        fileContains(s, """
+                Date,Description,Amount
+                2026-01-04,AMAZON INSURANCE PREMIUM,-900.00
+                """);
+
+        processor.process(event(s));
+
+        assertThat(transactionRepository.findByUserId(user)).singleElement()
+                .satisfies(t -> {
+                    assertThat(t.getMerchantId()).isNotNull();
+                    assertThat(t.getCategoryId()).isNull();
+                });
+    }
+
+    @Test
     void keywordCategoriesApplyToDebitsOnly() {
         UUID user = UUID.randomUUID();
         categoryRepository.save(new Category(user, "Rent", true));
