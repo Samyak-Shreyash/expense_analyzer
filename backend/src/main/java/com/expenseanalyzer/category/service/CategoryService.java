@@ -40,6 +40,8 @@ public class CategoryService {
     public static final String LOAN = "Loan";
     /** Repayments of a loan: a debit in it can be linked to its loan. */
     public static final String LOAN_EMI = "Loan EMI";
+    /** Defaults no merchant rule produces; keyword categorisation and the user pick them. */
+    private static final List<String> EXTRA_SPENDING_DEFAULTS = List.of("Rent", "Insurance", "Health", "Home Services");
     private static final List<String> NON_SPENDING_DEFAULTS = List.of("Repayment", LOAN, LOAN_EMI);
 
     private final CategoryRepository categoryRepository;
@@ -65,8 +67,11 @@ public class CategoryService {
         for (String name : MerchantNormalizer.defaultCategoryNames()) {
             seed(userId, name, true, have);
         }
-        // counts as spending so merchant totals keep netting refunds
-        seed(userId, REFUND, true, have);
+        // refunds net by netCategory, so Refund's own flag only affects debits; it stays non-spending
+        seed(userId, REFUND, false, have);
+        for (String name : EXTRA_SPENDING_DEFAULTS) {
+            seed(userId, name, true, have);
+        }
         for (String name : NON_SPENDING_DEFAULTS) {
             seed(userId, name, false, have);
         }

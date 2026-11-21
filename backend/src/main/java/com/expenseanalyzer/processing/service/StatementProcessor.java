@@ -3,6 +3,7 @@ package com.expenseanalyzer.processing.service;
 import com.expenseanalyzer.category.model.Category;
 import com.expenseanalyzer.category.service.CategoryService;
 import com.expenseanalyzer.category.service.EffectiveCategoryResolver;
+import com.expenseanalyzer.category.service.KeywordCategory;
 import com.expenseanalyzer.merchant.service.MerchantMatch;
 import com.expenseanalyzer.merchant.service.MerchantNormalizer;
 import com.expenseanalyzer.merchant.service.MerchantService;
@@ -215,6 +216,7 @@ public class StatementProcessor {
             }
         });
         int merged = mergeUpiDuplicates(s, fresh);
+        applyKeywordCategories(s.getUserId(), fresh);
         markSelfAsTransfers(s.getUserId(), fresh);
         Set<UUID> loans = loanService.autoLink(s.getUserId(), fresh);
         transactionRepository.saveAll(fresh);
@@ -297,6 +299,18 @@ public class StatementProcessor {
         transactionRepository.deleteAll(replaced);
         transactionRepository.flush();
         return dropped.size() + replaced.size();
+    }
+
+    /** Rows with no category or merchant take the category their description's keyword names, if the user has it. */
+    private void applyKeywordCategories(UUID userId, List<Transaction> fresh) {
+        EffectiveCategoryResolver.Resolution resolution = categoryResolver.forUser(userId);
+        for (Transaction t : fresh) {
+            if (t.getCategoryId() != null || t.getMerchantId() != null) {
+                continue;
+            }
+            KeywordCategory.of(t.getRawDescription()).map(resolution::named)
+                    .ifPresent(c -> t.setCategoryId(c.getId()));
+        }
     }
 
     /**

@@ -138,6 +138,28 @@ class StatementProcessorTest {
     }
 
     @Test
+    void emiAndRentRowsGetKeywordCategories() {
+        UUID user = UUID.randomUUID();
+        Category emi = categoryRepository.save(new Category(user, "Loan EMI", false));
+        Category rent = categoryRepository.save(new Category(user, "Rent", true));
+        Statement s = queued(user);
+        fileContains(s, """
+                Date,Description,Amount
+                2026-01-02,NEFT-EMI SAMYAK SHREYASH,-5000.00
+                2026-01-03,UPI/P2A/123456789012/DUMMY NAME RENT,-12000.00
+                """);
+
+        processor.process(event(s));
+
+        List<Transaction> txns = transactionRepository.findByUserIdAndStatementId(user, s.getId());
+        assertThat(txns).hasSize(2);
+        assertThat(txns).filteredOn(t -> t.getRawDescription().contains("EMI"))
+                .singleElement().extracting(Transaction::getCategoryId).isEqualTo(emi.getId());
+        assertThat(txns).filteredOn(t -> t.getRawDescription().contains("RENT"))
+                .singleElement().extracting(Transaction::getCategoryId).isEqualTo(rent.getId());
+    }
+
+    @Test
     void persistsParsedTransactionsAndCompletesStatement() {
         Statement s = queued(UUID.randomUUID());
         fileContains(s, CSV);
