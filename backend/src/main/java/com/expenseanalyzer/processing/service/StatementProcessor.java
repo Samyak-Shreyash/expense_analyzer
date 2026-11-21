@@ -31,6 +31,7 @@ import com.expenseanalyzer.statement.service.S3StatementStorage;
 import com.expenseanalyzer.transaction.model.Transaction;
 import com.expenseanalyzer.transaction.repository.TransactionRepository;
 import com.expenseanalyzer.transaction.service.LoanService;
+import com.expenseanalyzer.transaction.service.ReversalService;
 import com.expenseanalyzer.transaction.service.TransferService;
 import java.io.IOException;
 import java.io.InputStream;
@@ -91,6 +92,7 @@ public class StatementProcessor {
     private final PersonService personService;
     private final ParserLimits limits;
     private final TransferService transferService;
+    private final ReversalService reversalService;
     private final EffectiveCategoryResolver categoryResolver;
     private final LoanService loanService;
 
@@ -102,6 +104,7 @@ public class StatementProcessor {
                               JsonMapper jsonMapper,
                               MerchantNormalizer merchantNormalizer, MerchantService merchantService,
                               PersonService personService, TransferService transferService,
+                              ReversalService reversalService,
                               EffectiveCategoryResolver categoryResolver, LoanService loanService,
                               @Value("${app.parser.max-rows:50000}") int maxRows,
                               @Value("${app.parser.max-columns:50}") int maxColumns,
@@ -120,6 +123,7 @@ public class StatementProcessor {
         this.merchantService = merchantService;
         this.personService = personService;
         this.transferService = transferService;
+        this.reversalService = reversalService;
         this.categoryResolver = categoryResolver;
         this.loanService = loanService;
         this.limits = new ParserLimits(maxRows, maxColumns, timeout);
@@ -216,6 +220,7 @@ public class StatementProcessor {
         transactionRepository.saveAll(fresh);
         loanService.recompute(loans);
         transferService.match(s.getUserId());
+        reversalService.match(s.getUserId());
 
         s.setStatus(StatementStatus.COMPLETED);
         s.setCompletedAt(Instant.now());
