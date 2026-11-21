@@ -75,3 +75,4 @@ frontend/build
 !/mobile/package.json
 !/mobile/package-lock.json
 !/packages/*/package.json
+.superpowers/
