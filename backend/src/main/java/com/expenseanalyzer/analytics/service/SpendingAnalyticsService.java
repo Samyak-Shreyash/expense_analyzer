@@ -153,7 +153,7 @@ public class SpendingAnalyticsService {
                 .sorted(Comparator.comparing(MerchantCents::spendCents).reversed()
                         .thenComparing(m -> String.valueOf(m.merchantId())))
                 .toList();
-        BigDecimal total = spend.stream().map(MerchantCents::spendCents).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal total = spendingTotalCents(groups, loanInterest(userId, from, to, categoryResolver.forUser(userId)));
         Map<UUID, Merchant> merchants = merchants(spend.stream().map(MerchantCents::merchantId).toList());
         List<MerchantSpend> items = spend.stream()
                 .limit(limit)
@@ -181,7 +181,7 @@ public class SpendingAnalyticsService {
             cents.merge(LOAN_INTEREST, sum(interest), BigDecimal::add);
             counts.merge(LOAN_INTEREST, (long) interest.size(), Long::sum);
         }
-        BigDecimal total = cents.values().stream().reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal total = spendingTotalCents(groups, interest);
         List<CategorySpend> items = cents.entrySet().stream()
                 .sorted(Map.Entry.<String, BigDecimal>comparingByValue().reversed().thenComparing(Map.Entry.comparingByKey()))
                 .map(e -> new CategorySpend(e.getKey(), money(e.getValue()), share(e.getValue(), total), counts.get(e.getKey())))
@@ -190,6 +190,12 @@ public class SpendingAnalyticsService {
     }
 
     private record CategoryKey(String category, UUID personId, UUID merchantId) {
+    }
+
+    /** Net spending over all spending groups plus loan interest: the one total behind every share. */
+    private static BigDecimal spendingTotalCents(List<Group> groups, List<Transaction> interest) {
+        return net(groups, g -> true, g -> new CategoryKey(g.netCategoryName(), g.personId(), g.merchantId()))
+                .values().stream().map(Net::cents).reduce(sum(interest), BigDecimal::add);
     }
 
     /**
@@ -271,11 +277,17 @@ public class SpendingAnalyticsService {
         }
         List<MonthlyTrend> months = new ArrayList<>();
         BigDecimal previous = null;
+        long previousDays = 0;
         for (YearMonth m : monthKeys(from, to)) {
             BigDecimal outflow = spend.getOrDefault(m, BigDecimal.ZERO);
-            months.add(new MonthlyTrend(m.toString(), money(outflow),
-                    previous == null ? null : changePercent(outflow, previous)));
+            long days = ChronoUnit.DAYS.between(from.isAfter(m.atDay(1)) ? from : m.atDay(1),
+                    to.isBefore(m.atEndOfMonth()) ? to : m.atEndOfMonth()) + 1;
+            // compare per covered day, so a partial month is not set against a full one
+            months.add(new MonthlyTrend(m.toString(), money(outflow), previous == null ? null
+                    : changePercent(outflow.multiply(BigDecimal.valueOf(previousDays)),
+                            previous.multiply(BigDecimal.valueOf(days)))));
             previous = outflow;
+            previousDays = days;
         }
         return new Trends(from, to, CURRENCY, months);
     }
