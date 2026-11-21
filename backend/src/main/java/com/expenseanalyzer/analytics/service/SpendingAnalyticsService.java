@@ -54,9 +54,10 @@ import org.springframework.web.server.ResponseStatusException;
 /**
  * Deterministic spending analytics (LLD sections 15-16), aggregated in the database.
  * <p>
- * Semantics: dates are inclusive UTC days. Inflow = all CREDITs (including refunds). "Spending" (summary outflow,
- * merchants, categories, trends) only counts transactions whose effective category counts as spending
- * (Uncategorized does); the cash-flow endpoint and summary inflow include everything. Groups are aggregated in SQL
+ * Semantics: dates are inclusive UTC days. Inflow = all CREDITs (including refunds) except loans received. "Spending" (summary
+ * outflow, merchants, categories, trends) only counts transactions whose effective category counts as spending
+ * (Uncategorized does). Net = inflow - outflow, and the cash-flow endpoint builds each month with the same
+ * totals as the summary (clipped to the requested range). Groups are aggregated in SQL
  * by (category, person, merchant, type) and resolved to an effective category in memory.
  * Merchant/category "spend" = DEBITs minus CREDITs for a matched merchant (refunds net out); for transactions
  * without a merchant only DEBITs count, because unmatched CREDITs are mostly income. Groups whose net spend is
@@ -83,9 +84,9 @@ public class SpendingAnalyticsService {
     private record Totals(BigDecimal inflowCents, BigDecimal outflowCents, long count,
                           BigDecimal nonSpendingCents, BigDecimal loanReceivedCents) {
 
-        /** Cash in minus cash out: loans received are money in, even though they are not income. */
+        /** Inflow (income, no loans) minus outflow (spending), as shown on the headline cards. */
         BigDecimal netCents() {
-            return inflowCents.add(loanReceivedCents).subtract(outflowCents).subtract(nonSpendingCents);
+            return inflowCents.subtract(outflowCents);
         }
     }
 
@@ -234,12 +235,18 @@ public class SpendingAnalyticsService {
         return new NonSpendingBreakdown(from, to, CURRENCY, money(total), items);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional // not readOnly: first access seeds the user's default categories
     public CashFlow cashFlow(String email, LocalDate from, LocalDate to) {
         validate(from, to);
+        UUID userId = userId(email);
+        Resolution resolution = categoryResolver.forUser(userId);
         List<MonthlyCashFlow> months = new ArrayList<>();
-        monthly(userId(email), from, to).forEach((month, t) -> months.add(new MonthlyCashFlow(month.toString(),
-                money(t.inflowCents()), money(t.outflowCents()), money(t.inflowCents().subtract(t.outflowCents())))));
+        for (YearMonth month : monthKeys(from, to)) {
+            Totals t = totals(userId, from.isAfter(month.atDay(1)) ? from : month.atDay(1),
+                    to.isBefore(month.atEndOfMonth()) ? to : month.atEndOfMonth(), resolution);
+            months.add(new MonthlyCashFlow(month.toString(), money(t.inflowCents()), money(t.outflowCents()),
+                    money(t.netCents())));
+        }
         return new CashFlow(from, to, CURRENCY, months);
     }
 
@@ -264,7 +271,7 @@ public class SpendingAnalyticsService {
         }
         List<MonthlyTrend> months = new ArrayList<>();
         BigDecimal previous = null;
-        for (YearMonth m : monthly(userId, from, to).keySet()) {
+        for (YearMonth m : monthKeys(from, to)) {
             BigDecimal outflow = spend.getOrDefault(m, BigDecimal.ZERO);
             months.add(new MonthlyTrend(m.toString(), money(outflow),
                     previous == null ? null : changePercent(outflow, previous)));
@@ -379,19 +386,11 @@ public class SpendingAnalyticsService {
         return merchantRepository.findAllById(ids).stream().collect(Collectors.toMap(Merchant::getId, Function.identity()));
     }
 
-    /** One entry per calendar month touching [from, to], in order, zero-filled. */
-    private Map<YearMonth, Totals> monthly(UUID userId, LocalDate from, LocalDate to) {
-        Map<YearMonth, Totals> months = new LinkedHashMap<>();
+    /** Every calendar month touching [from, to], in order. */
+    private static List<YearMonth> monthKeys(LocalDate from, LocalDate to) {
+        List<YearMonth> months = new ArrayList<>();
         for (YearMonth m = YearMonth.from(from); !m.isAfter(YearMonth.from(to)); m = m.plusMonths(1)) {
-            months.put(m, new Totals(BigDecimal.ZERO, BigDecimal.ZERO, 0, BigDecimal.ZERO, BigDecimal.ZERO));
-        }
-        for (Object[] r : transactionRepository.sumByMonthAndDirection(userId, start(from), endExclusive(to))) {
-            YearMonth m = YearMonth.of(((Number) r[0]).intValue(), ((Number) r[1]).intValue());
-            BigDecimal amount = (BigDecimal) r[3];
-            Totals t = months.get(m);
-            months.put(m, "CREDIT".equals(r[2])
-                    ? new Totals(t.inflowCents().add(amount), t.outflowCents(), t.count(), t.nonSpendingCents(), BigDecimal.ZERO)
-                    : new Totals(t.inflowCents(), t.outflowCents().add(amount), t.count(), t.nonSpendingCents(), BigDecimal.ZERO));
+            months.add(m);
         }
         return months;
     }
