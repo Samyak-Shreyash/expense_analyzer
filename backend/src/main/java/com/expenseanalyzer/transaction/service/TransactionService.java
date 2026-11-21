@@ -202,6 +202,8 @@ public class TransactionService {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                         "A transfer pairs money out and money in of the same amount");
             }
+            unpairReversal(t, userId, now);
+            unpairReversal(other, userId, now);
             if (!other.getId().equals(t.getTransferPairId())) {
                 release(t, userId, false, now);
                 release(other, userId, false, now);
@@ -209,6 +211,7 @@ public class TransactionService {
             TransferService.pair(t, other, true, now);
             transactionRepository.save(other);
         } else {
+            unpairReversal(t, userId, now);
             release(t, userId, false, now);
             t.setTransfer(true);
             t.setTransferManual(true);

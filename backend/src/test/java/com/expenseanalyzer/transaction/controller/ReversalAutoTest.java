@@ -14,7 +14,10 @@ import com.expenseanalyzer.statement.repository.StatementRepository;
 import com.expenseanalyzer.statement.service.StatementService;
 import com.expenseanalyzer.transaction.model.Transaction;
 import com.expenseanalyzer.transaction.repository.TransactionRepository;
+import com.expenseanalyzer.transaction.dto.TransferRequest;
 import com.expenseanalyzer.transaction.service.ReversalService;
+import com.expenseanalyzer.transaction.service.TransactionService;
+import com.expenseanalyzer.transaction.service.TransferService;
 import com.expenseanalyzer.user.model.User;
 import com.expenseanalyzer.user.model.UserRole;
 import com.expenseanalyzer.user.repository.UserRepository;
@@ -51,6 +54,10 @@ class ReversalAutoTest {
     private ReversalService reversalService;
     @Autowired
     private StatementService statementService;
+    @Autowired
+    private TransferService transferService;
+    @Autowired
+    private TransactionService transactionService;
 
     @MockitoBean
     private UserRepository userRepository;
@@ -202,5 +209,33 @@ class ReversalAutoTest {
         assertThat(statementService.delete(EMAIL, other)).isTrue();
 
         assertThat(reload(debit).getReversalPairId()).isNull();
+    }
+
+    @Test
+    void transferMatchLeavesReversalPairsAlone() {
+        UUID other = statementRepository.saveAndFlush(new Statement(user.getId(), "2222", "SBI")).getId();
+        Transaction debit = tx("DEBIT", "377.90", "ZOMATO", "2026-09-05");
+        Transaction credit = tx(other, "CREDIT", "377.90", "ZOMATO", "2026-09-06");
+        reversalService.match(user.getId());
+
+        transferService.match(user.getId());
+
+        assertThat(reload(debit).getReversalPairId()).isEqualTo(credit.getId());
+        assertThat(reload(credit).getReversalPairId()).isEqualTo(debit.getId());
+        assertThat(reload(debit).isTransfer()).isFalse();
+        assertThat(reload(credit).isTransfer()).isFalse();
+    }
+
+    @Test
+    void markingReversalPairedRowAsTransferReleasesPair() {
+        Transaction debit = tx("DEBIT", "377.90", "ZOMATO", "2026-09-05");
+        Transaction credit = tx("CREDIT", "377.90", "ZOMATO", "2026-09-06");
+        reversalService.match(user.getId());
+
+        transactionService.setTransfer(EMAIL, debit.getId(), new TransferRequest(true, null));
+
+        assertThat(reload(debit).getReversalPairId()).isNull();
+        assertThat(reload(credit).getReversalPairId()).isNull();
+        assertThat(reload(debit).isTransfer()).isTrue();
     }
 }

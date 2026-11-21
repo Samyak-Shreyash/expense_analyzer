@@ -44,7 +44,7 @@ public class TransferService {
     @Transactional
     public void match(UUID userId) {
         String fullName = userRepository.findById(userId).map(User::getFullName).orElse(null);
-        List<Transaction> all = transactionRepository.findByUserIdAndTransferFalseAndTransferManualFalseAndDuplicateFalse(userId);
+        List<Transaction> all = transactionRepository.findByUserIdAndTransferFalseAndTransferManualFalseAndDuplicateFalseAndReversalPairIdIsNull(userId);
         List<Transaction> open = all.stream()
                 .filter(t -> (t.getMerchantId() == null && t.getPersonId() == null) || ownName(fullName, t)).toList();
         Map<UUID, String> accounts = statementRepository.findAllById(open.stream().map(Transaction::getStatementId)
