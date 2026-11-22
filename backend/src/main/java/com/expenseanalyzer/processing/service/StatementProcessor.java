@@ -1,7 +1,5 @@
 package com.expenseanalyzer.processing.service;
 
-import com.expenseanalyzer.category.model.Category;
-import com.expenseanalyzer.category.service.CategoryService;
 import com.expenseanalyzer.category.service.EffectiveCategoryResolver;
 import com.expenseanalyzer.messaging.service.OutboxService;
 import com.expenseanalyzer.processing.model.ProcessedEvent;
@@ -202,7 +200,7 @@ public class StatementProcessor {
         });
         int merged = mergeUpiDuplicates(s, fresh);
         enricher.applyKeywordCategories(s.getUserId(), fresh);
-        markSelfAsTransfers(s.getUserId(), fresh);
+        categoryResolver.markSelfAsTransfers(s.getUserId(), fresh);
         Set<UUID> loans = loanService.autoLink(s.getUserId(), fresh);
         transactionRepository.saveAll(fresh);
         loanService.recompute(loans);
@@ -284,25 +282,6 @@ public class StatementProcessor {
         transactionRepository.deleteAll(replaced);
         transactionRepository.flush();
         return dropped.size() + replaced.size();
-    }
-
-    /**
-     * Rows whose effective category is the user's "Self" category (directly, or through their person or merchant)
-     * are money moved between the user's own accounts, so they are marked as transfers. Not a manual mark: the user
-     * can still unmark them.
-     */
-    private void markSelfAsTransfers(UUID userId, List<Transaction> fresh) {
-        EffectiveCategoryResolver.Resolution resolution = categoryResolver.forUser(userId);
-        Category self = resolution.named(CategoryService.SELF);
-        if (self == null) {
-            return;
-        }
-        fresh.stream().filter(t -> !t.isTransfer())
-                .filter(t -> {
-                    Category effective = resolution.resolve(t, null);
-                    return effective != null && self.getId().equals(effective.getId());
-                })
-                .forEach(t -> t.setTransfer(true));
     }
 
     /** Fills what {@code kept} lacks from {@code other}: the category, and the payee (merchant or person) as a pair. */

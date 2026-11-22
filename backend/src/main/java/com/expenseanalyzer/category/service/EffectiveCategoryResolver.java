@@ -42,6 +42,26 @@ public class EffectiveCategoryResolver {
         return new Resolution(categories, byMerchant, people);
     }
 
+    /**
+     * Rows whose effective category is the user's "Self" category (directly, or through their person or merchant)
+     * are money moved between the user's own accounts, so they are marked as transfers. Not a manual mark: the user
+     * can still unmark them.
+     */
+    @Transactional
+    public void markSelfAsTransfers(UUID userId, List<Transaction> rows) {
+        Resolution resolution = forUser(userId);
+        Category self = resolution.named(CategoryService.SELF);
+        if (self == null) {
+            return;
+        }
+        rows.stream().filter(t -> !t.isTransfer())
+                .filter(t -> {
+                    Category effective = resolution.resolve(t, null);
+                    return effective != null && self.getId().equals(effective.getId());
+                })
+                .forEach(t -> t.setTransfer(true));
+    }
+
     public static final class Resolution {
         private final Map<UUID, Category> byId = new HashMap<>();
         private final Map<String, Category> byName = new HashMap<>();

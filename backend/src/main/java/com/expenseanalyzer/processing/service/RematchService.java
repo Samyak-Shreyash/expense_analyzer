@@ -1,11 +1,14 @@
 package com.expenseanalyzer.processing.service;
 
+import com.expenseanalyzer.category.service.EffectiveCategoryResolver;
 import com.expenseanalyzer.transaction.model.Transaction;
 import com.expenseanalyzer.transaction.repository.TransactionRepository;
+import com.expenseanalyzer.transaction.service.LoanService;
 import com.expenseanalyzer.transaction.service.ReversalService;
 import com.expenseanalyzer.transaction.service.TransferService;
 import com.expenseanalyzer.user.repository.UserRepository;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,14 +28,19 @@ public class RematchService {
     private final UserRepository userRepository;
     private final TransferService transferService;
     private final ReversalService reversalService;
+    private final EffectiveCategoryResolver categoryResolver;
+    private final LoanService loanService;
 
     public RematchService(TransactionRepository transactionRepository, TransactionEnricher enricher, UserRepository userRepository,
-                          TransferService transferService, ReversalService reversalService) {
+                          TransferService transferService, ReversalService reversalService,
+                          EffectiveCategoryResolver categoryResolver, LoanService loanService) {
         this.transactionRepository = transactionRepository;
         this.enricher = enricher;
         this.userRepository = userRepository;
         this.transferService = transferService;
         this.reversalService = reversalService;
+        this.categoryResolver = categoryResolver;
+        this.loanService = loanService;
     }
 
     @Transactional
@@ -45,7 +53,10 @@ public class RematchService {
                 .toList();
         enricher.enrich(candidates, userId);
         enricher.applyKeywordCategories(userId, candidates);
+        categoryResolver.markSelfAsTransfers(userId, candidates);
+        Set<UUID> loans = loanService.autoLink(userId, candidates);
         transactionRepository.saveAll(candidates);
+        loanService.recompute(loans);
         transferService.match(userId);
         reversalService.match(userId);
         log.info("Rematched transactions: candidates={}", candidates.size());
