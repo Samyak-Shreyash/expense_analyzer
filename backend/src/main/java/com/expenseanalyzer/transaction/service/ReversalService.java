@@ -73,13 +73,13 @@ public class ReversalService {
         transactionRepository.saveAll(paired);
     }
 
-    /** Reopens the automatic pairs' other halves before a statement's rows are deleted; manual pairs are kept. */
+    /** Releases the other halves of the pairs (manual or automatic) before a statement's rows are deleted. */
     @Transactional
     public void releasePartners(UUID userId, UUID statementId) {
         Set<UUID> partners = transactionRepository.findByUserIdAndStatementId(userId, statementId).stream()
                 .map(Transaction::getReversalPairId).filter(Objects::nonNull).collect(Collectors.toSet());
         List<Transaction> released = transactionRepository.findAllById(partners).stream()
-                .filter(t -> !statementId.equals(t.getStatementId()) && !t.isTransferManual()).toList();
+                .filter(t -> !statementId.equals(t.getStatementId())).toList();
         Instant now = Instant.now();
         released.forEach(t -> {
             t.setReversalPairId(null);

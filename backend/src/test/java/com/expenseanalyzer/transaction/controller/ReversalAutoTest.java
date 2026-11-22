@@ -14,6 +14,7 @@ import com.expenseanalyzer.statement.repository.StatementRepository;
 import com.expenseanalyzer.statement.service.StatementService;
 import com.expenseanalyzer.transaction.model.Transaction;
 import com.expenseanalyzer.transaction.repository.TransactionRepository;
+import com.expenseanalyzer.transaction.dto.ReversalRequest;
 import com.expenseanalyzer.transaction.dto.TransferRequest;
 import com.expenseanalyzer.transaction.service.ReversalService;
 import com.expenseanalyzer.transaction.service.TransactionService;
@@ -209,6 +210,36 @@ class ReversalAutoTest {
         assertThat(statementService.delete(EMAIL, other)).isTrue();
 
         assertThat(reload(debit).getReversalPairId()).isNull();
+    }
+
+    @Test
+    void deleteStatementReleasesManualPartner() {
+        UUID other = statementRepository.saveAndFlush(new Statement(user.getId(), "2222", "SBI")).getId();
+        Transaction debit = tx("DEBIT", "377.90", "ZOMATO", "2026-09-05");
+        Transaction credit = tx(other, "CREDIT", "377.90", "ZOMATO", "2026-09-06");
+        transactionService.setReversal(EMAIL, debit.getId(), new ReversalRequest(credit.getId(), null));
+        assertThat(reload(debit).getReversalPairId()).isEqualTo(credit.getId());
+
+        assertThat(statementService.delete(EMAIL, other)).isTrue();
+
+        assertThat(reload(debit).getReversalPairId()).isNull();
+    }
+
+    @Test
+    void unpairedAutomaticReversalStaysUnpaired() {
+        Transaction debit = tx("DEBIT", "377.90", "ZOMATO", "2026-09-05");
+        Transaction credit = tx("CREDIT", "377.90", "ZOMATO", "2026-09-06");
+        reversalService.match(user.getId());
+        assertThat(reload(debit).getReversalPairId()).isEqualTo(credit.getId());
+
+        transactionService.setReversal(EMAIL, credit.getId(), new ReversalRequest(null, null));
+        reversalService.match(user.getId());
+        transferService.match(user.getId());
+
+        assertThat(reload(debit).getReversalPairId()).isNull();
+        assertThat(reload(credit).getReversalPairId()).isNull();
+        assertThat(reload(debit).isTransferManual()).isTrue();
+        assertThat(reload(credit).isTransferManual()).isTrue();
     }
 
     @Test
