@@ -10,6 +10,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.expenseanalyzer.auth.dto.JwtTokenProvider;
 import com.expenseanalyzer.category.model.Category;
 import com.expenseanalyzer.category.repository.CategoryRepository;
+import com.expenseanalyzer.category.service.CategoryService;
+import com.expenseanalyzer.category.service.EffectiveCategoryResolver;
 import com.expenseanalyzer.merchant.repository.MerchantRepository;
 import com.expenseanalyzer.merchant.repository.PersonPayeeRepository;
 import com.expenseanalyzer.merchant.repository.PersonRepository;
@@ -21,6 +23,7 @@ import com.expenseanalyzer.user.repository.UserRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
@@ -54,6 +57,8 @@ class RematchTest {
     private PersonRepository personRepository;
     @Autowired
     private PersonPayeeRepository personPayeeRepository;
+    @Autowired
+    private EffectiveCategoryResolver categoryResolver;
 
     @MockitoBean
     private UserRepository userRepository;
@@ -141,5 +146,18 @@ class RematchTest {
     @Test
     void unauthenticatedIsRejected() throws Exception {
         mockMvc.perform(post("/api/transactions/rematch")).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void selfMarkingLeavesUserUnmarkedRowsAlone() {
+        UUID self = categoryRepository.save(new Category(alice.getId(), CategoryService.SELF, false)).getId();
+        Transaction unmarked = transactionRepository.findById(transaction("TO SELF", self)).orElseThrow();
+        unmarked.setTransferManual(true);
+        Transaction fresh = transactionRepository.findById(transaction("TO SELF", self)).orElseThrow();
+
+        categoryResolver.markSelfAsTransfers(alice.getId(), List.of(unmarked, fresh));
+
+        assertThat(unmarked.isTransfer()).isFalse();
+        assertThat(fresh.isTransfer()).isTrue();
     }
 }

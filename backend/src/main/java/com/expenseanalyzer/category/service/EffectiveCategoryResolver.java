@@ -54,7 +54,7 @@ public class EffectiveCategoryResolver {
         if (self == null) {
             return;
         }
-        rows.stream().filter(t -> !t.isTransfer())
+        rows.stream().filter(t -> !t.isTransfer() && !t.isTransferManual())
                 .filter(t -> {
                     Category effective = resolution.resolve(t, null);
                     return effective != null && self.getId().equals(effective.getId());

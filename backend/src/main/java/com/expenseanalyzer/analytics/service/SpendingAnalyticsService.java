@@ -37,7 +37,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -232,19 +231,11 @@ public class SpendingAnalyticsService {
                     .merge(Payee.of(g.personId(), g.merchantId()), new Net(g.cents(), g.count()),
                             SpendingAnalyticsService::add);
         }
-        Set<UUID> personIds = new HashSet<>();
-        Set<UUID> merchantIds = new HashSet<>();
-        byCategory.values().forEach(m -> m.keySet().forEach(k -> {
-            if (k.personId() != null) {
-                personIds.add(k.personId());
-            }
-            if (k.merchantId() != null) {
-                merchantIds.add(k.merchantId());
-            }
-        }));
-        Map<UUID, Person> people = personRepository.findAllById(personIds)
+        List<Payee> payees = byCategory.values().stream().flatMap(m -> m.keySet().stream()).toList();
+        Map<UUID, Person> people = personRepository.findAllById(payees.stream().map(Payee::personId)
+                        .filter(Objects::nonNull).collect(Collectors.toSet()))
                 .stream().collect(Collectors.toMap(Person::getId, Function.identity()));
-        Map<UUID, Merchant> merchants = merchants(merchantIds);
+        Map<UUID, Merchant> merchants = merchants(payees.stream().map(Payee::merchantId).toList());
         BigDecimal total = byCategory.values().stream().flatMap(m -> m.values().stream()).map(Net::cents)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         List<NonSpendingCategory> items = byCategory.entrySet().stream().map(e -> {
@@ -282,8 +273,8 @@ public class SpendingAnalyticsService {
         Resolution resolution = categoryResolver.forUser(userId);
         List<MonthlyCashFlow> months = new ArrayList<>();
         for (YearMonth month : monthKeys(from, to)) {
-            Totals t = totals(userId, from.isAfter(month.atDay(1)) ? from : month.atDay(1),
-                    to.isBefore(month.atEndOfMonth()) ? to : month.atEndOfMonth(), resolution);
+            Totals t = totals(userId, startIn(month, from),
+                    endIn(month, to), resolution);
             months.add(new MonthlyCashFlow(month.toString(), money(t.inflowCents()), money(t.outflowCents()),
                     money(t.netCents())));
         }
@@ -314,8 +305,8 @@ public class SpendingAnalyticsService {
         long previousDays = 0;
         for (YearMonth m : monthKeys(from, to)) {
             BigDecimal outflow = spend.getOrDefault(m, BigDecimal.ZERO);
-            long days = ChronoUnit.DAYS.between(from.isAfter(m.atDay(1)) ? from : m.atDay(1),
-                    to.isBefore(m.atEndOfMonth()) ? to : m.atEndOfMonth()) + 1;
+            long days = ChronoUnit.DAYS.between(startIn(m, from),
+                    endIn(m, to)) + 1;
             // compare per covered day, so a partial month is not set against a full one
             months.add(new MonthlyTrend(m.toString(), money(outflow), previous == null ? null
                     : changePercent(outflow.multiply(BigDecimal.valueOf(previousDays)),
@@ -430,6 +421,14 @@ public class SpendingAnalyticsService {
     private Map<UUID, Merchant> merchants(Collection<UUID> merchantIds) {
         List<UUID> ids = merchantIds.stream().filter(Objects::nonNull).distinct().toList();
         return merchantRepository.findAllById(ids).stream().collect(Collectors.toMap(Merchant::getId, Function.identity()));
+    }
+
+    private static LocalDate startIn(YearMonth m, LocalDate from) {
+        return from.isAfter(m.atDay(1)) ? from : m.atDay(1);
+    }
+
+    private static LocalDate endIn(YearMonth m, LocalDate to) {
+        return to.isBefore(m.atEndOfMonth()) ? to : m.atEndOfMonth();
     }
 
     /** Every calendar month touching [from, to], in order. */
