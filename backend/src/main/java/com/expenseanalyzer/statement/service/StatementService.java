@@ -12,6 +12,7 @@ import com.expenseanalyzer.statement.model.StatementSource;
 import com.expenseanalyzer.statement.model.StatementStatus;
 import com.expenseanalyzer.statement.repository.StatementRepository;
 import com.expenseanalyzer.transaction.repository.TransactionRepository;
+import com.expenseanalyzer.transaction.service.ReversalService;
 import com.expenseanalyzer.transaction.service.TransferService;
 import com.expenseanalyzer.user.model.User;
 import com.expenseanalyzer.user.repository.UserRepository;
@@ -59,6 +60,7 @@ public class StatementService {
     private final StatementRepository statementRepository;
     private final TransactionRepository transactionRepository;
     private final TransferService transferService;
+    private final ReversalService reversalService;
     private final UserRepository userRepository;
     private final StatementFileValidator validator;
     private final S3StatementStorage storage;
@@ -147,10 +149,12 @@ public class StatementService {
         }
         Statement s = found.get();
         transferService.releasePartners(s.getUserId(), s.getId());
+        reversalService.releasePartners(s.getUserId(), s.getId());
         transactionRepository.deleteByStatementId(s.getId());
         statementRepository.delete(s);
         statementRepository.flush();
         transferService.match(s.getUserId());
+        reversalService.match(s.getUserId());
         if (s.getStorageKey() != null) {
             storage.delete(s.getStorageKey());
         }

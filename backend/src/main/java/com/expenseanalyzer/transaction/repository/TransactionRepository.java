@@ -87,6 +87,9 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
     /** The user's rows open to automatic transfer matching: not a transfer or duplicate, never marked or unmarked by them. */
     List<Transaction> findByUserIdAndTransferFalseAndTransferManualFalseAndDuplicateFalse(UUID userId);
 
+    /** The user's rows open to automatic refund pairing: not a transfer or duplicate, not paired, never touched by hand. */
+    List<Transaction> findByUserIdAndTransferFalseAndTransferManualFalseAndDuplicateFalseAndReversalPairIdIsNull(UUID userId);
+
     /** Rows: [type, sum of amountCents] over own-account transfers only. */
     @Query("SELECT t.type, SUM(CASE WHEN t.reversalPairId IS NULL THEN t.amountCents ELSE t.reversalChargePaise END) FROM Transaction t "
             + "WHERE t.userId = :userId AND t.transfer = TRUE AND t.duplicate = FALSE AND t.date >= :from AND t.date < :to GROUP BY t.type")
@@ -110,12 +113,6 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID>,
     @Query("SELECT t.merchantId, t.type, SUM(CASE WHEN t.reversalPairId IS NULL THEN t.amountCents ELSE t.reversalChargePaise END), COUNT(t) FROM Transaction t "
             + "WHERE t.userId = :userId AND t.transfer = FALSE AND t.duplicate = FALSE AND (t.reversalPairId IS NULL OR t.reversalChargePaise IS NOT NULL) AND t.date >= :from AND t.date < :to GROUP BY t.merchantId, t.type")
     List<Object[]> sumByMerchantAndDirection(UUID userId, Instant from, Instant to);
-
-    /** Rows: [year (Integer), month (Integer), type, sum of amountCents]. Dates are UTC days. */
-    @Query("SELECT YEAR(t.date), MONTH(t.date), t.type, SUM(CASE WHEN t.reversalPairId IS NULL THEN t.amountCents ELSE t.reversalChargePaise END) FROM Transaction t "
-            + "WHERE t.userId = :userId AND t.transfer = FALSE AND t.duplicate = FALSE AND (t.reversalPairId IS NULL OR t.reversalChargePaise IS NOT NULL) AND t.date >= :from AND t.date < :to "
-            + "GROUP BY YEAR(t.date), MONTH(t.date), t.type")
-    List<Object[]> sumByMonthAndDirection(UUID userId, Instant from, Instant to);
 
     /** Rows: [categoryId, personId, merchantId (each UUID or null), type, count] over all the user's transactions. */
     @Query("SELECT t.categoryId, t.personId, t.merchantId, t.type, COUNT(t) FROM Transaction t WHERE t.userId = :userId "

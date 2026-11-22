@@ -224,7 +224,7 @@ class AnalyticsControllerTest {
                 .andExpect(jsonPath("$.months[0].outflow").value(1000.00))
                 .andExpect(jsonPath("$.months[0].changePercent").value(nullValue()))
                 .andExpect(jsonPath("$.months[1].changePercent").value(180.00))
-                .andExpect(jsonPath("$.months[2].changePercent").value(614.29));
+                .andExpect(jsonPath("$.months[2].changePercent").value(690.82));
     }
 
     @Test

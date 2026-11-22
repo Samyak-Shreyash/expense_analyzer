@@ -30,7 +30,9 @@ class PersonNameParserTest {
             "UPI-P2A-412345678902-ANITA DESAI-x@okhdfcbank-HDFC0001234-pay/rent~412345678902/Anita Desai",
             // a P2A with the "Dummy Name" placeholder is named by its account number
             "UPI/P2A/535804014266/DUMMY NAME/HDFC BANK~535804014266",
-            "TRANSFER TO UPI/DR/535804014266/P2A/Dummy Name/SBIN~535804014266"})
+            "TRANSFER TO UPI/DR/535804014266/P2A/Dummy Name/SBIN~535804014266",
+            "UPI/P2A/631770008709/DUMMY NAME RENT~631770008709",
+            "UPI/P2P/123456789012/BHAVYA .~Bhavya"})
     void extractsTitleCasedName(String description, String expected) {
         assertThat(PersonNameParser.parse(description)).contains(expected);
     }
@@ -68,8 +70,10 @@ class PersonNameParserTest {
     @ParameterizedTest
     @CsvSource(delimiter = '~', value = {
             "535804014266/Rahul Sharma~Rahul Sharma",
-            "535804014266~535804014266",
-            "535804014266/Dummy Name~535804014266",
+            "535804014266~A/c ending 4266",
+            "535804014266/Dummy Name~A/c ending 4266",
+            "631770008709~A/c ending 8709",
+            "631770008709/Dummy Name~A/c ending 8709",
             "Priya K Nair~Priya K Nair",
             "12/3 Club~12/3 Club"})
     void displayNameHidesTheAccountNumberOfANamedPayee(String name, String shown) {

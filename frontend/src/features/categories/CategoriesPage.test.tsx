@@ -105,6 +105,22 @@ describe('CategoriesPage', () => {
     expect((loan as HTMLInputElement).checked).toBe(false)
   })
 
+  it('describes whether each category counts as spending', async () => {
+    renderPage()
+    const food = await screen.findByRole('switch', {
+      name: /Food counts as spending/,
+    })
+    const loan = screen.getByRole('switch', { name: /Loan counts as spending/ })
+    expect(
+      document.getElementById(food.getAttribute('aria-describedby')!)
+        ?.textContent,
+    ).toBe('Food counts as spending')
+    expect(
+      document.getElementById(loan.getAttribute('aria-describedby')!)
+        ?.textContent,
+    ).toBe('Loan does not count as spending')
+  })
+
   it('links each category to its transactions with the count in brackets', async () => {
     renderPage()
     const foodLink = await screen.findByRole('link', { name: 'Food (12)' })

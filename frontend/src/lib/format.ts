@@ -10,11 +10,13 @@ const INR = new Intl.NumberFormat('en-IN', {
 
 export const rupees = (amount: number) => INR.format(amount)
 
+/** A percentage with exactly one decimal: 28 -> "28.0%". */
+export const percent = (n: number) => `${n.toFixed(1)}%`
+
 /** Plain-language comparison with the previous period; null means the base was zero. */
-export function changeLabel(percent: number | null) {
-  if (percent === null) return 'Nothing to compare with in the previous period'
-  const size = Math.abs(percent)
-  return `${size}% ${percent >= 0 ? 'more' : 'less'} than the previous period`
+export function changeLabel(change: number | null) {
+  if (change === null) return 'Nothing to compare with in the previous period'
+  return `${percent(Math.abs(change))} ${change >= 0 ? 'more' : 'less'} than the previous period`
 }
 
 /** Returns a user-facing reason the file can't be uploaded, or null if it can. */

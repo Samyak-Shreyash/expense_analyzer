@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   MAX_UPLOAD_BYTES,
   changeLabel,
+  percent,
   rangeFor,
   rupees,
   validateStatementFile,
@@ -18,10 +19,18 @@ describe('rupees', () => {
   })
 })
 
+describe('percent', () => {
+  it('always shows one decimal', () => {
+    expect(percent(28)).toBe('28.0%')
+    expect(percent(22.26)).toBe('22.3%')
+    expect(changeLabel(-51.96)).toBe('52.0% less than the previous period')
+  })
+})
+
 describe('changeLabel', () => {
   it('describes increases and decreases against the previous period', () => {
     expect(changeLabel(12.5)).toBe('12.5% more than the previous period')
-    expect(changeLabel(-3)).toBe('3% less than the previous period')
+    expect(changeLabel(-3)).toBe('3.0% less than the previous period')
   })
 
   it('says nothing useful is comparable when the base was zero', () => {

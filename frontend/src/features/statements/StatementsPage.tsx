@@ -6,6 +6,7 @@ import { dayLabel, validateStatementFile } from '../../lib/format'
 import {
   deleteStatement,
   listStatements,
+  rematchTransactions,
   STATEMENT_SOURCES,
   uploadStatement,
   type StatementSource,
@@ -53,6 +54,9 @@ function statusText(s: Statement) {
 export function StatementsPage() {
   const [statements, setStatements] = useState<Statement[] | null>(null)
   const [loadError, setLoadError] = useState(false)
+  const [rechecking, setRechecking] = useState<
+    'idle' | 'running' | 'done' | 'failed'
+  >('idle')
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [progress, setProgress] = useState<number | null>(null)
   const [dragging, setDragging] = useState(false)
@@ -123,6 +127,16 @@ export function StatementsPage() {
     document.getElementById('uploaded')?.focus()
   }
 
+  async function recheck() {
+    setRechecking('running')
+    try {
+      await rematchTransactions()
+      setRechecking('done')
+    } catch {
+      setRechecking('failed')
+    }
+  }
+
   function keep(id: string) {
     flushSync(() => setConfirming(null))
     document.getElementById(`delete-${id}`)?.focus()
@@ -133,8 +147,28 @@ export function StatementsPage() {
       <h1 className={shared.title}>Statements</h1>
       <p className={shared.lead}>
         Upload a CSV, Excel or PDF statement from your bank, a credit card PDF
-        statement, or a Google Pay statement. Each payment is counted once, even
-        if your files overlap.
+        statement, or a Google Pay statement. Each row is imported once, even if
+        your files overlap. Money moved between your own accounts is detected
+        and shown as a transfer.
+      </p>
+
+      <p>
+        <button
+          type="button"
+          className={shared.button}
+          disabled={rechecking === 'running'}
+          onClick={recheck}
+        >
+          Re-check all transactions
+        </button>{' '}
+        {rechecking === 'done' && (
+          <span role="status">Done. Overview is up to date.</span>
+        )}
+        {rechecking === 'failed' && (
+          <span className={shared.error} role="alert">
+            Could not re-check your transactions. Try again.
+          </span>
+        )}
       </p>
 
       <fieldset className={styles.sources} disabled={progress !== null}>

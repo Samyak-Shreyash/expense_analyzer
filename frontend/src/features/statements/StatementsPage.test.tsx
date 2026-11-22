@@ -10,6 +10,7 @@ vi.mock('../../services/finance', async (orig) => ({
   listStatements: vi.fn(),
   uploadStatement: vi.fn(),
   deleteStatement: vi.fn(),
+  rematchTransactions: vi.fn(),
 }))
 
 const statement = (over: Partial<Statement> = {}): Statement => ({
@@ -176,5 +177,27 @@ describe('StatementsPage', () => {
     const reopened = screen.getByRole('button', { name: 'Delete' })
     expect(document.activeElement).toBe(reopened)
     expect(finance.deleteStatement).not.toHaveBeenCalled()
+  })
+
+  it('states the import and transfer behaviour', async () => {
+    renderPage()
+    expect(
+      await screen.findByText(
+        /Each row is imported once, even if your files overlap\. Money moved between your own accounts is detected and shown as a transfer\./,
+      ),
+    ).toBeTruthy()
+  })
+
+  it('re-checks all transactions and confirms', async () => {
+    vi.mocked(finance.rematchTransactions).mockResolvedValue(undefined)
+    renderPage()
+    fireEvent.click(
+      await screen.findByRole('button', { name: 'Re-check all transactions' }),
+    )
+
+    expect(
+      await screen.findByText('Done. Overview is up to date.'),
+    ).toBeTruthy()
+    expect(finance.rematchTransactions).toHaveBeenCalledOnce()
   })
 })

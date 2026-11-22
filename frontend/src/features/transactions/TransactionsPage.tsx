@@ -73,6 +73,7 @@ export function TransactionsPage() {
   const [params, setParams] = useSearchParams()
   const [result, setResult] = useState<Page<Transaction> | null>(null)
   const [error, setError] = useState(false)
+  const [rangeError, setRangeError] = useState(false)
   const [open, setOpen] = useState<string | null>(null)
   const [categories, setCategories] = useState<Category[]>([])
   const [categoriesError, setCategoriesError] = useState(false)
@@ -182,6 +183,15 @@ export function TransactionsPage() {
 
   function submit(e: FormEvent) {
     e.preventDefault()
+    if (
+      draft.minAmount &&
+      draft.maxAmount &&
+      Number(draft.minAmount) > Number(draft.maxAmount)
+    ) {
+      setRangeError(true)
+      return
+    }
+    setRangeError(false)
     update(draft)
   }
 
@@ -365,6 +375,12 @@ export function TransactionsPage() {
               </button>
             </span>
           )}
+        </p>
+      )}
+
+      {rangeError && (
+        <p className={shared.error} role="alert">
+          Min amount can't be more than max amount.
         </p>
       )}
 

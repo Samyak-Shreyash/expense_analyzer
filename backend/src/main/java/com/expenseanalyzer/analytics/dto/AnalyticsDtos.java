@@ -56,7 +56,8 @@ public final class AnalyticsDtos {
     }
 
     public record NonSpendingCategory(String category, BigDecimal spend, BigDecimal sharePercent,
-                                      long transactionCount, List<PersonSpend> people) {
+                                      long transactionCount, List<PersonSpend> people,
+                                      List<MerchantSpend> merchants, BigDecimal other) {
     }
 
     public record NonSpendingBreakdown(LocalDate from, LocalDate to, String currency, BigDecimal total,

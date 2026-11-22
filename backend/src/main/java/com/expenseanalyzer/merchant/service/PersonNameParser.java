@@ -1,5 +1,6 @@
 package com.expenseanalyzer.merchant.service;
 
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Predicate;
@@ -17,6 +18,7 @@ public final class PersonNameParser {
 
     private static final Pattern ANY_SPLIT = Pattern.compile("[/|\\-]");
     private static final Pattern REFERENCE = Pattern.compile("\\d{9,}");
+    private static final Pattern BARE_ACCOUNT = Pattern.compile("\\d{9,}");
     private static final int MAX_LENGTH = 100;
     /** What some banks put in place of a P2A payee's name. */
     private static final String PLACEHOLDER_NAME = "Dummy Name";
@@ -30,28 +32,52 @@ public final class PersonNameParser {
             if (name.contains("@") || name.chars().noneMatch(Character::isLetter)) {
                 return Optional.empty();
             }
-            String title = titleCase(name.length() > MAX_LENGTH ? name.substring(0, MAX_LENGTH) : name);
+            String title = titleCase(withoutLetterlessTail(name.length() > MAX_LENGTH ? name.substring(0, MAX_LENGTH) : name));
             Optional<String> account = accountNumber(rawDescription);
-            if (title.equalsIgnoreCase(PLACEHOLDER_NAME)) {
+            if (isPlaceholder(title)) {
                 return account;
             }
             return Optional.of(account.map(a -> a + "/" + title).orElse(title));
         });
     }
 
+    /** "Dummy Name" alone or followed by any remark ("Dummy Name Rent"). */
+    private static boolean isPlaceholder(String name) {
+        return name.toLowerCase(Locale.ROOT).startsWith(PLACEHOLDER_NAME.toLowerCase(Locale.ROOT))
+                && (name.length() == PLACEHOLDER_NAME.length() || name.charAt(PLACEHOLDER_NAME.length()) == ' ');
+    }
+
+    /** Drops trailing tokens with no letters ("Bhavya ." becomes "Bhavya"). */
+    private static String withoutLetterlessTail(String name) {
+        String[] words = name.split(" ");
+        int end = words.length;
+        while (end > 1 && words[end - 1].chars().noneMatch(Character::isLetter)) {
+            end--;
+        }
+        return String.join(" ", Arrays.copyOf(words, end));
+    }
+
     /**
      * How a person's name is shown: "535804014266/Rahul Sharma" as "Rahul Sharma", and "535804014266/Dummy Name"
-     * (imported before the placeholder was recognised) as "535804014266"; other names unchanged.
+     * (imported before the placeholder was recognised) as "A/c ending 4266", like a bare account number; other
+     * names unchanged.
      */
     public static String displayName(String name) {
         if (name == null) {
             return null;
         }
+        if (BARE_ACCOUNT.matcher(name).matches()) {
+            return accountLabel(name);
+        }
         Matcher m = Pattern.compile("^(\\d{9,})/(.*\\p{L}.*)$").matcher(name);
         if (!m.matches()) {
             return name;
         }
-        return m.group(2).equalsIgnoreCase(PLACEHOLDER_NAME) ? m.group(1) : m.group(2);
+        return m.group(2).equalsIgnoreCase(PLACEHOLDER_NAME) ? accountLabel(m.group(1)) : m.group(2);
+    }
+
+    private static String accountLabel(String account) {
+        return "A/c ending " + account.substring(account.length() - 4);
     }
 
     /** The 9+ digit number of a P2A description; empty for P2P. */
