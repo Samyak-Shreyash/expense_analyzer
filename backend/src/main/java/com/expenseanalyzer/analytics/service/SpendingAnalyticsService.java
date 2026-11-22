@@ -64,7 +64,7 @@ import org.springframework.web.server.ResponseStatusException;
  * by (category, person, merchant, type) and resolved to an effective category in memory.
  * Merchant/category "spend" = DEBITs minus CREDITs for a matched merchant (refunds net out); for transactions
  * without a merchant only DEBITs count, because unmatched CREDITs are mostly income. Groups whose net spend is
- * not positive are left out. Transfers between a user's own accounts are not detected yet.
+ * not positive are left out.
  */
 @Service
 @RequiredArgsConstructor
