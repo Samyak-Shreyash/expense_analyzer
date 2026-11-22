@@ -8,7 +8,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-/** Category names suggested by whole-word keywords in a raw description, for rows with no merchant. */
+/** Category names suggested by whole-word keywords in a raw description, for rows with no merchant and
+ * for new merchants that have no hint. */
 public final class KeywordCategory {
 
     // order matters: the first keyword found wins
@@ -22,6 +23,11 @@ public final class KeywordCategory {
         }
         for (String k : new String[] {"PHARMACY", "HOSPITAL", "CLINIC", "APOLLO", "MEDPLUS", "PHARMEASY"}) {
             KEYWORDS.put(k, "Health");
+        }
+        for (String k : new String[] {"CAFE", "COFFEE", "TEA", "CHAI", "RESTAURANT", "DHABA", "CANTEEN", "MESS",
+                "TIFFIN", "BAKERY", "BAKERS", "SWEETS", "BIRYANI", "PIZZA", "BURGER", "JUICE", "KITCHEN", "EATERY",
+                "FOOD", "FOODS"}) {
+            KEYWORDS.put(k, "Food & Dining");
         }
     }
 

@@ -1,5 +1,6 @@
 package com.expenseanalyzer.merchant.service;
 
+import com.expenseanalyzer.category.service.KeywordCategory;
 import com.expenseanalyzer.merchant.model.Merchant;
 import com.expenseanalyzer.merchant.repository.MerchantRepository;
 import com.expenseanalyzer.merchant.model.MerchantSuggestionVote;
@@ -50,7 +51,8 @@ public class MerchantService {
     @Transactional
     public Merchant resolve(MerchantMatch match) {
         return merchantRepository.findFirstByCanonicalNameIgnoreCaseOrderByCreatedAtAsc(match.canonicalName())
-                .orElseGet(() -> merchantRepository.save(new Merchant(match.canonicalName(), match.categoryHint())));
+                .orElseGet(() -> merchantRepository.save(new Merchant(match.canonicalName(), match.categoryHint() != null
+                        ? match.categoryHint() : KeywordCategory.of(match.canonicalName()).orElse(null))));
     }
 
     /** The user's merchant names by payee key (see {@link PayeeKey}). */
