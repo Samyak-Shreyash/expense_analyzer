@@ -1,6 +1,6 @@
 import { Link } from 'react-router'
 import shared from '../../components/shared.module.css'
-import { monthLabel, rupees } from '../../lib/format'
+import { monthLabel, percent, rupees } from '../../lib/format'
 import type { CashFlow, Trends } from '../../services/finance'
 import styles from './DashboardPage.module.css'
 
@@ -131,7 +131,7 @@ export function TrendLine({ data }: { data: Trends }) {
         <figcaption className={shared.muted}>
           {monthLabel(last.month)}: {rupees(last.outflow)} spent
           {last.changePercent !== null &&
-            `, ${Math.abs(last.changePercent)}% ${last.changePercent >= 0 ? 'more' : 'less'} than the month before`}
+            `, ${percent(Math.abs(last.changePercent))} ${last.changePercent >= 0 ? 'more' : 'less'} than the month before`}
           .
         </figcaption>
       )}
@@ -171,7 +171,7 @@ export function SpendBars({ bars, empty }: { bars: Bar[]; empty: string }) {
             <span className={styles.barAmount}>
               {rupees(b.spend)}
               {b.share !== null && (
-                <span className={shared.muted}> ({b.share}%)</span>
+                <span className={shared.muted}> ({percent(b.share)})</span>
               )}
             </span>
           </div>

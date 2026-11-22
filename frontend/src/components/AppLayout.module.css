@@ -43,6 +43,7 @@
   order: 3;
   width: 100%;
   margin-inline: calc(-1 * var(--space-3));
+  flex-wrap: wrap;
   overflow-x: auto;
   scrollbar-width: none;
 }

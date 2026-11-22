@@ -122,7 +122,7 @@ describe('DashboardPage', () => {
     expect(totals.getByText('₹81,300.00')).toBeTruthy()
     expect(totals.getByText('Not counted as spending')).toBeTruthy()
     expect(totals.getByText('₹1,000.00')).toBeTruthy()
-    expect(totals.getByText('180% more than the previous period')).toBeTruthy()
+    expect(totals.getByText('180.0% more than the previous period')).toBeTruthy()
     expect(totals.getByText('Moved between your accounts')).toBeTruthy()
     expect(totals.getByText('₹4,500.00 out')).toBeTruthy()
   })

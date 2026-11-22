@@ -389,6 +389,24 @@ describe('TransactionsPage', () => {
     )
   })
 
+  it('rejects a min amount above the max amount', async () => {
+    renderPage()
+    await screen.findByRole('button', {
+      name: 'Change category, now Food & Dining',
+    })
+    fireEvent.change(screen.getByLabelText('Min amount (₹)'), {
+      target: { value: '1000' },
+    })
+    fireEvent.change(screen.getByLabelText('Max amount (₹)'), {
+      target: { value: '100' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Apply filters' }))
+    expect(
+      (await screen.findByRole('alert')).textContent,
+    ).toContain("Min amount can't be more than max amount.")
+    expect(screen.getByTestId('location').textContent).toBe('')
+  })
+
   it('applies a date shortcut', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-03-15T12:00:00Z'))
