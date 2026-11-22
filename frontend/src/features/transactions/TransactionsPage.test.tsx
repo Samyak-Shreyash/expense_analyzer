@@ -401,9 +401,9 @@ describe('TransactionsPage', () => {
       target: { value: '100' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Apply filters' }))
-    expect(
-      (await screen.findByRole('alert')).textContent,
-    ).toContain("Min amount can't be more than max amount.")
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      "Min amount can't be more than max amount.",
+    )
     expect(screen.getByTestId('location').textContent).toBe('')
   })
 

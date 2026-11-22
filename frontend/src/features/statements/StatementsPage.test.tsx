@@ -195,7 +195,9 @@ describe('StatementsPage', () => {
       await screen.findByRole('button', { name: 'Re-check all transactions' }),
     )
 
-    expect(await screen.findByText('Done. Overview is up to date.')).toBeTruthy()
+    expect(
+      await screen.findByText('Done. Overview is up to date.'),
+    ).toBeTruthy()
     expect(finance.rematchTransactions).toHaveBeenCalledOnce()
   })
 })

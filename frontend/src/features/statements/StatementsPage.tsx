@@ -148,8 +148,8 @@ export function StatementsPage() {
       <p className={shared.lead}>
         Upload a CSV, Excel or PDF statement from your bank, a credit card PDF
         statement, or a Google Pay statement. Each row is imported once, even if
-        your files overlap. Money moved between your own accounts is detected and
-        shown as a transfer.
+        your files overlap. Money moved between your own accounts is detected
+        and shown as a transfer.
       </p>
 
       <p>
