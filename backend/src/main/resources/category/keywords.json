@@ -1,0 +1,8 @@
+{
+  "Loan EMI": ["EMI"],
+  "Rent": ["RENT"],
+  "Insurance": ["INSURANCE", "PREMIUM", "POLICYBAZAAR", "LIC"],
+  "Health": ["PHARMACY", "HOSPITAL", "CLINIC", "APOLLO", "MEDPLUS", "PHARMEASY", "DR LAL"],
+  "Food & Dining": ["CAFE", "COFFEE", "TEA", "CHAI", "RESTAURANT", "DHABA", "CANTEEN", "MESS", "TIFFIN", "BAKERY",
+    "BAKERS", "SWEETS", "BIRYANI", "PIZZA", "BURGER", "JUICE", "KITCHEN", "EATERY", "FOOD", "FOODS","PANI PURI","KFC","DOMINOS"]
+}
