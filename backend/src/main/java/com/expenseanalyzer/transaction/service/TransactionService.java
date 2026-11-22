@@ -166,7 +166,11 @@ public class TransactionService {
         return transactionRepository.findByIdAndUserId(id, userId).map(t -> response(t, userId));
     }
 
-    /** Sets (or, with a null categoryId, clears) the transaction's own category. Not yours or unknown: 404. */
+    /**
+     * Sets (or, with a null categoryId, clears) the transaction's own category. If its merchant has no category for
+     * that direction yet, the merchant adopts this one instead, so its other and future rows follow. Not yours or
+     * unknown: 404.
+     */
     @Transactional
     public TransactionResponse setCategory(String email, UUID id, UUID categoryId) {
         UUID userId = currentUser(email).getId();
@@ -174,6 +178,10 @@ public class TransactionService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));
         if (categoryId != null) {
             categoryService.owned(userId, categoryId);
+            if (t.getMerchantId() != null && categoryService.adoptMerchantCategory(userId, t.getMerchantId(),
+                    categoryId, "CREDIT".equals(t.getType()))) {
+                categoryId = null;
+            }
         }
         t.setCategoryId(categoryId);
         t.setUpdatedAt(Instant.now());

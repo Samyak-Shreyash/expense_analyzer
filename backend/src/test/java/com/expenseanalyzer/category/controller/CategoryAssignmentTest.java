@@ -251,4 +251,26 @@ class CategoryAssignmentTest {
         mockMvc.perform(get("/api/transactions").param("category", "Uncategorized").header("Authorization", bearer(ALICE)))
                 .andExpect(jsonPath("$.items[*].description", containsInAnyOrder("none")));
     }
+
+    @Test
+    void firstTransactionCategoryTeachesItsMerchant() throws Exception {
+        UUID first = transaction(alice, "first", swiggy);
+        String pets = createCategory(ALICE, "Pets");
+        String gifts = createCategory(ALICE, "Gifts");
+
+        assignTransaction(ALICE, first, pets);
+        UUID later = transaction(alice, "imported later", swiggy);
+        for (UUID id : new UUID[] {first, later}) {
+            mockMvc.perform(get("/api/transactions/" + id).header("Authorization", bearer(ALICE)))
+                    .andExpect(jsonPath("$.category").value("Pets"))
+                    .andExpect(jsonPath("$.categoryOverridden").value(false));
+        }
+
+        assignTransaction(ALICE, later, gifts);
+        mockMvc.perform(get("/api/transactions/" + later).header("Authorization", bearer(ALICE)))
+                .andExpect(jsonPath("$.category").value("Gifts"))
+                .andExpect(jsonPath("$.categoryOverridden").value(true));
+        mockMvc.perform(get("/api/transactions/" + first).header("Authorization", bearer(ALICE)))
+                .andExpect(jsonPath("$.category").value("Pets"));
+    }
 }
