@@ -130,7 +130,7 @@ public class StatementRowMapper {
             return null;
         }
         BigDecimal v = new BigDecimal(s.replace(",", ""));
-        // Transaction.amount_cents is numeric(12,2): max 2 fraction digits, 10 integer digits
+        // Transaction.amount_paise is numeric(12,2): max 2 fraction digits, 10 integer digits
         return v.scale() > 2 || v.precision() - v.scale() > 10 ? null : v;
     }
 }

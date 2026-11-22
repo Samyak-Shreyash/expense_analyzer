@@ -129,7 +129,7 @@ class AccountDeletionTest {
                 person, user, prefix + "-person", now);
         jdbc.update("INSERT INTO person_payees (user_id, payee_key, person_id) VALUES (?, 'P', ?)",
                 user, person);
-        jdbc.update("INSERT INTO transactions (id, raw_description, amount_cents, date, type, user_id, statement_id, "
+        jdbc.update("INSERT INTO transactions (id, raw_description, amount_paise, date, type, user_id, statement_id, "
                         + "category_id, person_id, currency, transfer, transfer_manual, created_at, updated_at) "
                         + "VALUES (?, 'raw', 10.00, ?, 'DEBIT', ?, ?, ?, ?, 'INR', FALSE, FALSE, ?, ?)",
                 tx, now, user, statement, category, person, now, now);

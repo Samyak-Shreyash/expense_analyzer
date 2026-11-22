@@ -93,7 +93,7 @@ class ReversalTest {
     private UUID tx(User owner, String type, String amount, Instant date) {
         Transaction t = new Transaction();
         t.setRawDescription("row");
-        t.setAmountCents(new BigDecimal(amount).movePointRight(2));
+        t.setAmountPaise(new BigDecimal(amount).movePointRight(2));
         t.setDate(date);
         t.setType(type);
         t.setUserId(owner.getId());

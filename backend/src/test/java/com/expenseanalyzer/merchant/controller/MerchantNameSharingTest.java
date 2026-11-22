@@ -144,7 +144,7 @@ class MerchantNameSharingTest {
         Transaction t = new Transaction();
         t.setRawDescription(raw);
         t.setNormalizedDescription(raw.replace('/', ' ').trim());
-        t.setAmountCents(new BigDecimal("10.00"));
+        t.setAmountPaise(new BigDecimal("10.00"));
         t.setDate(Instant.now());
         t.setType("DEBIT");
         t.setUserId(owner.getId());

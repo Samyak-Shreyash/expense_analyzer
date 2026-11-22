@@ -83,22 +83,22 @@ public class SpendingAnalyticsService {
     private final PersonRepository personRepository;
     private final EffectiveCategoryResolver categoryResolver;
 
-    private record Totals(BigDecimal inflowCents, BigDecimal outflowCents, long count,
-                          BigDecimal nonSpendingCents, BigDecimal loanReceivedCents) {
+    private record Totals(BigDecimal inflowPaise, BigDecimal outflowPaise, long count,
+                          BigDecimal nonSpendingPaise, BigDecimal loanReceivedPaise) {
 
         /** Inflow (income, no loans) minus outflow (spending), as shown on the headline cards. */
-        BigDecimal netCents() {
-            return inflowCents.subtract(outflowCents);
+        BigDecimal netPaise() {
+            return inflowPaise.subtract(outflowPaise);
         }
     }
 
-    /** Per-merchant net spend in cents, before names are attached. */
-    private record MerchantCents(UUID merchantId, BigDecimal spendCents, long count) {
+    /** Per-merchant net spend in paise, before names are attached. */
+    private record MerchantPaise(UUID merchantId, BigDecimal spendPaise, long count) {
     }
 
     /** One SQL group with its effective category resolved (null = Uncategorized). */
     private record Group(Category category, Category netCategory, UUID personId, UUID merchantId, boolean credit,
-                         BigDecimal cents, long count) {
+                         BigDecimal paise, long count) {
         String categoryName() {
             return category == null ? UNCATEGORIZED : category.getName();
         }
@@ -120,7 +120,7 @@ public class SpendingAnalyticsService {
         }
     }
 
-    private record Net(BigDecimal cents, long count) {
+    private record Net(BigDecimal paise, long count) {
     }
 
     @Transactional // not readOnly: first access seeds the user's default categories
@@ -134,15 +134,15 @@ public class SpendingAnalyticsService {
 
         Totals cur = totals(userId, from, to, resolution);
         Totals prev = totals(userId, prevFrom, prevTo, resolution);
-        PeriodTotals previous = new PeriodTotals(prevFrom, prevTo, money(prev.inflowCents()), money(prev.outflowCents()),
-                money(prev.netCents()), prev.count(),
-                money(prev.nonSpendingCents()));
-        return new SpendingSummary(from, to, CURRENCY, money(cur.inflowCents()), money(cur.outflowCents()),
-                money(cur.netCents()), cur.count(),
-                previous, changePercent(cur.inflowCents(), prev.inflowCents()),
-                changePercent(cur.outflowCents(), prev.outflowCents()), money(cur.nonSpendingCents()),
+        PeriodTotals previous = new PeriodTotals(prevFrom, prevTo, money(prev.inflowPaise()), money(prev.outflowPaise()),
+                money(prev.netPaise()), prev.count(),
+                money(prev.nonSpendingPaise()));
+        return new SpendingSummary(from, to, CURRENCY, money(cur.inflowPaise()), money(cur.outflowPaise()),
+                money(cur.netPaise()), cur.count(),
+                previous, changePercent(cur.inflowPaise(), prev.inflowPaise()),
+                changePercent(cur.outflowPaise(), prev.outflowPaise()), money(cur.nonSpendingPaise()),
                 money(transfers(userId, from, to, "CREDIT")), money(transfers(userId, from, to, "DEBIT")),
-                money(cur.loanReceivedCents()));
+                money(cur.loanReceivedPaise()));
     }
 
     /** Own-account transfers in one direction; they are left out of every other figure. */
@@ -157,18 +157,18 @@ public class SpendingAnalyticsService {
         UUID userId = userId(email);
         List<Group> groups = groups(userId, from, to, categoryResolver.forUser(userId));
         // person transfers are not merchants
-        List<MerchantCents> spend = net(groups, g -> g.personId() == null, Group::merchantId).entrySet().stream()
-                .map(e -> new MerchantCents(e.getKey(), e.getValue().cents(), e.getValue().count()))
-                .sorted(Comparator.comparing(MerchantCents::spendCents).reversed()
+        List<MerchantPaise> spend = net(groups, g -> g.personId() == null, Group::merchantId).entrySet().stream()
+                .map(e -> new MerchantPaise(e.getKey(), e.getValue().paise(), e.getValue().count()))
+                .sorted(Comparator.comparing(MerchantPaise::spendPaise).reversed()
                         .thenComparing(m -> String.valueOf(m.merchantId())))
                 .toList();
-        BigDecimal total = spendingTotalCents(groups, loanInterest(userId, from, to, categoryResolver.forUser(userId)));
-        Map<UUID, Merchant> merchants = merchants(spend.stream().map(MerchantCents::merchantId).toList());
+        BigDecimal total = spendingTotalPaise(groups, loanInterest(userId, from, to, categoryResolver.forUser(userId)));
+        Map<UUID, Merchant> merchants = merchants(spend.stream().map(MerchantPaise::merchantId).toList());
         List<MerchantSpend> items = spend.stream()
                 .limit(limit)
                 .map(m -> new MerchantSpend(m.merchantId(),
                         m.merchantId() == null ? UNMATCHED : merchants.get(m.merchantId()).getCanonicalName(),
-                        money(m.spendCents()), share(m.spendCents(), total), m.count()))
+                        money(m.spendPaise()), share(m.spendPaise(), total), m.count()))
                 .toList();
         return new MerchantBreakdown(from, to, CURRENCY, money(total), items);
     }
@@ -178,20 +178,20 @@ public class SpendingAnalyticsService {
         validate(from, to);
         UUID userId = userId(email);
         List<Group> groups = groups(userId, from, to, categoryResolver.forUser(userId));
-        Map<String, BigDecimal> cents = new LinkedHashMap<>();
+        Map<String, BigDecimal> paise = new LinkedHashMap<>();
         Map<String, Long> counts = new HashMap<>();
         // net per (category, merchant/person) so refunds net out within their own merchant, as before
         net(groups, g -> true, g -> new CategoryKey(g.netCategoryName(), g.personId(), g.merchantId())).forEach((k, n) -> {
-            cents.merge(k.category(), n.cents(), BigDecimal::add);
+            paise.merge(k.category(), n.paise(), BigDecimal::add);
             counts.merge(k.category(), n.count(), Long::sum);
         });
         List<Transaction> interest = loanInterest(userId, from, to, categoryResolver.forUser(userId));
         if (!interest.isEmpty()) {
-            cents.merge(LOAN_INTEREST, sum(interest), BigDecimal::add);
+            paise.merge(LOAN_INTEREST, sum(interest), BigDecimal::add);
             counts.merge(LOAN_INTEREST, (long) interest.size(), Long::sum);
         }
-        BigDecimal total = spendingTotalCents(groups, interest);
-        List<CategorySpend> items = cents.entrySet().stream()
+        BigDecimal total = spendingTotalPaise(groups, interest);
+        List<CategorySpend> items = paise.entrySet().stream()
                 .sorted(Map.Entry.<String, BigDecimal>comparingByValue().reversed().thenComparing(Map.Entry.comparingByKey()))
                 .map(e -> new CategorySpend(e.getKey(), money(e.getValue()), share(e.getValue(), total), counts.get(e.getKey())))
                 .toList();
@@ -202,9 +202,9 @@ public class SpendingAnalyticsService {
     }
 
     /** Net spending over all spending groups plus loan interest: the one total behind every share. */
-    private static BigDecimal spendingTotalCents(List<Group> groups, List<Transaction> interest) {
+    private static BigDecimal spendingTotalPaise(List<Group> groups, List<Transaction> interest) {
         return net(groups, g -> true, g -> new CategoryKey(g.netCategoryName(), g.personId(), g.merchantId()))
-                .values().stream().map(Net::cents).reduce(sum(interest), BigDecimal::add);
+                .values().stream().map(Net::paise).reduce(sum(interest), BigDecimal::add);
     }
 
     /**
@@ -228,7 +228,7 @@ public class SpendingAnalyticsService {
             }
             // a payee with neither person nor merchant is the "other" remainder
             byCategory.computeIfAbsent(g.categoryName(), k -> new HashMap<>())
-                    .merge(Payee.of(g.personId(), g.merchantId()), new Net(g.cents(), g.count()),
+                    .merge(Payee.of(g.personId(), g.merchantId()), new Net(g.paise(), g.count()),
                             SpendingAnalyticsService::add);
         }
         List<Payee> payees = byCategory.values().stream().flatMap(m -> m.keySet().stream()).toList();
@@ -236,31 +236,31 @@ public class SpendingAnalyticsService {
                         .filter(Objects::nonNull).collect(Collectors.toSet()))
                 .stream().collect(Collectors.toMap(Person::getId, Function.identity()));
         Map<UUID, Merchant> merchants = merchants(payees.stream().map(Payee::merchantId).toList());
-        BigDecimal total = byCategory.values().stream().flatMap(m -> m.values().stream()).map(Net::cents)
+        BigDecimal total = byCategory.values().stream().flatMap(m -> m.values().stream()).map(Net::paise)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
         List<NonSpendingCategory> items = byCategory.entrySet().stream().map(e -> {
-            BigDecimal cents = e.getValue().values().stream().map(Net::cents).reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal paise = e.getValue().values().stream().map(Net::paise).reduce(BigDecimal.ZERO, BigDecimal::add);
             long count = e.getValue().values().stream().mapToLong(Net::count).sum();
             List<PersonSpend> persons = e.getValue().entrySet().stream()
                     .filter(p -> p.getKey().personId() != null && people.containsKey(p.getKey().personId()))
-                    .sorted(Comparator.<Map.Entry<Payee, Net>, BigDecimal>comparing(p -> p.getValue().cents()).reversed()
+                    .sorted(Comparator.<Map.Entry<Payee, Net>, BigDecimal>comparing(p -> p.getValue().paise()).reversed()
                             .thenComparing(p -> people.get(p.getKey().personId()).getName()))
                     .map(p -> new PersonSpend(p.getKey().personId(),
                             PersonNameParser.displayName(people.get(p.getKey().personId()).getName()),
-                            money(p.getValue().cents()), p.getValue().count()))
+                            money(p.getValue().paise()), p.getValue().count()))
                     .toList();
             List<MerchantSpend> merchantRows = e.getValue().entrySet().stream()
                     .filter(m -> m.getKey().merchantId() != null && merchants.containsKey(m.getKey().merchantId()))
-                    .sorted(Comparator.<Map.Entry<Payee, Net>, BigDecimal>comparing(m -> m.getValue().cents()).reversed()
+                    .sorted(Comparator.<Map.Entry<Payee, Net>, BigDecimal>comparing(m -> m.getValue().paise()).reversed()
                             .thenComparing(m -> merchants.get(m.getKey().merchantId()).getCanonicalName()))
                     .map(m -> new MerchantSpend(m.getKey().merchantId(),
                             merchants.get(m.getKey().merchantId()).getCanonicalName(),
-                            money(m.getValue().cents()), null, m.getValue().count()))
+                            money(m.getValue().paise()), null, m.getValue().count()))
                     .toList();
             BigDecimal listed = Stream.concat(persons.stream().map(PersonSpend::spend),
                     merchantRows.stream().map(MerchantSpend::spend)).reduce(BigDecimal.ZERO, BigDecimal::add);
-            return new NonSpendingCategory(e.getKey(), money(cents), share(cents, total), count, persons,
-                    merchantRows, money(cents).subtract(listed));
+            return new NonSpendingCategory(e.getKey(), money(paise), share(paise, total), count, persons,
+                    merchantRows, money(paise).subtract(listed));
         }).sorted(Comparator.comparing(NonSpendingCategory::spend).reversed()
                 .thenComparing(NonSpendingCategory::category)).toList();
         return new NonSpendingBreakdown(from, to, CURRENCY, money(total), items);
@@ -275,8 +275,8 @@ public class SpendingAnalyticsService {
         for (YearMonth month : monthKeys(from, to)) {
             Totals t = totals(userId, startIn(month, from),
                     endIn(month, to), resolution);
-            months.add(new MonthlyCashFlow(month.toString(), money(t.inflowCents()), money(t.outflowCents()),
-                    money(t.netCents())));
+            months.add(new MonthlyCashFlow(month.toString(), money(t.inflowPaise()), money(t.outflowPaise()),
+                    money(t.netPaise())));
         }
         return new CashFlow(from, to, CURRENCY, months);
     }
@@ -338,11 +338,11 @@ public class SpendingAnalyticsService {
         List<Group> groups = groups(userId, from, to, resolution);
         BigDecimal out = groups.stream()
                 .filter(g -> !g.credit() && g.spending())
-                .map(Group::cents).reduce(BigDecimal.ZERO, BigDecimal::add)
+                .map(Group::paise).reduce(BigDecimal.ZERO, BigDecimal::add)
                 .add(sum(loanInterest(userId, from, to, resolution)));
         Category loan = resolution.named(CategoryService.LOAN);
         BigDecimal loans = groups.stream().filter(g -> g.credit() && loan != null && g.category() == loan)
-                .map(Group::cents).reduce(BigDecimal.ZERO, BigDecimal::add);
+                .map(Group::paise).reduce(BigDecimal.ZERO, BigDecimal::add);
         return new Totals(in.subtract(loans), out, count, allOut.subtract(out), loans);
     }
 
@@ -407,15 +407,15 @@ public class SpendingAnalyticsService {
             if (!g.spending() || !filter.test(g) || (g.credit() && g.merchantId() == null)) {
                 continue;
             }
-            nets.merge(key.apply(g), new Net(g.credit() ? g.cents().negate() : g.cents(), g.count()),
+            nets.merge(key.apply(g), new Net(g.credit() ? g.paise().negate() : g.paise(), g.count()),
                     SpendingAnalyticsService::add);
         }
-        nets.values().removeIf(n -> n.cents().signum() <= 0);
+        nets.values().removeIf(n -> n.paise().signum() <= 0);
         return nets;
     }
 
     private static Net add(Net a, Net b) {
-        return new Net(a.cents().add(b.cents()), a.count() + b.count());
+        return new Net(a.paise().add(b.paise()), a.count() + b.count());
     }
 
     private Map<UUID, Merchant> merchants(Collection<UUID> merchantIds) {
@@ -442,8 +442,8 @@ public class SpendingAnalyticsService {
 
     // ---- calculation rules (LLD 16) ----
 
-    private static BigDecimal money(BigDecimal cents) {
-        return cents.movePointLeft(2).setScale(2, RoundingMode.HALF_UP);
+    private static BigDecimal money(BigDecimal paise) {
+        return paise.movePointLeft(2).setScale(2, RoundingMode.HALF_UP);
     }
 
     /** ((current - previous) / previous) * 100; null when previous is zero. */

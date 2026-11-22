@@ -33,16 +33,16 @@ class TransactionRepositoryTest {
     private static final UUID TEST_USER_ID = UUID.fromString("550e8400-e29b-41d4-a716-446655440000");
     private static final UUID TEST_STATEMENT_ID = UUID.fromString("550e8400-e29b-41d4-a716-446655440001");
     private static final Instant TEST_DATE = Instant.parse("2026-09-01T12:00:00Z");
-    private static final BigDecimal TEST_AMOUNT_CENTS = new BigDecimal("1234");
+    private static final BigDecimal TEST_AMOUNT_PAISE = new BigDecimal("1234");
 
     // Test transactions for use in tests that need multiple transactions
-    private static final Transaction TRANSACTION_1 = new Transaction(TEST_USER_ID, "Amazon Purchase", TEST_AMOUNT_CENTS, TEST_DATE, "DEBIT");
+    private static final Transaction TRANSACTION_1 = new Transaction(TEST_USER_ID, "Amazon Purchase", TEST_AMOUNT_PAISE, TEST_DATE, "DEBIT");
     private static final Transaction TRANSACTION_2 = new Transaction(TEST_USER_ID, "Grocery Store", new BigDecimal("50.00"), TEST_DATE.plus(1,ChronoUnit.DAYS), "DEBIT");
 
     @Test
     void findByUserId_shouldReturnTransactions_whenUserExists() {
         // Arrange
-        Transaction transaction1 = new Transaction(TEST_USER_ID, "Amazon Purchase", TEST_AMOUNT_CENTS, TEST_DATE, "DEBIT");
+        Transaction transaction1 = new Transaction(TEST_USER_ID, "Amazon Purchase", TEST_AMOUNT_PAISE, TEST_DATE, "DEBIT");
         Transaction transaction2 = new Transaction(TEST_USER_ID, "Grocery Store", new BigDecimal("50.00"), TEST_DATE.plus(1, ChronoUnit.DAYS), "DEBIT");
         List<Transaction> transactions = List.of(transaction1, transaction2);
         when(transactionRepository.findByUserId(TEST_USER_ID)).thenReturn(transactions);
@@ -69,7 +69,7 @@ class TransactionRepositoryTest {
     @Test
     void findByStatementId_shouldReturnTransactions_whenStatementExists() {
         // Arrange
-        Transaction transaction1 = new Transaction(TEST_STATEMENT_ID, "Bank Transfer", TEST_AMOUNT_CENTS, TEST_DATE, "CREDIT");
+        Transaction transaction1 = new Transaction(TEST_STATEMENT_ID, "Bank Transfer", TEST_AMOUNT_PAISE, TEST_DATE, "CREDIT");
         List<Transaction> transactions = List.of(transaction1);
         when(transactionRepository.findByUserIdAndStatementId(TEST_USER_ID, TEST_STATEMENT_ID)).thenReturn(transactions);
 

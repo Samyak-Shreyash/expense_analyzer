@@ -91,7 +91,7 @@ public class ReversalService {
 
     private static boolean eligible(Transaction debit, Transaction credit, Set<String> debitWords, String fullName,
             Set<String> ownTokens) {
-        if (debit.getAmountCents().compareTo(credit.getAmountCents()) != 0
+        if (debit.getAmountPaise().compareTo(credit.getAmountPaise()) != 0
                 || !Objects.equals(debit.getCurrency(), credit.getCurrency())) {
             return false;
         }
@@ -99,7 +99,7 @@ public class ReversalService {
         if (gap.isNegative() || gap.compareTo(WINDOW) > 0) {
             return false;
         }
-        if (debit.getAmountCents().compareTo(SMALL_PAISE) <= 0 && gap.compareTo(SMALL_WINDOW) <= 0) {
+        if (debit.getAmountPaise().compareTo(SMALL_PAISE) <= 0 && gap.compareTo(SMALL_WINDOW) <= 0) {
             return true;
         }
         if (debit.getMerchantId() != null && debit.getMerchantId().equals(credit.getMerchantId())) {

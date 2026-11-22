@@ -188,7 +188,7 @@ class CategoryControllerTest {
         String id = createAs(ALICE, "Pets");
         Transaction t = new Transaction();
         t.setRawDescription("PET SHOP");
-        t.setAmountCents(new BigDecimal("10.00"));
+        t.setAmountPaise(new BigDecimal("10.00"));
         t.setDate(Instant.now());
         t.setType("DEBIT");
         t.setUserId(alice.getId());

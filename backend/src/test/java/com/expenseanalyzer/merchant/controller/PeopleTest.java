@@ -123,7 +123,7 @@ class PeopleTest {
         Transaction t = new Transaction();
         t.setRawDescription(raw);
         t.setNormalizedDescription(normalized);
-        t.setAmountCents(new BigDecimal("10.00"));
+        t.setAmountPaise(new BigDecimal("10.00"));
         t.setDate(Instant.now());
         t.setType("DEBIT");
         t.setUserId(owner.getId());
@@ -166,7 +166,7 @@ class PeopleTest {
         assertThat(personRepository.findByUserIdOrderByNameAsc(alice.getId())).hasSize(1);
         Transaction raw = transactionRepository.findById(a).orElseThrow();
         assertThat(raw.getRawDescription()).isEqualTo(SWIGGY_RAW);
-        assertThat(raw.getAmountCents()).isEqualByComparingTo("10.00");
+        assertThat(raw.getAmountPaise()).isEqualByComparingTo("10.00");
 
         counterparty(ALICE, b, "{\"type\":\"MERCHANT\"}", 200);
 

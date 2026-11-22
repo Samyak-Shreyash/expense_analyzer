@@ -117,7 +117,7 @@ class MerchantSuggestionTest {
         Transaction t = new Transaction();
         t.setRawDescription(raw);
         t.setNormalizedDescription(normalized);
-        t.setAmountCents(new BigDecimal("10.00"));
+        t.setAmountPaise(new BigDecimal("10.00"));
         t.setDate(Instant.now());
         t.setType("DEBIT");
         t.setUserId(owner.getId());

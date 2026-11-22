@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS transactions (
     merchant_confidence NUMERIC(3, 2),
     category_id UUID,
     person_id UUID,
-    amount_cents DECIMAL(12, 2) NOT NULL,
+    amount_paise DECIMAL(12, 2) NOT NULL,
     currency VARCHAR(3) NOT NULL DEFAULT 'INR',
     date TIMESTAMP NOT NULL,
     type VARCHAR(10) NOT NULL,
