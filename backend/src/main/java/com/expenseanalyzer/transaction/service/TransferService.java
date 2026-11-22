@@ -46,7 +46,7 @@ public class TransferService {
         String fullName = userRepository.findById(userId).map(User::getFullName).orElse(null);
         List<Transaction> all = transactionRepository.findByUserIdAndTransferFalseAndTransferManualFalseAndDuplicateFalseAndReversalPairIdIsNull(userId);
         List<Transaction> open = all.stream()
-                .filter(t -> (t.getMerchantId() == null && t.getPersonId() == null) || ownName(fullName, t)).toList();
+                .filter(t -> (t.getMerchantId() == null && t.getPersonId() == null) || (uncategorised(t) && ownName(fullName, t))).toList();
         Map<UUID, String> accounts = statementRepository.findAllById(open.stream().map(Transaction::getStatementId)
                         .filter(id -> id != null).collect(Collectors.toSet())).stream()
                 .filter(s -> s.getAccountNumber() != null && !s.getAccountNumber().isBlank())
@@ -77,13 +77,17 @@ public class TransferService {
         }
         Set<UUID> pairedIds = paired.stream().map(Transaction::getId).collect(Collectors.toSet());
         List<Transaction> unpaired = all.stream()
-                .filter(t -> !pairedIds.contains(t.getId()) && ownName(fullName, t)).toList();
+                .filter(t -> !pairedIds.contains(t.getId()) && uncategorised(t) && ownName(fullName, t)).toList();
         unpaired.forEach(t -> {
             t.setTransfer(true);
             t.setUpdatedAt(now);
         });
         paired.addAll(unpaired);
         transactionRepository.saveAll(paired);
+    }
+
+    private static boolean uncategorised(Transaction t) {
+        return t.getCategoryId() == null && t.getLoanId() == null;
     }
 
     private static boolean ownName(String fullName, Transaction t) {

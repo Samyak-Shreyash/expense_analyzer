@@ -118,6 +118,27 @@ class TransferOwnNameTest {
     }
 
     @Test
+    void categorisedOwnNameRowsAreNotTransfers() {
+        Transaction emi = tx(accountA, "DEBIT", "9000.00", "NEFT-EMI SAMYAK SHREYASH");
+        UUID loanEmi = UUID.randomUUID();
+        emi.setCategoryId(loanEmi);
+        transactionRepository.saveAndFlush(emi);
+        Transaction credit = tx(accountA, "CREDIT", "100.00", "Samyaksh");
+        credit.setCategoryId(UUID.randomUUID());
+        transactionRepository.saveAndFlush(credit);
+        Transaction loan = tx(accountA, "CREDIT", "200.00", "Samyaksh");
+        loan.setLoanId(UUID.randomUUID());
+        transactionRepository.saveAndFlush(loan);
+
+        transferService.match(user.getId());
+
+        assertThat(reload(emi).isTransfer()).isFalse();
+        assertThat(reload(emi).getCategoryId()).isEqualTo(loanEmi);
+        assertThat(reload(credit).isTransfer()).isFalse();
+        assertThat(reload(loan).isTransfer()).isFalse();
+    }
+
+    @Test
     void otherPeopleStillExcluded() {
         Transaction out = tx(accountA, "DEBIT", "500.00", "RAHUL SHARMA");
         out.setPersonId(UUID.randomUUID());
