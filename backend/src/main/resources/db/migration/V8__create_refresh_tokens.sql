@@ -7,6 +7,9 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
     -- SHA-256 hex of the raw token; the raw value is only ever in the client's cookie
     token_hash VARCHAR(64) NOT NULL UNIQUE,
     expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    consumed_at TIMESTAMP WITH TIME ZONE,
+    -- The token that replaced this one on rotation.
+    replaced_by_id UUID,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 

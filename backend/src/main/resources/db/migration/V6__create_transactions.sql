@@ -25,6 +25,13 @@ CREATE TABLE IF NOT EXISTS transactions (
     reversal_pair_id UUID REFERENCES transactions(id) ON DELETE SET NULL,
     -- What a failed payment cost when its refund came back smaller; this part still counts as spending.
     reversal_charge_paise DECIMAL(12, 2),
+    reversal_pending BOOLEAN NOT NULL DEFAULT FALSE,
+    upi_ref VARCHAR(12),
+    duplicate BOOLEAN NOT NULL DEFAULT FALSE,
+    -- A repayment linked to the loan (the CREDIT row) it pays off.
+    loan_id UUID REFERENCES transactions(id) ON DELETE SET NULL,
+    loan_interest_paise DECIMAL(12, 2),
+    loan_closed BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_transactions_user_id FOREIGN KEY (user_id) REFERENCES users(id),
@@ -42,3 +49,15 @@ CREATE INDEX IF NOT EXISTS idx_transactions_statement_id ON transactions(stateme
 CREATE INDEX IF NOT EXISTS idx_transactions_person_id ON transactions(person_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_transfer_pair_id ON transactions(transfer_pair_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_reversal_pair_id ON transactions(reversal_pair_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_user_upi_ref ON transactions(user_id, upi_ref);
+CREATE INDEX IF NOT EXISTS idx_transactions_loan_id ON transactions(loan_id);
+
+-- Payee names whose repayments are linked to a loan automatically.
+CREATE TABLE IF NOT EXISTS loan_payees (
+    user_id UUID NOT NULL REFERENCES users(id),
+    payee_key VARCHAR(100) NOT NULL,
+    loan_id UUID NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
+    PRIMARY KEY (user_id, payee_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_loan_payees_loan_id ON loan_payees(loan_id);

@@ -15,5 +15,11 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL,
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
     last_login_at TIMESTAMP WITH TIME ZONE,
+    -- Set when the user deletes their account; the row is purged later.
+    deleted_at TIMESTAMP WITH TIME ZONE,
+    -- Access tokens issued before this are rejected.
+    password_changed_at TIMESTAMP WITH TIME ZONE,
     CONSTRAINT uk_users_email UNIQUE (email)
 );
+
+CREATE INDEX IF NOT EXISTS idx_users_deleted_at ON users(deleted_at) WHERE deleted_at IS NOT NULL;

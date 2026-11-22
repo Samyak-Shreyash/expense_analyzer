@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS statements (
     storage_key VARCHAR(512),
     file_hash VARCHAR(64),
     format VARCHAR(10),
+    source VARCHAR(16) NOT NULL DEFAULT 'BANK',
     status VARCHAR(20) NOT NULL DEFAULT 'UPLOADED',
     processing_error VARCHAR(100),
     completed_at TIMESTAMP,
