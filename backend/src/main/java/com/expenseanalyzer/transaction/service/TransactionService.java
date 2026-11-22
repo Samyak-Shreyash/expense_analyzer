@@ -202,6 +202,8 @@ public class TransactionService {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                         "A transfer pairs money out and money in of the same amount");
             }
+            unpairReversal(t, userId, now);
+            unpairReversal(other, userId, now);
             if (!other.getId().equals(t.getTransferPairId())) {
                 release(t, userId, false, now);
                 release(other, userId, false, now);
@@ -209,6 +211,7 @@ public class TransactionService {
             TransferService.pair(t, other, true, now);
             transactionRepository.save(other);
         } else {
+            unpairReversal(t, userId, now);
             release(t, userId, false, now);
             t.setTransfer(true);
             t.setTransferManual(true);
@@ -265,6 +268,7 @@ public class TransactionService {
         UUID userId = currentUser(email).getId();
         Transaction t = owned(id, userId);
         Instant now = Instant.now();
+        UUID formerPartner = t.getReversalPairId();
         unpairReversal(t, userId, now);
         if (request.pairWithId() != null) {
             Transaction other = owned(request.pairWithId(), userId);
@@ -293,6 +297,14 @@ public class TransactionService {
             transactionRepository.save(other);
         } else {
             t.setReversalPending(Boolean.TRUE.equals(request.pending()));
+            if (formerPartner != null) { // the user's choice: automatic matching must not re-pair them
+                t.setTransferManual(true);
+                transactionRepository.findByIdAndUserId(formerPartner, userId).ifPresent(p -> {
+                    p.setTransferManual(true);
+                    p.setUpdatedAt(now);
+                    transactionRepository.save(p);
+                });
+            }
         }
         t.setUpdatedAt(now);
         return response(transactionRepository.save(t), userId);

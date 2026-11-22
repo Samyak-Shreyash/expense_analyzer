@@ -250,7 +250,7 @@ class CrossUserIsolationTest {
         }
         // the same requests do show Bob his own data, so the checks above are not vacuous
         assertThat(analytics("categories", token(BOB))).contains("1250");
-        assertThat(analytics("cash-flow", token(BOB))).contains("9020");
+        assertThat(analytics("cash-flow", token(BOB))).contains("1250");
         assertThat(analytics("trends", token(BOB))).contains("1250");
         assertThat(analytics("non-spending", token(BOB))).contains("7770");
     }

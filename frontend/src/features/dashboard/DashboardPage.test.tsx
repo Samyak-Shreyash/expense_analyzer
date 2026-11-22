@@ -102,6 +102,10 @@ describe('DashboardPage', () => {
           people: [
             { personId: 'p1', name: 'Ravi', spend: 1000, transactionCount: 1 },
           ],
+          merchants: [
+            { merchantId: 'm1', name: 'CRED', spend: 800, transactionCount: 2 },
+          ],
+          other: 500,
         },
       ],
     })
@@ -118,7 +122,9 @@ describe('DashboardPage', () => {
     expect(totals.getByText('₹81,300.00')).toBeTruthy()
     expect(totals.getByText('Not counted as spending')).toBeTruthy()
     expect(totals.getByText('₹1,000.00')).toBeTruthy()
-    expect(totals.getByText('180% more than the previous period')).toBeTruthy()
+    expect(
+      totals.getByText('180.0% more than the previous period'),
+    ).toBeTruthy()
     expect(totals.getByText('Moved between your accounts')).toBeTruthy()
     expect(totals.getByText('₹4,500.00 out')).toBeTruthy()
   })
@@ -133,6 +139,8 @@ describe('DashboardPage', () => {
       section.getByRole('link', { name: 'Repayment' }).getAttribute('href'),
     ).toBe('/transactions?category=Repayment&from=2026-01-01&to=2026-01-31')
     expect(section.getByText('Ravi')).toBeTruthy()
+    expect(section.getByText('CRED')).toBeTruthy()
+    expect(section.getByText('Other')).toBeTruthy()
   })
 
   it('says so when nothing was set aside from spending', async () => {

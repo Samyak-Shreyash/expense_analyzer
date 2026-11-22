@@ -4,6 +4,8 @@ import com.expenseanalyzer.statement.model.Statement;
 import com.expenseanalyzer.statement.repository.StatementRepository;
 import com.expenseanalyzer.transaction.model.Transaction;
 import com.expenseanalyzer.transaction.repository.TransactionRepository;
+import com.expenseanalyzer.user.model.User;
+import com.expenseanalyzer.user.repository.UserRepository;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -24,7 +26,9 @@ import org.springframework.transaction.annotation.Transactional;
  * Pairs money moved between a user's own accounts (DOMAIN-MODEL 4.3): a DEBIT in one account and a CREDIT of the same
  * amount and currency in a different account, at most {@link #WINDOW} apart. An account is a statement's
  * (account_number, bank_name) until an accounts table exists, so rows without one are never paired automatically.
- * Rows the user marked or unmarked, rows already paired, and rows with a merchant or person are left alone. Raw data is untouched; nothing is logged.
+ * Rows the user marked or unmarked and rows already paired are left alone, as are rows with a merchant or person unless
+ * the description carries the user's own name ({@link OwnName}); such rows that find no partner are still marked as
+ * transfers, unpaired. Raw data is untouched; nothing is logged.
  */
 @Service
 @RequiredArgsConstructor
@@ -34,12 +38,15 @@ public class TransferService {
 
     private final TransactionRepository transactionRepository;
     private final StatementRepository statementRepository;
+    private final UserRepository userRepository;
 
     /** Pairs the user's open rows; debits in date order take the credit with the closest date (ties: earliest created). */
     @Transactional
     public void match(UUID userId) {
-        List<Transaction> open = transactionRepository.findByUserIdAndTransferFalseAndTransferManualFalseAndDuplicateFalse(userId).stream()
-                .filter(t -> t.getMerchantId() == null && t.getPersonId() == null).toList();
+        String fullName = userRepository.findById(userId).map(User::getFullName).orElse(null);
+        List<Transaction> all = transactionRepository.findByUserIdAndTransferFalseAndTransferManualFalseAndDuplicateFalseAndReversalPairIdIsNull(userId);
+        List<Transaction> open = all.stream()
+                .filter(t -> (t.getMerchantId() == null && t.getPersonId() == null) || (uncategorised(t) && ownName(fullName, t))).toList();
         Map<UUID, String> accounts = statementRepository.findAllById(open.stream().map(Transaction::getStatementId)
                         .filter(id -> id != null).collect(Collectors.toSet())).stream()
                 .filter(s -> s.getAccountNumber() != null && !s.getAccountNumber().isBlank())
@@ -68,7 +75,23 @@ public class TransferService {
                 paired.add(credit);
             });
         }
+        Set<UUID> pairedIds = paired.stream().map(Transaction::getId).collect(Collectors.toSet());
+        List<Transaction> unpaired = all.stream()
+                .filter(t -> !pairedIds.contains(t.getId()) && uncategorised(t) && ownName(fullName, t)).toList();
+        unpaired.forEach(t -> {
+            t.setTransfer(true);
+            t.setUpdatedAt(now);
+        });
+        paired.addAll(unpaired);
         transactionRepository.saveAll(paired);
+    }
+
+    private static boolean uncategorised(Transaction t) {
+        return t.getCategoryId() == null && t.getLoanId() == null;
+    }
+
+    private static boolean ownName(String fullName, Transaction t) {
+        return OwnName.mentions(fullName, t.getRawDescription());
     }
 
     /** Reopens the automatic pairs' other halves before a statement's rows are deleted; manual marks are kept. */

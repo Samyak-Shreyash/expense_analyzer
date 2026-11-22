@@ -97,7 +97,7 @@ class CategoryControllerTest {
 
     @Test
     void listSeedsDefaultsOnceSortedByName() throws Exception {
-        int expected = MerchantNormalizer.defaultCategoryNames().size() + 4; // Refund, Repayment, Loan, Loan EMI
+        int expected = MerchantNormalizer.defaultCategoryNames().size() + 6; // Refund, Repayment, Loan, Loan EMI, Rent, Health (Insurance and Home Services come from the rules)
         for (int i = 0; i < 2; i++) {
             mockMvc.perform(get("/api/categories").header("Authorization", bearer(ALICE)))
                     .andExpect(status().isOk())

@@ -290,6 +290,7 @@ export function CategoriesPage() {
                           type="checkbox"
                           role="switch"
                           checked={c.countsAsSpending}
+                          aria-describedby={`spending-note-${c.id}`}
                           onChange={(e) =>
                             run(async () => {
                               replace(
@@ -306,6 +307,15 @@ export function CategoriesPage() {
                           {c.countsAsSpending ? 'Yes' : 'No'}
                           <span className={shared.visuallyHidden}>
                             , {c.name} counts as spending
+                          </span>
+                          <span
+                            id={`spending-note-${c.id}`}
+                            className={shared.visuallyHidden}
+                          >
+                            {c.name}{' '}
+                            {c.countsAsSpending
+                              ? 'counts as spending'
+                              : 'does not count as spending'}
                           </span>
                         </span>
                       </label>

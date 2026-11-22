@@ -22,6 +22,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import software.amazon.awssdk.core.exception.SdkClientException;
 
+import java.io.InputStream;
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
@@ -35,6 +36,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
@@ -115,6 +117,46 @@ class StatementProcessorTest {
 
     private Statement reload(Statement s) {
         return statementRepository.findById(s.getId()).orElseThrow();
+    }
+
+    @Test
+    void fileThatExhaustsMemoryFailsStatementAndIsNotRedelivered() {
+        Statement s = queued(UUID.randomUUID());
+        when(storage.read(s.getStorageKey())).thenAnswer(inv -> new InputStream() {
+            @Override
+            public int read() {
+                throw new OutOfMemoryError("simulated");
+            }
+        });
+        String event = event(s);
+        assertThatCode(() -> processor.process(event)).doesNotThrowAnyException();
+        processor.process(event);
+        Statement failed = reload(s);
+        assertThat(failed.getStatus()).isEqualTo(StatementStatus.FAILED);
+        assertThat(failed.getProcessingError()).isEqualTo("OUT_OF_MEMORY");
+        verify(storage, times(1)).read(s.getStorageKey());
+    }
+
+    @Test
+    void emiAndRentRowsGetKeywordCategories() {
+        UUID user = UUID.randomUUID();
+        Category emi = categoryRepository.save(new Category(user, "Loan EMI", false));
+        Category rent = categoryRepository.save(new Category(user, "Rent", true));
+        Statement s = queued(user);
+        fileContains(s, """
+                Date,Description,Amount
+                2026-01-02,NEFT-EMI SAMYAK SHREYASH,-5000.00
+                2026-01-03,UPI/P2A/123456789012/DUMMY NAME RENT,-12000.00
+                """);
+
+        processor.process(event(s));
+
+        List<Transaction> txns = transactionRepository.findByUserIdAndStatementId(user, s.getId());
+        assertThat(txns).hasSize(2);
+        assertThat(txns).filteredOn(t -> t.getRawDescription().contains("EMI"))
+                .singleElement().extracting(Transaction::getCategoryId).isEqualTo(emi.getId());
+        assertThat(txns).filteredOn(t -> t.getRawDescription().contains("RENT"))
+                .singleElement().extracting(Transaction::getCategoryId).isEqualTo(rent.getId());
     }
 
     @Test
@@ -228,6 +270,63 @@ class StatementProcessorTest {
                 });
         assertThat(txns).filteredOn(t -> t.getRawDescription().contains("ASHA RAO"))
                 .singleElement().satisfies(t -> assertThat(t.isTransfer()).isFalse());
+    }
+
+    @Test
+    void keywordDoesNotOverrideAPersonCategoryAndSelfRowIsStillATransfer() {
+        UUID user = UUID.randomUUID();
+        categoryRepository.save(new Category(user, "Loan EMI", false));
+        Category self = categoryRepository.save(new Category(user, "Self", false));
+        Person me = new Person(user, "Rahul Sharma");
+        me.setCategoryId(self.getId());
+        personRepository.save(me);
+        Statement s = queued(user);
+        fileContains(s, """
+                Date,Description,Amount
+                2026-01-03,UPI/P2P/412345678902/rahul sharma/AXIS BANK/EMI,-500.00
+                """);
+
+        processor.process(event(s));
+
+        assertThat(transactionRepository.findByUserId(user)).singleElement().satisfies(t -> {
+            assertThat(t.getCategoryId()).isNull();
+            assertThat(t.isTransfer()).isTrue();
+        });
+    }
+
+    @Test
+    void merchantRowsAreNotGivenKeywordCategories() {
+        UUID user = UUID.randomUUID();
+        categoryRepository.save(new Category(user, "Insurance", true));
+        Statement s = queued(user);
+        fileContains(s, """
+                Date,Description,Amount
+                2026-01-04,AMAZON INSURANCE PREMIUM,-900.00
+                """);
+
+        processor.process(event(s));
+
+        assertThat(transactionRepository.findByUserId(user)).singleElement()
+                .satisfies(t -> {
+                    assertThat(t.getMerchantId()).isNotNull();
+                    assertThat(t.getCategoryId()).isNull();
+                });
+    }
+
+    @Test
+    void keywordCategoriesApplyToDebitsOnly() {
+        UUID user = UUID.randomUUID();
+        categoryRepository.save(new Category(user, "Rent", true));
+        Statement s = queued(user);
+        fileContains(s, """
+                Date,Description,Amount
+                2026-01-03,NEFT-RENT REFUND SOMEONE,5000.00
+                """);
+
+        processor.process(event(s));
+
+        assertThat(transactionRepository.findByUserId(user)).singleElement()
+                .satisfies(t -> assertThat(t.getCategoryId()).isNull());
     }
 
     @Test
