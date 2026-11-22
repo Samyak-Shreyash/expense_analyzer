@@ -1,7 +1,14 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "outputDirectory": "dist",
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
+  "redirects": [
+    {
+      "source": "/((?!expenses$|expenses/).*)",
+      "has": [{ "type": "host", "value": "projects.samyakshreyash.in" }],
+      "destination": "https://samyakshreyash.in/projects",
+      "permanent": false
+    }
+  ],
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],
   "headers": [
     {
