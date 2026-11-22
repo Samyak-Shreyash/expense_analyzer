@@ -38,4 +38,12 @@ class KeywordCategoryTest {
     void firstMatchInOrderWins() {
         assertThat(KeywordCategory.of("EMI RENT")).contains("Loan EMI");
     }
+
+    @Test
+    void foodKeywords() {
+        assertThat(KeywordCategory.of("Sharma Tea-Stall")).contains("Food & Dining");
+        assertThat(KeywordCategory.of("Blue Tokai Cafe")).contains("Food & Dining");
+        assertThat(KeywordCategory.of("APOLLO PHARMACY")).contains("Health");
+        assertThat(KeywordCategory.of("STEAM GAMES")).isEqualTo(Optional.empty());
+    }
 }
