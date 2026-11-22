@@ -1,9 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "VITE_BASE_PATH=/expenses/ VITE_API_BASE_URL=/expenses/api npm run build",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/expenses/:path*", "destination": "/expenses/index.html" }
+    { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
     {
