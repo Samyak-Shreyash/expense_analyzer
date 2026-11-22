@@ -268,6 +268,7 @@ public class TransactionService {
         UUID userId = currentUser(email).getId();
         Transaction t = owned(id, userId);
         Instant now = Instant.now();
+        UUID formerPartner = t.getReversalPairId();
         unpairReversal(t, userId, now);
         if (request.pairWithId() != null) {
             Transaction other = owned(request.pairWithId(), userId);
@@ -296,6 +297,14 @@ public class TransactionService {
             transactionRepository.save(other);
         } else {
             t.setReversalPending(Boolean.TRUE.equals(request.pending()));
+            if (formerPartner != null) { // the user's choice: automatic matching must not re-pair them
+                t.setTransferManual(true);
+                transactionRepository.findByIdAndUserId(formerPartner, userId).ifPresent(p -> {
+                    p.setTransferManual(true);
+                    p.setUpdatedAt(now);
+                    transactionRepository.save(p);
+                });
+            }
         }
         t.setUpdatedAt(now);
         return response(transactionRepository.save(t), userId);
