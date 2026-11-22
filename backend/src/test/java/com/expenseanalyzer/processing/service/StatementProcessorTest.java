@@ -169,7 +169,7 @@ class StatementProcessorTest {
         List<Transaction> txns = transactionRepository.findByUserIdAndStatementId(s.getUserId(), s.getId());
         assertThat(txns).hasSize(2);
         Transaction coffee = txns.stream().filter(t -> t.getRawDescription().equals("Coffee Shop")).findFirst().orElseThrow();
-        assertThat(coffee.getAmountCents()).isEqualByComparingTo("450");
+        assertThat(coffee.getAmountPaise()).isEqualByComparingTo("450");
         assertThat(coffee.getAmount()).isEqualByComparingTo("4.50");
         assertThat(coffee.getType()).isEqualTo("DEBIT");
         assertThat(coffee.getCurrency()).isEqualTo("INR");

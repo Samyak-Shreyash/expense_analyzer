@@ -64,8 +64,8 @@ public class StatementProcessor {
 
     static final String CONSUMER = "statement-processor";
     private static final int SUPPORTED_VERSION = 1;
-    // amount_cents is numeric(12,2): at most 10 integer digits
-    private static final int MAX_CENT_DIGITS = 10;
+    // amount_paise is numeric(12,2): at most 10 integer digits
+    private static final int MAX_PAISE_DIGITS = 10;
     private static final Logger log = LoggerFactory.getLogger(StatementProcessor.class);
 
     private final StatementRepository statementRepository;
@@ -176,15 +176,15 @@ public class StatementProcessor {
         Map<String, Integer> occurrences = new HashMap<>();
         Map<String, Transaction> byFingerprint = new HashMap<>();
         for (ParsedTransaction p : parsed.transactions()) {
-            BigDecimal cents = p.amount().movePointRight(2);
-            if (cents.precision() - cents.scale() > MAX_CENT_DIGITS) {
+            BigDecimal paise = p.amount().movePointRight(2);
+            if (paise.precision() - paise.scale() > MAX_PAISE_DIGITS) {
                 skipped++;
                 continue;
             }
-            String base = TransactionFingerprint.baseKey(p.date(), cents, p.type(), p.rawDescription());
+            String base = TransactionFingerprint.baseKey(p.date(), paise, p.type(), p.rawDescription());
             int occurrence = occurrences.merge(base, 1, Integer::sum) - 1;
-            String fp = TransactionFingerprint.of(s.getUserId(), p.date(), cents, p.type(), p.rawDescription(), occurrence);
-            Transaction t = toTransaction(s, p, cents, fp);
+            String fp = TransactionFingerprint.of(s.getUserId(), p.date(), paise, p.type(), p.rawDescription(), occurrence);
+            Transaction t = toTransaction(s, p, paise, fp);
             byFingerprint.put(fp, t);
         }
 
@@ -216,8 +216,8 @@ public class StatementProcessor {
                 s.getId(), fresh.size(), byFingerprint.size() - fresh.size() - merged, skipped, merged);
     }
 
-    private static Transaction toTransaction(Statement s, ParsedTransaction p, BigDecimal cents, String fingerprint) {
-        Transaction t = new Transaction(s.getUserId(), p.rawDescription(), cents,
+    private static Transaction toTransaction(Statement s, ParsedTransaction p, BigDecimal paise, String fingerprint) {
+        Transaction t = new Transaction(s.getUserId(), p.rawDescription(), paise,
                 p.date().atStartOfDay(ZoneOffset.UTC).toInstant(), p.type());
         t.setStatementId(s.getId());
         t.setTransactionFingerprint(fingerprint);
@@ -264,7 +264,7 @@ public class StatementProcessor {
             Transaction old = theirs.getFirst();
             boolean oldFromApp = sources.getOrDefault(old.getStatementId(), StatementSource.BANK) == StatementSource.GPAY;
             if (fromApp == oldFromApp || !in.getType().equals(old.getType())
-                    || in.getAmountCents().compareTo(old.getAmountCents()) != 0) {
+                    || in.getAmountPaise().compareTo(old.getAmountPaise()) != 0) {
                 return;
             }
             if (fromApp) { // the bank row is already stored: keep it

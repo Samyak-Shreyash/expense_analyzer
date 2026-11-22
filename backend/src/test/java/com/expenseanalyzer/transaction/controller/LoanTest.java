@@ -92,7 +92,7 @@ class LoanTest {
         Transaction t = new Transaction();
         t.setRawDescription(payee);
         t.setNormalizedDescription(payee);
-        t.setAmountCents(new BigDecimal(amount).movePointRight(2));
+        t.setAmountPaise(new BigDecimal(amount).movePointRight(2));
         t.setDate(Instant.parse(day + "T00:00:00Z"));
         t.setType(type);
         t.setUserId(owner.getId());

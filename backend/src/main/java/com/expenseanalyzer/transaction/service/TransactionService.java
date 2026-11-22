@@ -147,10 +147,10 @@ public class TransactionService {
                     f.to().plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant()));
         }
         if (f.minAmount() != null) {
-            spec = spec.and((root, q, cb) -> cb.greaterThanOrEqualTo(root.get("amountCents"), f.minAmount().movePointRight(2)));
+            spec = spec.and((root, q, cb) -> cb.greaterThanOrEqualTo(root.get("amountPaise"), f.minAmount().movePointRight(2)));
         }
         if (f.maxAmount() != null) {
-            spec = spec.and((root, q, cb) -> cb.lessThanOrEqualTo(root.get("amountCents"), f.maxAmount().movePointRight(2)));
+            spec = spec.and((root, q, cb) -> cb.lessThanOrEqualTo(root.get("amountPaise"), f.maxAmount().movePointRight(2)));
         }
         Page<Transaction> page = transactionRepository.findAll(spec, pageable);
         Map<UUID, Merchant> merchants = merchants(page.getContent());
@@ -278,7 +278,7 @@ public class TransactionService {
             }
             Transaction payment = "DEBIT".equals(t.getType()) ? t : other;
             Transaction refund = payment == t ? other : t;
-            BigDecimal charge = payment.getAmountCents().subtract(refund.getAmountCents());
+            BigDecimal charge = payment.getAmountPaise().subtract(refund.getAmountPaise());
             if (charge.signum() < 0 || refund.getDate().isBefore(payment.getDate())) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, REFUND_MISMATCH);
             }

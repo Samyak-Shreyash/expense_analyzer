@@ -122,13 +122,13 @@ public class LoanService {
             if (loanId == null) {
                 continue;
             }
-            BigDecimal principal = transactionRepository.findById(loanId).map(Transaction::getAmountCents)
+            BigDecimal principal = transactionRepository.findById(loanId).map(Transaction::getAmountPaise)
                     .orElse(BigDecimal.ZERO);
             BigDecimal paid = BigDecimal.ZERO;
             List<Transaction> emis = transactionRepository.findByLoanIdOrderByDateAscCreatedAtAsc(loanId);
             for (Transaction t : emis) {
                 BigDecimal before = paid;
-                paid = paid.add(t.getAmountCents());
+                paid = paid.add(t.getAmountPaise());
                 BigDecimal interest = paid.subtract(before.max(principal));
                 t.setLoanInterestPaise(interest.signum() > 0 ? interest : null);
             }

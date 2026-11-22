@@ -53,7 +53,7 @@ class TransactionPersistenceTest {
         assertThat(reloaded.getId()).isNotNull();
         assertThat(reloaded.getUserId()).isEqualTo(ALICE);
         assertThat(reloaded.getRawDescription()).isEqualTo("Coffee");
-        assertThat(reloaded.getAmountCents()).isEqualByComparingTo("450.00");
+        assertThat(reloaded.getAmountPaise()).isEqualByComparingTo("450.00");
         assertThat(reloaded.getDate()).isEqualTo(DATE);
         assertThat(reloaded.getType()).isEqualTo("DEBIT");
         assertThat(reloaded.getCreatedAt()).isNotNull();
@@ -67,7 +67,7 @@ class TransactionPersistenceTest {
 
     @Test
     void save_shouldReject_whenAmountMissing() {
-        assertRejected(t -> t.setAmountCents(null));
+        assertRejected(t -> t.setAmountPaise(null));
     }
 
     @Test
@@ -115,7 +115,7 @@ class TransactionPersistenceTest {
 
     @Test
     void save_shouldReject_whenAmountExceedsMaxValue() {
-        assertRejected(t -> t.setAmountCents(new BigDecimal("10000000000.00")));
+        assertRejected(t -> t.setAmountPaise(new BigDecimal("10000000000.00")));
     }
 
     @Test
@@ -123,7 +123,7 @@ class TransactionPersistenceTest {
         Transaction saved = repository.saveAndFlush(transaction(ALICE, "Max", "9999999999.99", "DEBIT"));
         entityManager.clear();
 
-        assertThat(repository.findById(saved.getId()).orElseThrow().getAmountCents())
+        assertThat(repository.findById(saved.getId()).orElseThrow().getAmountPaise())
                 .isEqualByComparingTo("9999999999.99");
     }
 
@@ -132,7 +132,7 @@ class TransactionPersistenceTest {
         Transaction saved = repository.saveAndFlush(transaction(ALICE, "Scale", "12", "DEBIT"));
         entityManager.clear();
 
-        assertThat(repository.findById(saved.getId()).orElseThrow().getAmountCents().scale()).isEqualTo(2);
+        assertThat(repository.findById(saved.getId()).orElseThrow().getAmountPaise().scale()).isEqualTo(2);
     }
 
     @Test
@@ -140,7 +140,7 @@ class TransactionPersistenceTest {
         Transaction saved = repository.saveAndFlush(transaction(ALICE, "Refund", "-5.00", "CREDIT"));
         entityManager.clear();
 
-        assertThat(repository.findById(saved.getId()).orElseThrow().getAmountCents())
+        assertThat(repository.findById(saved.getId()).orElseThrow().getAmountPaise())
                 .isEqualByComparingTo("-5.00");
     }
 
@@ -211,7 +211,7 @@ class TransactionPersistenceTest {
         UUID categoryId = UUID.randomUUID();
         read.setNormalizedDescription("Normalised");
         read.setCategoryId(categoryId);
-        read.setAmountCents(new BigDecimal("125.50"));
+        read.setAmountPaise(new BigDecimal("125.50"));
         read.onUpdate();
         repository.saveAndFlush(read);
         entityManager.clear();
@@ -219,7 +219,7 @@ class TransactionPersistenceTest {
         Transaction updated = repository.findById(id).orElseThrow();
         assertThat(updated.getNormalizedDescription()).isEqualTo("Normalised");
         assertThat(updated.getCategoryId()).isEqualTo(categoryId);
-        assertThat(updated.getAmountCents()).isEqualByComparingTo("125.50");
+        assertThat(updated.getAmountPaise()).isEqualByComparingTo("125.50");
         assertThat(updated.getRawDescription()).isEqualTo("Original");
         assertThat(updated.getUserId()).isEqualTo(ALICE);
         assertThat(updated.getUpdatedAt()).isAfter(createdAt);

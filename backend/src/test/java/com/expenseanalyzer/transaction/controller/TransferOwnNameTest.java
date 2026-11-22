@@ -64,7 +64,7 @@ class TransferOwnNameTest {
     private Transaction tx(UUID statementId, String type, String amount, String description) {
         Transaction t = new Transaction();
         t.setRawDescription(description);
-        t.setAmountCents(new BigDecimal(amount).movePointRight(2));
+        t.setAmountPaise(new BigDecimal(amount).movePointRight(2));
         t.setDate(AUG_3);
         t.setType(type);
         t.setUserId(user.getId());

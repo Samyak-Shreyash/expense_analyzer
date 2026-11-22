@@ -93,7 +93,7 @@ class RematchTest {
     private UUID transaction(String raw, UUID categoryId) {
         Transaction t = new Transaction();
         t.setRawDescription(raw);
-        t.setAmountCents(new BigDecimal("10.00"));
+        t.setAmountPaise(new BigDecimal("10.00"));
         t.setDate(Instant.now());
         t.setType("DEBIT");
         t.setUserId(alice.getId());

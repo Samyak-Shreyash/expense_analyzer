@@ -82,12 +82,12 @@ public class Transaction {
     private UUID personId;
 
     /**
-     * Transaction amount in cents (to avoid floating point issues).
+     * Transaction amount in paise (to avoid floating point issues).
      * Using BigDecimal for financial accuracy.
      */
     @DecimalMax(value = "9999999999.99")
-    @Column(name = "amount_cents", nullable = false, precision = 12, scale = 2)
-    private BigDecimal amountCents;
+    @Column(name = "amount_paise", nullable = false, precision = 12, scale = 2)
+    private BigDecimal amountPaise;
 
     /**
      * Transaction date (transaction occurred on).
@@ -215,13 +215,13 @@ public class Transaction {
     // ---- Business helpers ----
 
     /**
-     * Convert amount from cents to BigDecimal (dollars).
+     * Convert amount from paise to BigDecimal (rupees).
      */
     public BigDecimal getAmount() {
-        if (amountCents == null) {
+        if (amountPaise == null) {
             return null;
         }
-        return amountCents.divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
+        return amountPaise.divide(BigDecimal.valueOf(100), 2, java.math.RoundingMode.HALF_UP);
     }
 
     /**
@@ -243,9 +243,9 @@ public class Transaction {
     /**
      * Constructor for creating a Transaction with all fields.
      */
-    public Transaction(UUID userId, String rawDescription, BigDecimal amountCents, Instant date, String type) {
+    public Transaction(UUID userId, String rawDescription, BigDecimal amountPaise, Instant date, String type) {
         this.rawDescription = rawDescription;
-        this.amountCents = amountCents;
+        this.amountPaise = amountPaise;
         this.date = date;
         this.type = type;
         this.userId = userId;

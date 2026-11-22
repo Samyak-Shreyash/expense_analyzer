@@ -18,7 +18,7 @@ class TransactionTest {
     private static final UUID TEST_CATEGORY_ID = UUID.fromString("550e8400-e29b-41d4-a716-446655440003");
     private static final String TEST_RAW_DESCRIPTION = "Amazon Purchase";
     private static final String TEST_NORMALIZED_DESCRIPTION = "Amazon.com - Electronics";
-    private static final BigDecimal TEST_AMOUNT_CENTS = new BigDecimal("1234");
+    private static final BigDecimal TEST_AMOUNT_PAISE = new BigDecimal("1234");
     private static final Instant TEST_DATE = Instant.parse("2026-09-01T12:00:00Z");
     private static final String TEST_TYPE = "DEBIT";
 
@@ -38,7 +38,7 @@ class TransactionTest {
         assertThat(transaction.getNormalizedDescription()).isNull();
         assertThat(transaction.getMerchantId()).isNull();
         assertThat(transaction.getCategoryId()).isNull();
-        assertThat(transaction.getAmountCents()).isNull();
+        assertThat(transaction.getAmountPaise()).isNull();
         assertThat(transaction.getDate()).isNull();
         assertThat(transaction.getType()).isNull();
         assertThat(transaction.getUserId()).isNull();
@@ -54,7 +54,7 @@ class TransactionTest {
         transaction.setNormalizedDescription(TEST_NORMALIZED_DESCRIPTION);
         transaction.setMerchantId(TEST_MERCHANT_ID);
         transaction.setCategoryId(TEST_CATEGORY_ID);
-        transaction.setAmountCents(TEST_AMOUNT_CENTS);
+        transaction.setAmountPaise(TEST_AMOUNT_PAISE);
         transaction.setDate(TEST_DATE);
         transaction.setType(TEST_TYPE);
         transaction.setUserId(TEST_USER_ID);
@@ -68,7 +68,7 @@ class TransactionTest {
         assertThat(transaction.getNormalizedDescription()).isEqualTo(TEST_NORMALIZED_DESCRIPTION);
         assertThat(transaction.getMerchantId()).isEqualTo(TEST_MERCHANT_ID);
         assertThat(transaction.getCategoryId()).isEqualTo(TEST_CATEGORY_ID);
-        assertThat(transaction.getAmountCents()).isEqualTo(TEST_AMOUNT_CENTS);
+        assertThat(transaction.getAmountPaise()).isEqualTo(TEST_AMOUNT_PAISE);
         assertThat(transaction.getDate()).isEqualTo(TEST_DATE);
         assertThat(transaction.getType()).isEqualTo(TEST_TYPE);
         assertThat(transaction.getUserId()).isEqualTo(TEST_USER_ID);
@@ -128,16 +128,16 @@ class TransactionTest {
     }
 
     @Test
-    void setAmountCents_shouldUpdateAmountCents() {
+    void setAmountPaise_shouldUpdateAmountPaise() {
         // Arrange
         Transaction transaction = new Transaction();
-        transaction.setAmountCents(null);
+        transaction.setAmountPaise(null);
 
         // Act
-        transaction.setAmountCents(new BigDecimal("5000"));
+        transaction.setAmountPaise(new BigDecimal("5000"));
 
         // Assert
-        assertThat(transaction.getAmountCents()).isEqualTo(new BigDecimal("5000"));
+        assertThat(transaction.getAmountPaise()).isEqualTo(new BigDecimal("5000"));
     }
 
     @Test
@@ -197,10 +197,10 @@ class TransactionTest {
     }
 
     @Test
-    void getAmount_shouldReturnAmountInDollars() {
+    void getAmount_shouldReturnAmountInRupees() {
         // Arrange
         Transaction transaction = new Transaction();
-        transaction.setAmountCents(new BigDecimal("1234"));
+        transaction.setAmountPaise(new BigDecimal("1234"));
 
         // Act
         BigDecimal result = transaction.getAmount();
@@ -433,15 +433,15 @@ class TransactionTest {
     }
 
     @Test
-    void setAmountCents_shouldAllowNull_whenUsingSetter() {
+    void setAmountPaise_shouldAllowNull_whenUsingSetter() {
         // Arrange
         Transaction transaction = new Transaction();
 
         // Act
-        transaction.setAmountCents(null);
+        transaction.setAmountPaise(null);
 
         // Assert - Note: Validation only triggers at persistence time via @PrePersist/@PreUpdate hooks
-        assertThat(transaction.getAmountCents()).isNull();
+        assertThat(transaction.getAmountPaise()).isNull();
     }
 
     @Test
@@ -481,29 +481,29 @@ class TransactionTest {
     }
 
     @Test
-    void setAmountCents_shouldNotThrow_whenValueIsMax() {
+    void setAmountPaise_shouldNotThrow_whenValueIsMax() {
         // Arrange
         Transaction transaction = new Transaction();
         BigDecimal maxAmount = new BigDecimal("9999999999.99");
 
         // Act
-        transaction.setAmountCents(maxAmount);
+        transaction.setAmountPaise(maxAmount);
 
         // Assert - Max value is allowed (it's the boundary)
-        assertThat(transaction.getAmountCents()).isEqualTo(maxAmount);
+        assertThat(transaction.getAmountPaise()).isEqualTo(maxAmount);
     }
 
     @Test
-    void setAmountCents_shouldNotThrow_whenValueIsNegative() {
+    void setAmountPaise_shouldNotThrow_whenValueIsNegative() {
         // Arrange
         Transaction transaction = new Transaction();
         BigDecimal negativeAmount = new BigDecimal("-100");
 
         // Act
-        transaction.setAmountCents(negativeAmount);
+        transaction.setAmountPaise(negativeAmount);
 
         // Assert - Negative values are allowed (no @Min constraint)
-        assertThat(transaction.getAmountCents()).isEqualTo(negativeAmount);
+        assertThat(transaction.getAmountPaise()).isEqualTo(negativeAmount);
     }
 
     @Test

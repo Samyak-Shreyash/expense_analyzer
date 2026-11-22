@@ -92,7 +92,7 @@ class ReversalAutoTest {
         Transaction t = new Transaction();
         t.setRawDescription(description);
         t.setNormalizedDescription(normalizer.normalize(description).normalizedDescription());
-        t.setAmountCents(new BigDecimal(amount).movePointRight(2));
+        t.setAmountPaise(new BigDecimal(amount).movePointRight(2));
         t.setDate(Instant.parse(date + "T00:00:00Z"));
         t.setType(type);
         t.setUserId(user.getId());

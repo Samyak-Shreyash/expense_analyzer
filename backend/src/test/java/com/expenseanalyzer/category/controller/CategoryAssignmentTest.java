@@ -108,7 +108,7 @@ class CategoryAssignmentTest {
     private UUID transaction(User owner, String desc, UUID merchantId) {
         Transaction t = new Transaction();
         t.setRawDescription(desc);
-        t.setAmountCents(new BigDecimal("10.00"));
+        t.setAmountPaise(new BigDecimal("10.00"));
         t.setDate(Instant.now());
         t.setType("DEBIT");
         t.setUserId(owner.getId());
