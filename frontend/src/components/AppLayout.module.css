@@ -217,3 +217,64 @@
     margin-top: var(--space-7);
   }
 }
+
+/* Desktop: the header becomes a full-height left sidebar. */
+@media (min-width: 64rem) {
+  .page {
+    display: grid;
+    grid-template-columns: 15rem minmax(0, 1fr);
+    column-gap: var(--pad);
+    padding-left: 0;
+  }
+
+  .header {
+    position: sticky;
+    top: 0;
+    height: 100dvh;
+    box-sizing: border-box;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: var(--space-6);
+    margin: 0;
+    padding: var(--space-5) var(--space-3);
+    box-shadow: none;
+  }
+
+  .wordmark {
+    padding-inline: var(--space-3);
+  }
+
+  .nav {
+    flex-direction: column;
+    flex-wrap: nowrap;
+  }
+
+  .navLink[aria-current='page'] {
+    box-shadow: inset 3px 0 0 var(--credit-on-night);
+  }
+
+  .account {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-2);
+    margin: auto 0 0;
+  }
+
+  .menuButton {
+    width: 100%;
+    max-width: none;
+    justify-content: space-between;
+  }
+
+  .menu {
+    top: auto;
+    bottom: calc(100% + var(--space-2));
+    left: 0;
+    right: auto;
+  }
+
+  .main {
+    width: 100%;
+  }
+}
