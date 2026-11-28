@@ -48,7 +48,7 @@ async function reversalCandidates(t: Transaction) {
           ? { from: t.date, to: shift(t.date, REFUND_DAYS) }
           : { from: shift(t.date, -REFUND_DAYS), to: t.date }),
       })
-    ).items.filter((x) => x.id !== t.id)
+    ).items.filter((x) => x.id !== t.id && !x.reversalPairId)
   let found = await search(t.amount, t.amount)
   if (found.length === 0) {
     // No exact match: the refund may have come back less charges.

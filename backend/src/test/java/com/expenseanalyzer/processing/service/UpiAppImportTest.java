@@ -135,6 +135,23 @@ class UpiAppImportTest {
     }
 
     @Test
+    void googlePayNamesTheBankRowsPlaceholderPayee() throws IOException {
+        importFile(StatementSource.BANK, StatementFormat.CSV, """
+                Date,Description,Amount
+                2026-05-09,UPI/P2A/663995118784/DUMMY NAME/Oct25/AXIS BANK,-250.00
+                """.getBytes(StandardCharsets.UTF_8));
+        assertThat(rowsWithRef("663995118784").getFirst().getPersonId()).isNull();
+
+        importFile(StatementSource.GPAY, StatementFormat.PDF, GPayPdf.of(GPayPdf.row("09 May, 2026",
+                "Paid to Rahul Sharma", "250", "10:00 AM", "663995118784", "Paid by Axis Bank 6457")));
+
+        Transaction kept = rowsWithRef("663995118784").getFirst();
+        assertThat(rowsWithRef("663995118784")).hasSize(1);
+        assertThat(kept.getRawDescription()).startsWith("UPI/P2A/663995118784");
+        assertThat(kept.getMerchantId() != null || kept.getPersonId() != null).isTrue();
+    }
+
+    @Test
     void upiCirclePaymentMatchesTheBankRow() throws IOException {
         importFile(StatementSource.BANK, StatementFormat.CSV, """
                 Date,Description,Amount

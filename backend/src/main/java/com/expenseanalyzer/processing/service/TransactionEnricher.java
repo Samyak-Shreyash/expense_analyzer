@@ -8,6 +8,7 @@ import com.expenseanalyzer.merchant.service.MerchantService;
 import com.expenseanalyzer.merchant.service.PayeeKey;
 import com.expenseanalyzer.merchant.service.PersonNameParser;
 import com.expenseanalyzer.merchant.service.PersonService;
+import com.expenseanalyzer.processing.parser.pdf.GPayStatementParser;
 import com.expenseanalyzer.transaction.model.Transaction;
 import java.util.Collection;
 import java.util.HashMap;
@@ -66,6 +67,21 @@ public class TransactionEnricher {
             t.setMerchantId(merchantIds.computeIfAbsent(m.canonicalName(), n -> merchantService.resolve(m).getId()));
             t.setMerchantConfidence(m.confidence());
         }
+    }
+
+    /**
+     * Names the person of a bank UPI transfer (P2A/P2P) by the payee in the UPI app's row for the same payment, which
+     * carries the real name where the bank may give a placeholder or a shortened one.
+     */
+    public void namePersonFromApp(Transaction bank, String appDescription) {
+        if (!PersonNameParser.isTransfer(bank.getRawDescription())) {
+            return;
+        }
+        GPayStatementParser.payee(appDescription).ifPresent(name -> {
+            bank.setMerchantId(null);
+            bank.setMerchantConfidence(null);
+            bank.setPersonId(personService.findOrCreate(bank.getUserId(), name).getId());
+        });
     }
 
     /**

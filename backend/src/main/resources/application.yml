@@ -8,6 +8,8 @@ spring:
     redis: # rate limiting only (auth/config/RateLimiter)
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+      repositories:
+        enabled: false
   kafka:
     bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:${KAFKA_PORT:9092}}
     producer:
