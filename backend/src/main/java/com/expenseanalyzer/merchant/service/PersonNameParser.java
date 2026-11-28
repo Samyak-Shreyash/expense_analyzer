@@ -10,10 +10,10 @@ import java.util.regex.Pattern;
 /**
  * Pulls the payee's name out of a UPI person-to-person description. A description is a transfer to a person
  * only when it has a P2A or P2P segment (P2M is a merchant and never matches). The name is the segment right
- * after the 9+ digit UPI reference number, title-cased. A P2A (transfer to an account) name is prefixed with that number,
- * that number, as "535804014266/Rahul Sharma". The number is the payment's UPI reference, not an account, so when the
- * bank gives the placeholder "Dummy Name" there is no name: the payee is left unknown, for a UPI app export of the same
- * payment to name. Pure; nothing is logged.
+ * after the 9+ digit UPI reference number, title-cased. That number is the payment's UPI reference, different for every
+ * payment, so it is never part of the name: every payment to a payee groups under one person. When the bank gives the
+ * placeholder "Dummy Name" there is no name: the payee is left unknown, for a UPI app export of the same payment to
+ * name. Pure; nothing is logged.
  */
 public final class PersonNameParser {
 
@@ -34,11 +34,7 @@ public final class PersonNameParser {
                 return Optional.empty();
             }
             String title = titleCase(withoutLetterlessTail(name.length() > MAX_LENGTH ? name.substring(0, MAX_LENGTH) : name));
-            Optional<String> account = accountNumber(rawDescription);
-            if (isPlaceholder(title)) {
-                return Optional.empty();
-            }
-            return Optional.of(account.map(a -> a + "/" + title).orElse(title));
+            return isPlaceholder(title) ? Optional.empty() : Optional.of(title);
         });
     }
 
@@ -59,7 +55,8 @@ public final class PersonNameParser {
     }
 
     /**
-     * How a person's name is shown: "535804014266/Rahul Sharma" as "Rahul Sharma", and "535804014266/Dummy Name"
+     * How a person's name is shown. People imported when P2A names carried the UPI reference: "535804014266/Rahul
+     * Sharma" as "Rahul Sharma" (until a re-check folds it into "Rahul Sharma"), and "535804014266/Dummy Name"
      * or a bare number (imported before the placeholder was recognised) as "UPI ref ending 4266"; other names
      * unchanged.
      */
@@ -79,21 +76,6 @@ public final class PersonNameParser {
 
     private static String accountLabel(String account) {
         return "UPI ref ending " + account.substring(account.length() - 4);
-    }
-
-    /** The 9+ digit number of a P2A description; empty for P2P. */
-    private static Optional<String> accountNumber(String rawDescription) {
-        String[] parts = ANY_SPLIT.split(rawDescription.trim());
-        boolean p2a = false;
-        String number = null;
-        for (String part : parts) {
-            String p = part.trim();
-            p2a |= p.equalsIgnoreCase("P2A");
-            if (number == null && REFERENCE.matcher(p).matches()) {
-                number = p;
-            }
-        }
-        return p2a ? Optional.ofNullable(number) : Optional.empty();
     }
 
     /** True when the description has a P2A or P2P token anywhere, whether or not a name can be parsed from it. */
