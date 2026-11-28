@@ -12,6 +12,7 @@ import {
   type StatementSource,
   type Statement,
 } from '../../services/finance'
+import { StatementEditor } from './StatementEditor'
 import styles from './StatementsPage.module.css'
 
 const POLL_MS = 2000
@@ -61,6 +62,7 @@ export function StatementsPage() {
   const [progress, setProgress] = useState<number | null>(null)
   const [dragging, setDragging] = useState(false)
   const [confirming, setConfirming] = useState<string | null>(null)
+  const [editing, setEditing] = useState<string | null>(null)
   // A password-protected PDF waiting for its password.
   const [locked, setLocked] = useState<File | null>(null)
   const [password, setPassword] = useState('')
@@ -289,7 +291,33 @@ export function StatementsPage() {
                   const { label, note } = statusText(s)
                   return (
                     <tr key={s.id}>
-                      <td className={styles.file}>{s.fileName}</td>
+                      <td className={styles.file}>
+                        {editing === s.id ? (
+                          <StatementEditor
+                            statement={s}
+                            onDone={(saved) => {
+                              setEditing(null)
+                              if (saved) reload()
+                            }}
+                          />
+                        ) : (
+                          <>
+                            {s.fileName}
+                            {(s.accountNumber || s.bankName) && (
+                              <p className={styles.note}>
+                                {[s.bankName, s.accountNumber]
+                                  .filter(Boolean)
+                                  .join(' ')}
+                              </p>
+                            )}
+                            {s.status === 'COMPLETED' && !s.fileKept && (
+                              <p className={styles.note}>
+                                Original file deleted after import
+                              </p>
+                            )}
+                          </>
+                        )}
+                      </td>
                       <td>{dayLabel(s.createdAt.slice(0, 10))}</td>
                       <td>
                         <span className={styles.status} data-status={label}>
@@ -302,6 +330,17 @@ export function StatementsPage() {
                           <Link to={`/transactions?statementId=${s.id}`}>
                             View transactions
                           </Link>
+                        )}
+                        {editing !== s.id && (
+                          <button
+                            type="button"
+                            className={shared.quiet}
+                            onClick={() => setEditing(s.id)}
+                          >
+                            {s.detectedAccount && !s.accountNumber
+                              ? 'Edit (account found)'
+                              : 'Edit'}
+                          </button>
                         )}
                         {confirming === s.id ? (
                           <>

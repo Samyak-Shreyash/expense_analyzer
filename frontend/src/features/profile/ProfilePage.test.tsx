@@ -12,6 +12,7 @@ vi.mock('../../services/finance', async (orig) => ({
   ...(await orig<typeof import('../../services/finance')>()),
   getProfile: vi.fn(),
   updateProfile: vi.fn(),
+  listAccounts: vi.fn(),
 }))
 
 const profile = (over: Partial<Profile> = {}): Profile => ({
@@ -25,6 +26,7 @@ const profile = (over: Partial<Profile> = {}): Profile => ({
 describe('ProfilePage', () => {
   beforeEach(() => {
     vi.mocked(finance.getProfile).mockResolvedValue(profile())
+    vi.mocked(finance.listAccounts).mockResolvedValue([])
   })
 
   it('shows the current details', async () => {
@@ -55,6 +57,7 @@ describe('ProfilePage', () => {
       theme: 'dark',
       currency: 'usd',
       notifications: false,
+      stripStatementPii: true,
     })
   })
 

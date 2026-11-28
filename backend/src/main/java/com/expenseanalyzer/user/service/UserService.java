@@ -31,6 +31,8 @@ public class UserService {
 
     private static final Logger logger = LoggerFactory.getLogger(UserService.class);
     private final UserRepository userRepository;
+    private static final String STRIP_PII = "stripStatementPii";
+
     private final PreferenceRepository preferenceRepository;
 
     public UserService(UserRepository userRepository, PreferenceRepository preferenceRepository) {
@@ -95,11 +97,23 @@ public class UserService {
             updatedUser.setActive(request.active());
         }
 
+        // Kept on the user row, not the preferences table: the import reads it
+        Object strip = request.preferences() == null ? null : request.preferences().get(STRIP_PII);
+        if (strip != null) {
+            if (!(strip instanceof Boolean on)) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid preference: " + STRIP_PII);
+            }
+            updatedUser.setStripStatementPii(on);
+        }
+
         updatedUser = userRepository.save(updatedUser);
 
         // Update preferences if provided
         if (request.preferences() != null) {
             for (Map.Entry<String, Object> entry : request.preferences().entrySet()) {
+                if (STRIP_PII.equals(entry.getKey())) {
+                    continue;
+                }
                 Optional<PreferenceRepository.View> existing =
                         preferenceRepository.findViewByUserIdAndKey(updatedUser.getId(), entry.getKey());
                 Theme theme = existing.map(PreferenceRepository.View::getTheme).orElse(null);
@@ -162,6 +176,7 @@ public class UserService {
                 default -> { }
             }
         }
+        prefs.put(STRIP_PII, user.isStripStatementPii());
         return new UserResponse(user.getEmail(), user.getFullName(), user.getRole(), prefs);
     }
 }

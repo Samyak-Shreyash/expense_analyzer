@@ -22,6 +22,10 @@ const statement = (over: Partial<Statement> = {}): Statement => ({
   processingError: null,
   createdAt: '2026-01-31T10:00:00Z',
   completedAt: '2026-01-31T10:00:05Z',
+  accountNumber: null,
+  bankName: null,
+  detectedAccount: null,
+  fileKept: true,
   ...over,
 })
 
