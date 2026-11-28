@@ -8,6 +8,7 @@ import styles from './AppLayout.module.css'
 
 const LINKS = [
   { to: '/dashboard', label: 'Overview' },
+  { to: '/analysis', label: 'Analysis' },
   { to: '/statements', label: 'Statements' },
   { to: '/transactions', label: 'Transactions' },
   { to: '/categories', label: 'Categories' },

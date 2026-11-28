@@ -1,0 +1,168 @@
+/* Always dark, like the reference mockup, whatever the app theme. */
+.board {
+  color-scheme: dark;
+  background: linear-gradient(160deg, #1e2235, #262a45 60%, #2a2550);
+  color: #e5e7f0;
+  border-radius: var(--radius-lg);
+  padding: var(--space-6);
+}
+
+.title {
+  margin: 0;
+  color: #fff;
+}
+
+.muted {
+  color: #9ca3c0;
+  margin: 0;
+}
+
+.board h2 {
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  font-weight: 600;
+  margin: 0 0 var(--space-2);
+}
+
+.board a {
+  color: #7dd3fc;
+}
+
+.grid {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-5);
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 64rem) {
+  .grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .trend,
+  .recent {
+    grid-column: span 2;
+  }
+}
+
+.card {
+  background: rgb(255 255 255 / 0.05);
+  border: 1px solid rgb(255 255 255 / 0.08);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.25);
+}
+
+.stat p {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-figure);
+  font-weight: 600;
+}
+
+.in {
+  color: #4ade80;
+}
+
+.out {
+  color: #fb923c;
+}
+
+.figure {
+  margin: var(--space-3) 0 0;
+}
+
+.figure svg {
+  width: 100%;
+  height: 200px;
+  display: block;
+}
+
+.areaLine {
+  fill: none;
+  stroke: #4ade80;
+  stroke-width: 2.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.axis {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-sm);
+  color: #9ca3c0;
+}
+
+.donut {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.donut svg {
+  width: 9rem;
+  height: 9rem;
+}
+
+.legend,
+.insights ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.dot {
+  display: inline-block;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  margin-right: var(--space-2);
+}
+
+.insights li {
+  background: rgb(255 255 255 / 0.05);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+  margin-bottom: var(--space-3);
+}
+
+.table th {
+  text-align: left;
+  color: #9ca3c0;
+  font-weight: 500;
+}
+
+.table th,
+.table td {
+  padding: var(--space-2);
+  border-bottom: 1px solid rgb(255 255 255 / 0.06);
+}
+
+.amount {
+  text-align: right;
+}
+
+.pillIn,
+.pillOut {
+  border-radius: 999px;
+  padding: 0.1rem 0.6rem;
+  font-weight: 600;
+  color: #0b1020;
+}
+
+.pillIn {
+  background: #4ade80;
+}
+
+.pillOut {
+  background: #fb7185;
+}
