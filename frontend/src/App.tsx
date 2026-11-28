@@ -6,6 +6,7 @@ import { LoginPage } from './features/auth/LoginPage'
 import { RegisterPage } from './features/auth/RegisterPage'
 import { RequireAuth } from './features/auth/RequireAuth'
 import { CategoriesPage } from './features/categories/CategoriesPage'
+import { AnalysisPage } from './features/analysis/AnalysisPage'
 import { DashboardPage } from './features/dashboard/DashboardPage'
 import { ProfilePage } from './features/profile/ProfilePage'
 import { StatementsPage } from './features/statements/StatementsPage'
@@ -20,6 +21,7 @@ function App() {
           <Route path="/register" element={<RegisterPage />} />
           {[
             { path: '/dashboard', page: <DashboardPage /> },
+            { path: '/analysis', page: <AnalysisPage /> },
             { path: '/statements', page: <StatementsPage /> },
             { path: '/transactions', page: <TransactionsPage /> },
             { path: '/categories', page: <CategoriesPage /> },
