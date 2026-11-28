@@ -235,8 +235,8 @@ public class StatementProcessor {
     /**
      * One payment can arrive twice: in a bank statement and in a UPI app's export, sharing a UPI reference. The bank
      * row always wins. Importing a UPI app file drops its rows already in a bank statement; importing a bank statement
-     * replaces earlier UPI app rows. Either way the kept row takes the other's category, person and merchant where it
-     * has none, so the user's edits survive. A reference held by more than one row on either side, or rows whose
+     * replaces earlier UPI app rows. Either way the kept row takes the other's category where it has none, and the app
+     * row's payee (merchant or person) when it has one, since the app names the payee where the bank often does not. A reference held by more than one row on either side, or rows whose
      * amount or direction differ, are left alone. Removes dropped rows from {@code fresh}; returns how many merged.
      */
     private int mergeUpiDuplicates(Statement s, List<Transaction> fresh) {
@@ -284,15 +284,20 @@ public class StatementProcessor {
         return dropped.size() + replaced.size();
     }
 
-    /** Fills what {@code kept} lacks from {@code other}: the category, and the payee (merchant or person) as a pair. */
-    private static void adoptLabels(Transaction kept, Transaction other) {
+    /**
+     * Gives the kept bank row the app row's category where it has none, and its payee (merchant or person) if any;
+     * else, for a transfer to a person, the person the app names.
+     */
+    private void adoptLabels(Transaction kept, Transaction app) {
         if (kept.getCategoryId() == null) {
-            kept.setCategoryId(other.getCategoryId());
+            kept.setCategoryId(app.getCategoryId());
         }
-        if (kept.getMerchantId() == null && kept.getPersonId() == null) {
-            kept.setMerchantId(other.getMerchantId());
-            kept.setMerchantConfidence(other.getMerchantConfidence());
-            kept.setPersonId(other.getPersonId());
+        if (app.getMerchantId() != null || app.getPersonId() != null) {
+            kept.setMerchantId(app.getMerchantId());
+            kept.setMerchantConfidence(app.getMerchantConfidence());
+            kept.setPersonId(app.getPersonId());
+        } else {
+            enricher.namePersonFromApp(kept, app.getRawDescription());
         }
     }
 

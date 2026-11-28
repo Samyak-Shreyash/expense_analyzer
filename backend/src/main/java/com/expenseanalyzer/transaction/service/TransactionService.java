@@ -280,8 +280,8 @@ public class TransactionService {
         unpairReversal(t, userId, now);
         if (request.pairWithId() != null) {
             Transaction other = owned(request.pairWithId(), userId);
-            if (other.getId().equals(t.getId()) || other.getType().equals(t.getType())
-                    || !other.getCurrency().equals(t.getCurrency())) {
+            if (other.getId().equals(t.getId()) || other.getReversalPairId() != null
+                    || other.getType().equals(t.getType()) || !other.getCurrency().equals(t.getCurrency())) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, REFUND_MISMATCH);
             }
             Transaction payment = "DEBIT".equals(t.getType()) ? t : other;

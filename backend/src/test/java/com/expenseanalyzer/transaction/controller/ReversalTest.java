@@ -181,6 +181,19 @@ class ReversalTest {
     }
 
     @Test
+    void rejectsARefundAlreadyPairedWithAnotherPayment() throws Exception {
+        UUID first = tx(alice, "DEBIT", "50000.00");
+        UUID second = tx(alice, "DEBIT", "50000.00");
+        UUID refund = tx(alice, "CREDIT", "50000.00");
+        pair(ALICE, first, refund, 200);
+
+        pair(ALICE, second, refund, 400);
+
+        assertThat(reload(refund).getReversalPairId()).isEqualTo(first);
+        assertThat(reload(second).getReversalPairId()).isNull();
+    }
+
+    @Test
     void pairingClearsATransferMark() throws Exception {
         UUID failed = tx(alice, "DEBIT", "50000.00");
         UUID refund = tx(alice, "CREDIT", "50000.00");
