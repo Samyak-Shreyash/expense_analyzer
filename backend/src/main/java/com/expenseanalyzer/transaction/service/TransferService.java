@@ -5,6 +5,8 @@ import com.expenseanalyzer.statement.repository.StatementRepository;
 import com.expenseanalyzer.transaction.model.Transaction;
 import com.expenseanalyzer.transaction.repository.TransactionRepository;
 import com.expenseanalyzer.user.model.User;
+import com.expenseanalyzer.user.model.UserAccount;
+import com.expenseanalyzer.user.repository.UserAccountRepository;
 import com.expenseanalyzer.user.repository.UserRepository;
 import java.time.Duration;
 import java.time.Instant;
@@ -17,6 +19,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -28,7 +31,8 @@ import org.springframework.transaction.annotation.Transactional;
  * (account_number, bank_name) until an accounts table exists, so rows without one are never paired automatically.
  * Rows the user marked or unmarked and rows already paired are left alone, as are rows with a merchant or person unless
  * the description carries the user's own name ({@link OwnName}); such rows that find no partner are still marked as
- * transfers, unpaired. Raw data is untouched; nothing is logged.
+ * transfers, unpaired, as are rows naming one of the user's own accounts ({@link UserAccount}). Raw data is untouched;
+ * nothing is logged.
  */
 @Service
 @RequiredArgsConstructor
@@ -39,6 +43,7 @@ public class TransferService {
     private final TransactionRepository transactionRepository;
     private final StatementRepository statementRepository;
     private final UserRepository userRepository;
+    private final UserAccountRepository userAccountRepository;
 
     /** Pairs the user's open rows; debits in date order take the credit with the closest date (ties: earliest created). */
     @Transactional
@@ -76,14 +81,35 @@ public class TransferService {
             });
         }
         Set<UUID> pairedIds = paired.stream().map(Transaction::getId).collect(Collectors.toSet());
+        List<String> ownAccounts = userAccountRepository.findByUserIdOrderByCreatedAt(userId).stream()
+                .map(UserAccount::getAccountNumber).toList();
         List<Transaction> unpaired = all.stream()
-                .filter(t -> !pairedIds.contains(t.getId()) && uncategorised(t) && ownName(fullName, t)).toList();
+                .filter(t -> !pairedIds.contains(t.getId()) && ((uncategorised(t) && ownName(fullName, t))
+                        || ownAccounts.stream().anyMatch(a -> mentionsAccount(t.getRawDescription(), a))))
+                .toList();
         unpaired.forEach(t -> {
             t.setTransfer(true);
             t.setUpdatedAt(now);
         });
         paired.addAll(unpaired);
         transactionRepository.saveAll(paired);
+    }
+
+    /**
+     * The full number standing alone, or its last four digits after a mask ("XX1234", "**1234"): four digits alone
+     * also appear inside UPI references and amounts.
+     */
+    static boolean mentionsAccount(String description, String account) {
+        if (description == null) {
+            return false;
+        }
+        String d = description.toUpperCase(Locale.ROOT);
+        String last4 = account.substring(account.length() - 4);
+        if (Pattern.compile("[X*]{2,}\\s*" + last4 + "(?!\\d)").matcher(d).find()) {
+            return true;
+        }
+        return account.chars().allMatch(Character::isDigit) && account.length() >= 6
+                && Pattern.compile("(?<!\\d)" + account + "(?!\\d)").matcher(d).find();
     }
 
     private static boolean uncategorised(Transaction t) {

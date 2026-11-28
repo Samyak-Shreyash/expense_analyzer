@@ -3,6 +3,7 @@ package com.expenseanalyzer.statement.controller;
 import com.expenseanalyzer.common.dto.PageResponse;
 import com.expenseanalyzer.statement.dto.StatementResponse;
 import com.expenseanalyzer.statement.dto.StatementStatusResponse;
+import com.expenseanalyzer.statement.dto.StatementUpdateRequest;
 import com.expenseanalyzer.statement.model.StatementSource;
 import com.expenseanalyzer.statement.service.StatementService;
 import java.util.Locale;
@@ -17,8 +18,10 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
@@ -74,6 +77,13 @@ public class StatementController {
     @GetMapping("/{id}/status")
     public ResponseEntity<StatementStatusResponse> status(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
         return ResponseEntity.of(statementService.view(jwt.getSubject(), id).map(StatementStatusResponse::from));
+    }
+
+    /** Rename, or set the account the statement belongs to (which also adds it to the user's own accounts). */
+    @PatchMapping("/{id}")
+    public ResponseEntity<StatementResponse> update(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id,
+                                                    @RequestBody StatementUpdateRequest request) {
+        return ResponseEntity.of(statementService.update(jwt.getSubject(), id, request).map(StatementResponse::from));
     }
 
     @DeleteMapping("/{id}")

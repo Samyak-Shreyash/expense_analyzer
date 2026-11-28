@@ -25,6 +25,9 @@ import com.expenseanalyzer.transaction.repository.TransactionRepository;
 import com.expenseanalyzer.transaction.service.LoanService;
 import com.expenseanalyzer.transaction.service.ReversalService;
 import com.expenseanalyzer.transaction.service.TransferService;
+import com.expenseanalyzer.user.model.User;
+import com.expenseanalyzer.user.repository.UserRepository;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -46,6 +49,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
@@ -84,6 +89,7 @@ public class StatementProcessor {
     private final ReversalService reversalService;
     private final EffectiveCategoryResolver categoryResolver;
     private final LoanService loanService;
+    private final UserRepository userRepository;
 
     public StatementProcessor(StatementRepository statementRepository, TransactionRepository transactionRepository,
                               ProcessedEventRepository processedEventRepository, S3StatementStorage storage,
@@ -94,6 +100,7 @@ public class StatementProcessor {
                               TransactionEnricher enricher, TransferService transferService,
                               ReversalService reversalService,
                               EffectiveCategoryResolver categoryResolver, LoanService loanService,
+                              UserRepository userRepository,
                               @Value("${app.parser.max-rows:50000}") int maxRows,
                               @Value("${app.parser.max-columns:50}") int maxColumns,
                               @Value("${app.parser.timeout:30s}") Duration timeout) {
@@ -112,6 +119,7 @@ public class StatementProcessor {
         this.reversalService = reversalService;
         this.categoryResolver = categoryResolver;
         this.loanService = loanService;
+        this.userRepository = userRepository;
         this.limits = new ParserLimits(maxRows, maxColumns, timeout);
     }
 
@@ -145,8 +153,18 @@ public class StatementProcessor {
     }
 
     private void importStatement(Statement s) {
+        if (s.getStorageKey() == null) {
+            // The file is deleted only after a successful import: its rows are already in.
+            s.setStatus(StatementStatus.COMPLETED);
+            s.onUpdate();
+            statementRepository.save(s);
+            return;
+        }
         ParsedStatement parsed;
-        try (InputStream in = storage.read(s.getStorageKey())) {
+        byte[] file;
+        try (InputStream stored = storage.read(s.getStorageKey())) {
+            file = stored.readAllBytes();
+            InputStream in = new ByteArrayInputStream(file);
             parsed = switch (s.getFormat()) {
                 case CSV -> csvParser.parse(in, limits);
                 case XLS, XLSX -> excelParser.parse(in, limits);
@@ -207,6 +225,10 @@ public class StatementProcessor {
         transferService.match(s.getUserId());
         reversalService.match(s.getUserId());
 
+        s.setDetectedAccount(AccountDetector.lastFour(file, s.getFormat()).orElse(null));
+        if (userRepository.findById(s.getUserId()).map(User::isStripStatementPii).orElse(true)) {
+            deleteFileAfterCommit(s);
+        }
         s.setStatus(StatementStatus.COMPLETED);
         s.setCompletedAt(Instant.now());
         s.setProcessingError(skipped == 0 ? null : "SKIPPED_ROWS:" + skipped);
@@ -214,6 +236,18 @@ public class StatementProcessor {
         statementRepository.save(s);
         log.info("Statement processed: statementId={} inserted={} alreadyPresent={} skipped={} mergedUpi={}",
                 s.getId(), fresh.size(), byFingerprint.size() - fresh.size() - merged, skipped, merged);
+    }
+
+    /** Only the parsed rows are kept. Deleted after commit, so a rolled-back import can still be redelivered. */
+    private void deleteFileAfterCommit(Statement s) {
+        String key = s.getStorageKey();
+        s.setStorageKey(null);
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                storage.delete(key);
+            }
+        });
     }
 
     private static Transaction toTransaction(Statement s, ParsedTransaction p, BigDecimal paise, String fingerprint) {
@@ -235,8 +269,8 @@ public class StatementProcessor {
     /**
      * One payment can arrive twice: in a bank statement and in a UPI app's export, sharing a UPI reference. The bank
      * row always wins. Importing a UPI app file drops its rows already in a bank statement; importing a bank statement
-     * replaces earlier UPI app rows. Either way the kept row takes the other's category, person and merchant where it
-     * has none, so the user's edits survive. A reference held by more than one row on either side, or rows whose
+     * replaces earlier UPI app rows. Either way the kept row takes the other's category where it has none, and the app
+     * row's payee (merchant or person) when it has one, since the app names the payee where the bank often does not. A reference held by more than one row on either side, or rows whose
      * amount or direction differ, are left alone. Removes dropped rows from {@code fresh}; returns how many merged.
      */
     private int mergeUpiDuplicates(Statement s, List<Transaction> fresh) {
@@ -284,15 +318,20 @@ public class StatementProcessor {
         return dropped.size() + replaced.size();
     }
 
-    /** Fills what {@code kept} lacks from {@code other}: the category, and the payee (merchant or person) as a pair. */
-    private static void adoptLabels(Transaction kept, Transaction other) {
+    /**
+     * Gives the kept bank row the app row's category where it has none, and its payee (merchant or person) if any;
+     * else, for a transfer to a person, the person the app names.
+     */
+    private void adoptLabels(Transaction kept, Transaction app) {
         if (kept.getCategoryId() == null) {
-            kept.setCategoryId(other.getCategoryId());
+            kept.setCategoryId(app.getCategoryId());
         }
-        if (kept.getMerchantId() == null && kept.getPersonId() == null) {
-            kept.setMerchantId(other.getMerchantId());
-            kept.setMerchantConfidence(other.getMerchantConfidence());
-            kept.setPersonId(other.getPersonId());
+        if (app.getMerchantId() != null || app.getPersonId() != null) {
+            kept.setMerchantId(app.getMerchantId());
+            kept.setMerchantConfidence(app.getMerchantConfidence());
+            kept.setPersonId(app.getPersonId());
+        } else {
+            enricher.namePersonFromApp(kept, app.getRawDescription());
         }
     }
 

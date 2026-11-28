@@ -6,6 +6,7 @@ import com.expenseanalyzer.auth.config.RateLimiter;
 import com.expenseanalyzer.common.exception.InvalidFileException;
 import com.expenseanalyzer.messaging.service.OutboxService;
 import com.expenseanalyzer.common.exception.InvalidFileException.Reason;
+import com.expenseanalyzer.statement.dto.StatementUpdateRequest;
 import com.expenseanalyzer.statement.model.Statement;
 import com.expenseanalyzer.statement.model.StatementFormat;
 import com.expenseanalyzer.statement.model.StatementSource;
@@ -16,6 +17,7 @@ import com.expenseanalyzer.transaction.service.ReversalService;
 import com.expenseanalyzer.transaction.service.TransferService;
 import com.expenseanalyzer.user.model.User;
 import com.expenseanalyzer.user.repository.UserRepository;
+import com.expenseanalyzer.user.service.UserAccountService;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -67,6 +69,7 @@ public class StatementService {
     private final OutboxService outboxService;
     private final AuditService auditService;
     private final RateLimiter rateLimiter;
+    private final UserAccountService userAccountService;
 
     /**
      * Validates, de-duplicates by content hash, persists metadata and stores the original file.
@@ -137,6 +140,41 @@ public class StatementService {
     public Optional<Statement> view(String email, UUID id) {
         Optional<Statement> found = find(email, id);
         found.ifPresent(s -> auditService.record(AuditAction.STATEMENT_ACCESSED, s.getUserId(), RESOURCE_TYPE, s.getId()));
+        return found;
+    }
+
+    /** Empty if the statement does not exist or belongs to someone else. */
+    @Transactional
+    public Optional<Statement> update(String email, UUID id, StatementUpdateRequest request) {
+        Optional<Statement> found = find(email, id);
+        found.ifPresent(s -> {
+            if (request.fileName() != null) {
+                String name = request.fileName().trim();
+                if (name.isEmpty() || name.length() > 255) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Enter a name of up to 255 characters");
+                }
+                s.setFileName(name);
+            }
+            if (request.bankName() != null) {
+                if (request.bankName().length() > 255) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Bank name is too long");
+                }
+                s.setBankName(request.bankName().isBlank() ? null : request.bankName().trim());
+            }
+            if (request.accountNumber() != null) {
+                if (request.accountNumber().isBlank()) {
+                    s.setAccountNumber(null);
+                } else {
+                    s.setAccountNumber(UserAccountService.normalise(request.accountNumber()));
+                    userAccountService.add(s.getUserId(), s.getAccountNumber(), s.getBankName());
+                }
+            }
+            s.onUpdate();
+            statementRepository.saveAndFlush(s);
+            if (request.accountNumber() != null) {
+                transferService.match(s.getUserId());
+            }
+        });
         return found;
     }
 

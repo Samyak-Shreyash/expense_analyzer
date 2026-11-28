@@ -12,6 +12,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.pdfbox.Loader;
@@ -32,6 +33,7 @@ import org.springframework.stereotype.Component;
 public class GPayStatementParser {
 
     public static final String SELF_TRANSFER = "Self transfer to ";
+    private static final Pattern PAYEE = Pattern.compile("^(?:Paid to|Received from) (.+?)(?: \\| |$)");
 
     private static final Pattern ROW = Pattern.compile(
             "^(\\d{1,2} [A-Za-z]{3}, \\d{4})\\s+((?:Paid to|Received from|Self transfer to) .+?)\\s+₹?\\s?([\\d,]+(?:\\.\\d{1,2})?)$");
@@ -39,6 +41,12 @@ public class GPayStatementParser {
     private static final Pattern FOOTER = Pattern.compile("^(Note:|Page \\d+ of \\d+|received\\. Any payments)");
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("d MMM, yyyy", Locale.ENGLISH);
     private static final int MAX_PAGES = 1000;
+
+    /** The payee named in a description this parser produced ("Paid to Rahul Sharma | ..."); empty for a self transfer. */
+    public static Optional<String> payee(String rawDescription) {
+        Matcher m = PAYEE.matcher(rawDescription);
+        return m.find() ? Optional.of(m.group(1).trim()) : Optional.empty();
+    }
 
     public ParsedStatement parse(InputStream in, ParserLimits limits) {
         try (PDDocument doc = Loader.loadPDF(new RandomAccessReadBuffer(in), IOUtils.createTempFileOnlyStreamCache())) {

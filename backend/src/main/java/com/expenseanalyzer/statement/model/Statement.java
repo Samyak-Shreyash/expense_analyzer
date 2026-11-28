@@ -142,6 +142,10 @@ public class Statement {
     @Column(name = "processing_error", length = 100)
     private String processingError;
 
+    /** Last four digits of the account number found in the file, offered to the user; never the full number. */
+    @Column(name = "detected_account", length = 4)
+    private String detectedAccount;
+
     @JdbcTypeCode(SqlTypes.TIMESTAMP)
     @Column(name = "completed_at")
     private Instant completedAt;

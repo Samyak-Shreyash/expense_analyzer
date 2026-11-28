@@ -106,4 +106,16 @@ class UserUpdateTest {
         assertThat(rows).extracting(r -> r.get("CURRENCY")).contains("INR");
         assertThat(rows).extracting(r -> r.get("NOTIFICATION_MODE")).contains("NONE");
     }
+
+    @Test
+    void deletingUploadedFilesIsOnByDefaultAndCanBeTurnedOff() throws Exception {
+        update("{\"fullName\":\"Alice\"}").andExpect(jsonPath("$.preferences.stripStatementPii").value(true));
+
+        update("{\"preferences\":{\"stripStatementPii\":false}}").andExpect(status().isOk())
+                .andExpect(jsonPath("$.preferences.stripStatementPii").value(false));
+        assertThat(alice.isStripStatementPii()).isFalse();
+        assertThat(jdbc.queryForList("select id from preferences")).isEmpty();
+
+        update("{\"preferences\":{\"stripStatementPii\":\"no\"}}").andExpect(status().isBadRequest());
+    }
 }

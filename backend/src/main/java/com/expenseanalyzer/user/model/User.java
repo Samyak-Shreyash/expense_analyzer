@@ -66,6 +66,11 @@ public class User {
     @Column(name = "full_name", length = 255)
     private String fullName;
 
+    /** Delete the uploaded file once its transactions are imported, so only parsed rows are kept. */
+    @ColumnDefault("true")
+    @Column(name = "strip_statement_pii", nullable = false)
+    private boolean stripStatementPii = true;
+
     /**
      * Optional user preferences stored as JSONB.
      * Example: {"currency":"INR","theme":"dark","notifications":true}

@@ -13,25 +13,21 @@ class PersonNameParserTest {
     @ParameterizedTest
     @CsvSource(delimiter = '~', value = {
             // Axis
-            "UPI/P2A/412345678901/RAHUL SHARMA/HDFC BANK/rent~412345678901/Rahul Sharma",
+            "UPI/P2A/412345678901/RAHUL SHARMA/HDFC BANK/rent~Rahul Sharma",
             "UPI/P2P/503312345678/priya k nair/Axis Bank/gift~Priya K Nair",
             // HDFC
-            "UPI-P2A-412345678902-ANITA DESAI-anita@okhdfcbank-HDFC0001234~412345678902/Anita Desai",
+            "UPI-P2A-412345678902-ANITA DESAI-anita@okhdfcbank-HDFC0001234~Anita Desai",
             // SBI
-            "TRANSFER TO UPI/DR/412345678903/P2A/MOHAMMED ALI/SBIN/mali@sbi~412345678903/Mohammed Ali",
+            "TRANSFER TO UPI/DR/412345678903/P2A/MOHAMMED ALI/SBIN/mali@sbi~Mohammed Ali",
             "BY TRANSFER-UPI/CR/412345678904/P2P/SUNITA RAO/SBIN~Sunita Rao",
             // ICICI
-            "UPI/412345678905/P2A/VIKRAM SINGH/ICIC0000123/UPI~412345678905/Vikram Singh",
-            "UPI/P2A/412345678906/ ANNA  D'SOUZA /ICICI Bank~412345678906/Anna D'Souza",
+            "UPI/412345678905/P2A/VIKRAM SINGH/ICIC0000123/UPI~Vikram Singh",
+            "UPI/P2A/412345678906/ ANNA  D'SOUZA /ICICI Bank~Anna D'Souza",
             // a dash is part of the name when the description uses / or | delimiters
-            "UPI/P2A/412345678907/MARY-ANNE JOSEPH/HDFC BANK~412345678907/Mary-Anne Joseph",
-            "UPI|P2A|412345678908|D'SOUTA-RAO|HDFC BANK~412345678908/D'Souta-Rao",
+            "UPI/P2A/412345678907/MARY-ANNE JOSEPH/HDFC BANK~Mary-Anne Joseph",
+            "UPI|P2A|412345678908|D'SOUTA-RAO|HDFC BANK~D'Souta-Rao",
             // the delimiter is the one around the reference, not whichever character appears anywhere
-            "UPI-P2A-412345678902-ANITA DESAI-x@okhdfcbank-HDFC0001234-pay/rent~412345678902/Anita Desai",
-            // a P2A with the "Dummy Name" placeholder is named by its account number
-            "UPI/P2A/535804014266/DUMMY NAME/HDFC BANK~535804014266",
-            "TRANSFER TO UPI/DR/535804014266/P2A/Dummy Name/SBIN~535804014266",
-            "UPI/P2A/631770008709/DUMMY NAME RENT~631770008709",
+            "UPI-P2A-412345678902-ANITA DESAI-x@okhdfcbank-HDFC0001234-pay/rent~Anita Desai",
             "UPI/P2P/123456789012/BHAVYA .~Bhavya"})
     void extractsTitleCasedName(String description, String expected) {
         assertThat(PersonNameParser.parse(description)).contains(expected);
@@ -45,6 +41,10 @@ class PersonNameParserTest {
             "UPI/P2A/412345678901",
             "UPI/P2A/412345678901/rahul@okaxis/AXIS BANK",
             "UPI/P2A/412345678901/9876543210/AXIS BANK",
+            // the "Dummy Name" placeholder: the number is a UPI reference, not a name
+            "UPI/P2A/663995118784/DUMMY NAME/Oct25/AXIS BANK",
+            "TRANSFER TO UPI/DR/535804014266/P2A/Dummy Name/SBIN",
+            "UPI/P2A/631770008709/DUMMY NAME RENT",
             "POS 4521XXXX1234 SWIGGY BANGALORE",
             ""})
     void notAPerson(String description) {
@@ -70,10 +70,10 @@ class PersonNameParserTest {
     @ParameterizedTest
     @CsvSource(delimiter = '~', value = {
             "535804014266/Rahul Sharma~Rahul Sharma",
-            "535804014266~A/c ending 4266",
-            "535804014266/Dummy Name~A/c ending 4266",
-            "631770008709~A/c ending 8709",
-            "631770008709/Dummy Name~A/c ending 8709",
+            "535804014266~UPI ref ending 4266",
+            "535804014266/Dummy Name~UPI ref ending 4266",
+            "631770008709~UPI ref ending 8709",
+            "631770008709/Dummy Name~UPI ref ending 8709",
             "Priya K Nair~Priya K Nair",
             "12/3 Club~12/3 Club"})
     void displayNameHidesTheAccountNumberOfANamedPayee(String name, String shown) {
