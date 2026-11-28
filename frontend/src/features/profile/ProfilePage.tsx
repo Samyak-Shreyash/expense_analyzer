@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { useLocation } from 'react-router'
 import shared from '../../components/shared.module.css'
 import { getProfile, updateProfile, type Profile } from '../../services/finance'
+import { AccountsSection } from './AccountsSection'
 import { ChangePasswordSection } from './ChangePasswordSection'
 import { DeleteAccountSection } from './DeleteAccountSection'
 import styles from './ProfilePage.module.css'
@@ -19,6 +20,7 @@ export function ProfilePage() {
   const [theme, setTheme] = useState('light')
   const [currency, setCurrency] = useState('inr')
   const [notifications, setNotifications] = useState(true)
+  const [stripStatementPii, setStripStatementPii] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
@@ -29,6 +31,7 @@ export function ProfilePage() {
     setTheme(p.preferences.theme ?? 'light')
     setCurrency(p.preferences.currency ?? 'inr')
     setNotifications(p.preferences.notifications ?? true)
+    setStripStatementPii(p.preferences.stripStatementPii ?? true)
   }
 
   useEffect(() => {
@@ -55,6 +58,7 @@ export function ProfilePage() {
         theme,
         currency,
         notifications,
+        stripStatementPii,
       })
       show(updated)
       setSaved(true)
@@ -126,6 +130,19 @@ export function ProfilePage() {
               />{' '}
               Notifications
             </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={stripStatementPii}
+                onChange={(e) => setStripStatementPii(e.target.checked)}
+              />{' '}
+              Delete uploaded files after import
+              <span className={shared.muted}>
+                {' '}
+                Only the imported transactions are kept, not the file with your
+                name, address and account details.
+              </span>
+            </label>
           </fieldset>
           {error && (
             <p className={shared.error} role="alert">
@@ -138,6 +155,7 @@ export function ProfilePage() {
           </button>
         </form>
       )}
+      {profile && <AccountsSection />}
       {profile && <ChangePasswordSection />}
       {profile && <DeleteAccountSection />}
     </>

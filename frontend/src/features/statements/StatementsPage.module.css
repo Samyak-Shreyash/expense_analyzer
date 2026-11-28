@@ -109,3 +109,9 @@
   min-height: 2.5rem;
   cursor: pointer;
 }
+
+.editor {
+  display: grid;
+  gap: var(--space-3);
+  max-width: 24rem;
+}

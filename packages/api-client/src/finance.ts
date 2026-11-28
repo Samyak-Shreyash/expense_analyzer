@@ -43,6 +43,13 @@ export type Statement = {
   processingError: string | null
   createdAt: string
   completedAt: string | null
+  /** Masked, e.g. "��1234". */
+  accountNumber: string | null
+  bankName: string | null
+  /** Last 4 digits of the account number found in the file, if any. */
+  detectedAccount: string | null
+  /** False once the original file was deleted after import. */
+  fileKept: boolean
 }
 
 export type Transaction = {
@@ -253,7 +260,8 @@ export async function deleteStatement(id: string) {
 /** Re-runs merchant and category matching on rows that have none, then transfer and reversal matching. */
 export async function rematchTransactions() {
   const res = await apiFetch('/transactions/rematch', { method: 'POST' })
-  if (!res.ok) throw new ApiError(res.status, 'Could not re-check transactions.')
+  if (!res.ok)
+    throw new ApiError(res.status, 'Could not re-check transactions.')
 }
 
 // ---- transactions ----
@@ -315,7 +323,7 @@ export type Person = {
 
 /** Write call: returns the parsed body (null when empty) or throws with a message safe to show. */
 async function write<T>(
-  method: 'POST' | 'PUT' | 'DELETE',
+  method: 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   path: string,
   body: unknown,
   messages: Record<number, string>,
@@ -601,7 +609,13 @@ export type Profile = {
   email: string
   fullName: string | null
   role: string
-  preferences: { theme?: string; currency?: string; notifications?: boolean }
+  preferences: {
+    theme?: string
+    currency?: string
+    notifications?: boolean
+    /** Delete each uploaded file after import; on unless turned off. */
+    stripStatementPii?: boolean
+  }
 }
 
 export const getProfile = () => getJson<Profile>('/user/me')
@@ -642,3 +656,34 @@ export const deleteAccount = (password: string) =>
       503: 'Could not finish deleting your account, and some statement files may already be gone. Try again in a moment.',
     },
   )
+
+const STATEMENT_ERRORS = {
+  400: 'Enter a name, and an account number with at least its last 4 digits.',
+  404: 'That statement no longer exists. Reload the page.',
+}
+/** Fields left out are unchanged; an empty account number clears it. */
+export const updateStatement = (
+  id: string,
+  changes: { fileName?: string; accountNumber?: string; bankName?: string },
+) => write<Statement>('PATCH', `/statements/${id}`, changes, STATEMENT_ERRORS)
+
+/** One of the user's own accounts; the number is masked. */
+export type OwnAccount = {
+  id: string
+  accountNumber: string
+  bankName: string | null
+}
+const ACCOUNT_ERRORS = {
+  400: 'Enter the account number, at least its last 4 digits.',
+  404: 'That account no longer exists. Reload the page.',
+}
+export const listAccounts = () => getJson<OwnAccount[]>('/accounts')
+export const addAccount = (accountNumber: string, bankName: string) =>
+  write<OwnAccount>(
+    'POST',
+    '/accounts',
+    { accountNumber, bankName },
+    ACCOUNT_ERRORS,
+  )
+export const deleteAccountNumber = (id: string) =>
+  write<null>('DELETE', `/accounts/${id}`, undefined, ACCOUNT_ERRORS)
