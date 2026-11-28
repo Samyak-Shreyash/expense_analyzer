@@ -14,6 +14,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -34,6 +36,9 @@ public class PersonService {
 
     private final PersonRepository personRepository;
     private final PersonPayeeRepository payeeRepository;
+
+    /** A person named the old way: the payment's UPI reference, a slash, then a name with a letter in it. */
+    private static final Pattern REFERENCE_NAME = Pattern.compile("^\\d{9,}/(.*\\p{L}.*)$");
     private final TransactionRepository transactionRepository;
     private final CategoryService categoryService;
 
@@ -108,6 +113,31 @@ public class PersonService {
         if (from.getId().equals(into.getId())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Pick a different person");
         }
+        mergeInto(userId, from, into);
+    }
+
+    /**
+     * Folds people imported when P2A names carried the payment's UPI reference ("535804014266/Rahul Sharma", one
+     * person per payment) into the person for the plain name, with {@link #merge}'s rules. Returns how many folded.
+     */
+    @Transactional
+    public int foldReferenceNames(UUID userId) {
+        int folded = 0;
+        for (Person p : personRepository.findByUserIdOrderByNameAsc(userId)) {
+            Matcher m = REFERENCE_NAME.matcher(p.getName());
+            if (!m.matches() || m.group(1).equalsIgnoreCase("Dummy Name")) {
+                continue; // a "Dummy Name" placeholder has no plain name to fold into
+            }
+            Person into = findOrCreate(userId, m.group(1));
+            if (!into.getId().equals(p.getId())) {
+                mergeInto(userId, p, into);
+                folded++;
+            }
+        }
+        return folded;
+    }
+
+    private void mergeInto(UUID userId, Person from, Person into) {
         if (into.getCategoryId() == null) {
             into.setCategoryId(from.getCategoryId());
         }

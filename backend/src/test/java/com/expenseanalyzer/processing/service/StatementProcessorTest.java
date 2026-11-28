@@ -229,7 +229,7 @@ class StatementProcessorTest {
         processor.process(event(s));
 
         List<Person> people = personRepository.findByUserIdOrderByNameAsc(user);
-        assertThat(people).extracting(Person::getName).containsExactly("412345678901/Anita Desai", "Rahul Sharma");
+        assertThat(people).extracting(Person::getName).containsExactly("Anita Desai", "Rahul Sharma");
         List<Transaction> txns = transactionRepository.findByUserId(user);
         assertThat(txns).filteredOn(t -> t.getRawDescription().contains("/P2A/"))
                 .singleElement().satisfies(t -> assertThat(t.getPersonId()).isEqualTo(people.get(0).getId()));

@@ -20,6 +20,7 @@ import com.expenseanalyzer.merchant.model.Person;
 import com.expenseanalyzer.merchant.repository.MerchantRepository;
 import com.expenseanalyzer.merchant.repository.PersonPayeeRepository;
 import com.expenseanalyzer.merchant.repository.PersonRepository;
+import com.expenseanalyzer.merchant.service.PersonNameParser;
 import com.expenseanalyzer.merchant.service.PersonService;
 import com.expenseanalyzer.transaction.model.Transaction;
 import com.expenseanalyzer.transaction.repository.TransactionRepository;
@@ -234,6 +235,36 @@ class PeopleTest {
         mockMvc.perform(get("/api/people").header("Authorization", bearer(ALICE)))
                 .andExpect(jsonPath("$[*].name", containsInAnyOrder("Rahul Sharma")));
         assertThat(personRepository.findById(bobsPerson.getId()).orElseThrow().getName()).isEqualTo("Secret Friend");
+    }
+
+    @Test
+    void everyP2aPaymentToAPayeeGroupsUnderOnePersonAndTakesItsCategory() throws Exception {
+        String home = createCategory(ALICE, "Home");
+        Person trisha = person(alice, "Miss Trisha", home);
+        // Imported when P2A names carried the payment's UPI reference: one person per payment.
+        UUID oldA = transaction(alice, "a", "A", null, person(alice, "663995118784/Miss Trisha", null).getId());
+        UUID oldB = transaction(alice, "b", "B", null, person(alice, "624323976921/Miss Trisha", null).getId());
+        UUID current = transaction(alice, "c", "C", null, trisha.getId());
+        Person ravi = person(alice, "Ravi Kumar", null);
+        UUID other = transaction(alice, "r", "R", null, ravi.getId());
+        Person placeholder = person(alice, "631770008709/Dummy Name", null);
+        transaction(alice, "d", "D", null, placeholder.getId());
+
+        assertThat(personService.foldReferenceNames(alice.getId())).isEqualTo(2);
+
+        String token = bearer(ALICE);
+        for (UUID id : new UUID[] {oldA, oldB, current}) {
+            assertThat(transactionRepository.findById(id).orElseThrow().getPersonId()).isEqualTo(trisha.getId());
+            mockMvc.perform(get("/api/transactions/" + id).header("Authorization", token))
+                    .andExpect(jsonPath("$.category").value("Home"));
+        }
+        assertThat(transactionRepository.findById(other).orElseThrow().getPersonId()).isEqualTo(ravi.getId());
+        assertThat(personRepository.findById(placeholder.getId())).isPresent();
+        assertThat(personRepository.findByUserIdOrderByNameAsc(alice.getId())).extracting(Person::getName)
+                .containsExactly("631770008709/Dummy Name", "Miss Trisha", "Ravi Kumar");
+        // New imports: the reference differs per payment but the person does not.
+        assertThat(PersonNameParser.parse("UPI/P2A/111111111111/MISS TRISHA/STATE BANK OF INDIA"))
+                .isEqualTo(PersonNameParser.parse("UPI/P2A/222222222222/MISS  TRISHA/SBI")).contains("Miss Trisha");
     }
 
     @Test

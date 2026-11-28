@@ -1,5 +1,6 @@
 package com.expenseanalyzer.processing.service;
 
+import com.expenseanalyzer.merchant.service.PersonService;
 import com.expenseanalyzer.category.service.EffectiveCategoryResolver;
 import com.expenseanalyzer.transaction.model.Transaction;
 import com.expenseanalyzer.transaction.repository.TransactionRepository;
@@ -30,10 +31,12 @@ public class RematchService {
     private final ReversalService reversalService;
     private final EffectiveCategoryResolver categoryResolver;
     private final LoanService loanService;
+    private final PersonService personService;
 
     public RematchService(TransactionRepository transactionRepository, TransactionEnricher enricher, UserRepository userRepository,
                           TransferService transferService, ReversalService reversalService,
-                          EffectiveCategoryResolver categoryResolver, LoanService loanService) {
+                          EffectiveCategoryResolver categoryResolver, LoanService loanService,
+                          PersonService personService) {
         this.transactionRepository = transactionRepository;
         this.enricher = enricher;
         this.userRepository = userRepository;
@@ -41,12 +44,14 @@ public class RematchService {
         this.reversalService = reversalService;
         this.categoryResolver = categoryResolver;
         this.loanService = loanService;
+        this.personService = personService;
     }
 
     @Transactional
     public void rematch(String email) {
         UUID userId = userRepository.findByEmail(email)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED)).getId();
+        int folded = personService.foldReferenceNames(userId);
         List<Transaction> candidates = transactionRepository.findByUserId(userId).stream()
                 .filter(t -> !t.isDuplicate())
                 .filter(t -> t.getMerchantId() == null && t.getPersonId() == null && t.getCategoryId() == null)
@@ -59,6 +64,6 @@ public class RematchService {
         loanService.recompute(loans);
         transferService.match(userId);
         reversalService.match(userId);
-        log.info("Rematched transactions: candidates={}", candidates.size());
+        log.info("Rematched transactions: candidates={} foldedPeople={}", candidates.size(), folded);
     }
 }
